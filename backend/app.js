@@ -16,7 +16,14 @@ function createApp() {
   app.use(express.json({ limit: '1mb' }))
 
   app.get('/api/health', (_req, res) => {
-    res.json({ success: true, service: 'sales-manager-ai', ready: true })
+    const mongoose = require('mongoose')
+    const dbReady = mongoose.connection.readyState === 1
+    res.status(200).json({
+      success: true,
+      service: 'sales-manager-ai',
+      ready: dbReady,
+      db: dbReady ? 'connected' : 'pending',
+    })
   })
 
   app.use('/api/auth', authRoutes)
