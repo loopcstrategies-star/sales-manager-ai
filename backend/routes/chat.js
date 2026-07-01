@@ -26,7 +26,7 @@ const chatSchema = Joi.object({
     constraints: Joi.string().max(500).allow('').optional(),
     depth: Joi.string().valid('deep', '').optional(),
   }).optional(),
-  sessionId: Joi.string().optional(),
+  sessionId: Joi.string().optional().allow(null, ''),
 })
 
 router.post('/', chatLimiter, validateBody(chatSchema), async (req, res) => {

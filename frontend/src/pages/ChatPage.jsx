@@ -37,7 +37,7 @@ export default function ChatPage() {
       const data = await chatApi.send({
         message,
         history,
-        sessionId,
+        ...(sessionId ? { sessionId } : {}),
         chatInputs: { region },
       })
       if (data.sessionId) setSessionId(data.sessionId)
