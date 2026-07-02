@@ -35,13 +35,17 @@ if (-not $GoldApiKey -or -not $NewsApiKey) {
 if (-not $GoldApiKey) {
   Write-Host ""
   Write-Host "GoldAPI (free): https://www.goldapi.io"
-  $GoldApiKey = Read-Host "Paste GOLDAPI_KEY (or press Enter to skip)"
+  if ([Environment]::UserInteractive -and -not $NewsApiKey) {
+    $GoldApiKey = Read-Host "Paste GOLDAPI_KEY (or press Enter to skip)"
+  }
 }
 
 if (-not $NewsApiKey) {
   Write-Host ""
   Write-Host "NewsAPI (free dev): https://newsapi.org/register"
-  $NewsApiKey = Read-Host "Paste NEWSAPI_KEY (or press Enter to skip)"
+  if ([Environment]::UserInteractive) {
+    $NewsApiKey = Read-Host "Paste NEWSAPI_KEY (or press Enter to skip)"
+  }
 }
 
 Push-Location $root
