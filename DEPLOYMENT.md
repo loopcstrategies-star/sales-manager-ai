@@ -52,8 +52,21 @@ Verify in Vercel → Project `frontend` → Domains → `sales.loopcstrategies.c
 | `DASHBOARD_REFRESH_HOURS` | Background refresh interval (default 4) |
 | `DASHBOARD_QUERY_COUNT` | Tavily queries per refresh (default 8) |
 | `DASHBOARD_CARD_CAP` | Max cards stored (default 20) |
-| `GOLDAPI_KEY` | Optional gold/silver price tiles |
-| `NEWSAPI_KEY` | Optional extra headlines |
+| `GOLDAPI_KEY` | Optional gold/silver price tiles — [goldapi.io](https://www.goldapi.io) |
+| `NEWSAPI_KEY` | Optional extra headlines — [newsapi.org/register](https://newsapi.org/register) |
+
+**No extra Tavily credits:** keep `DASHBOARD_REFRESH_HOURS=4`. Do not set to `2`.
+
+Quick setup after free signups:
+
+```powershell
+# 1. Copy keys into backend/.env.dashboard (from .env.dashboard.example)
+# 2. Log in and push vars to Railway
+railway login
+powershell -File scripts/set-railway-dashboard-env.ps1
+```
+
+Tavily usage stays ~2 advanced searches per refresh (cached 24h) via `SALES_AI_MAX_TAVILY_SEARCHES`. RSS + NewsAPI add headlines without Tavily.
 
 ## Redeploy commands
 

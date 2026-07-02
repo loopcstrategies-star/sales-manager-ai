@@ -4,8 +4,8 @@ const { REGION_KEYWORDS } = require('./prompts')
 const parser = new Parser({ timeout: 10000 })
 
 const RSS_FEEDS = [
-  { url: 'https://www.kitco.com/rss/kitco-news.xml', category: 'metals', tags: ['gold', 'metals'] },
-  { url: 'https://feeds.reuters.com/reuters/businessNews', category: 'general', tags: ['business'] },
+  { url: 'https://news.google.com/rss/search?q=gold+OR+silver+OR+jewelry&hl=en-US&gl=US&ceid=US:en', category: 'metals', tags: ['gold', 'metals'] },
+  { url: 'https://feeds.bbci.co.uk/news/business/rss.xml', category: 'general', tags: ['business'] },
 ]
 
 function hostFromUrl(url) {
