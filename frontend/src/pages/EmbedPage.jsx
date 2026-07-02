@@ -4,7 +4,7 @@ import { setToken } from '../api/client'
 import ChatPage from './ChatPage'
 
 /**
- * Embed route for LoopC sidebar iframe / deep-link handoff.
+ * Embed route for iframe / deep-link JWT handoff.
  * Usage: /embed?token=<jwt>
  */
 export default function EmbedPage() {

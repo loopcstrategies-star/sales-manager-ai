@@ -34,13 +34,9 @@ export const authApi = {
 export const chatApi = {
   send: (body) => api('/api/chat', { method: 'POST', body: JSON.stringify(body) }),
   sessions: () => api('/api/chat/sessions'),
+  session: (id) => api(`/api/chat/sessions/${id}`),
 }
 
 export const configApi = {
   get: () => api('/api/config'),
-}
-
-export const integrationsApi = {
-  connectLoopc: (body) => api('/api/integrations/loopc/connect', { method: 'POST', body: JSON.stringify(body) }),
-  disconnectLoopc: () => api('/api/integrations/loopc/connect', { method: 'DELETE' }),
 }

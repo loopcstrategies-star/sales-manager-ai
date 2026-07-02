@@ -1,59 +1,67 @@
-const {
-  formatMetalsForPrompt,
-  classifyQuestion,
-  classifyEmailIntent,
-  isEmailOnlyQuestion,
-  REGION_KEYWORDS,
-} = require('../prompts')
+const { REGION_KEYWORDS } = require('../prompts')
+
+function tokenize(text) {
+  return String(text || '').toLowerCase().split(/\W+/).filter((w) => w.length > 3)
+}
+
+function scoreSource(source, userMessage) {
+  const keywords = tokenize(userMessage)
+  const haystack = `${source.title} ${source.content}`.toLowerCase()
+  return keywords.reduce((score, word) => (haystack.includes(word) ? score + 1 : score), 0)
+}
+
+function dedupeSources(sources = []) {
+  const seen = new Set()
+  return sources.filter((s) => {
+    const key = String(s.url || '').trim()
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+function rankSources(sources, userMessage) {
+  return dedupeSources(sources)
+    .map((s) => ({ ...s, score: scoreSource(s, userMessage) }))
+    .sort((a, b) => b.score - a.score)
+}
+
+function extractContentSnippets(sources, limit = 3) {
+  return sources
+    .map((s) => String(s.content || '').trim())
+    .filter((c) => c.length > 40)
+    .slice(0, limit)
+}
 
 function extractResearchSnippets(marketSection) {
   const answers = marketSection?.answers || []
   if (answers.length) return answers.map((a) => String(a).trim()).filter(Boolean)
-  return []
+  return extractContentSnippets(marketSection?.sources || [])
 }
 
-function buildDirectAnswer(userMessage, marketSection, crmSnapshot, metalRates, chatInputs = {}, emailSection = null) {
+function buildDirectAnswer(userMessage, marketSection, chatInputs = {}, fallbackReason = '') {
   const question = String(userMessage || '').trim()
-  const kind = classifyQuestion(question)
-  const s = crmSnapshot?.summary || {}
-  const snippets = extractResearchSnippets(marketSection)
-  const sourceCount = (marketSection?.sources || []).length
+  const ranked = rankSources(marketSection?.sources || [], question)
+  const snippets = extractResearchSnippets({ ...marketSection, sources: ranked })
+  const sourceCount = ranked.length
   const paragraphs = []
 
   const regionLabel = chatInputs.region ? (REGION_KEYWORDS[chatInputs.region] || chatInputs.region) : ''
   if (regionLabel) paragraphs.push(`Research focus: **${regionLabel}**.`)
   if (chatInputs.constraints) paragraphs.push(`Constraints noted: ${chatInputs.constraints}`)
 
-  if (kind === 'email') {
-    if (!emailSection) {
-      paragraphs.push('Connect **LoopC Ops** in Settings to unlock inbox analysis.')
-    } else if (emailSection.summary) {
-      paragraphs.push(emailSection.summary)
-    }
-  }
-
-  if ((kind === 'pipeline' || kind === 'mixed') && crmSnapshot) {
-    const parts = []
-    if (s.pipelineValueUSD) parts.push(`pipeline value is **$${Number(s.pipelineValueUSD).toLocaleString()}**`)
-    if (s.hotLeads) parts.push(`**${s.hotLeads} hot lead(s)**`)
-    if (parts.length) paragraphs.push(`On your CRM: ${parts.join(', ')}.`)
-  } else if ((kind === 'pipeline' || kind === 'mixed') && !crmSnapshot) {
-    paragraphs.push('Connect **LoopC Ops** in Settings to analyze your CRM pipeline.')
-  }
-
-  if (kind === 'market' || kind === 'mixed') {
-    if (snippets.length) {
-      paragraphs.push(snippets[0])
-      if (snippets[1]) paragraphs.push(snippets[1])
-    } else if (sourceCount) {
-      paragraphs.push(`Found **${sourceCount} external source(s)** — see market research below.`)
+  if (snippets.length) {
+    paragraphs.push(snippets[0])
+    if (snippets[1]) paragraphs.push(snippets[1])
+  } else if (sourceCount) {
+    paragraphs.push(`Found **${sourceCount} external source(s)** — see market research below.`)
+  } else {
+    paragraphs.push(`I could not find live web results for "${question.slice(0, 100)}".`)
+    if (fallbackReason) {
+      paragraphs.push(`_LLM unavailable (${fallbackReason}). Configure **GROQ_API_KEY** or **OPENAI_API_KEY** for full AI answers._`)
     } else {
-      paragraphs.push('Limited web results — try a more specific region or question.')
+      paragraphs.push('_Configure **GROQ_API_KEY** + **BRAVE_API_KEY** in backend `.env` for full AI answers with web research._')
     }
-  }
-
-  if (metalRates?.goldPrice) {
-    paragraphs.push(`Live rates: gold **${metalRates.goldPrice}** / silver **${metalRates.silverPrice}** ${metalRates.priceCurrency || 'USD'}/${metalRates.priceUnit || 'G'}.`)
   }
 
   if (!paragraphs.length) {
@@ -63,26 +71,34 @@ function buildDirectAnswer(userMessage, marketSection, crmSnapshot, metalRates, 
   return paragraphs.join('\n\n')
 }
 
-function buildRecommendations(crmSnapshot, marketSection) {
-  const s = crmSnapshot?.summary || {}
+function buildRecommendations(userMessage, marketSection) {
+  const msg = String(userMessage || '').toLowerCase()
   const bullets = []
-  if (Number(s.overdueFollowups) > 0) {
-    bullets.push(`Clear **${s.overdueFollowups} overdue follow-up(s)**.`)
-  }
-  if (Number(s.hotLeads) > 0) {
-    bullets.push(`Prioritize **${s.hotLeads} hot lead(s)** this week.`)
-  }
-  if ((marketSection?.sources || []).length > 0) {
+  const sourceCount = (marketSection?.sources || []).length
+
+  if (sourceCount > 0) {
     bullets.push('Review cited market sources before pricing decisions.')
   }
+  if (/competitor|rival|vs\b/i.test(msg)) {
+    bullets.push('Compare competitor positioning against your wholesale margins.')
+  }
+  if (/regulat|compliance|import/i.test(msg)) {
+    bullets.push('Verify import and hallmark rules with local trade authorities.')
+  }
+  if (/opportunit|expand|growth/i.test(msg)) {
+    bullets.push('Shortlist 2–3 regions and validate demand with distributors.')
+  }
+  if (sourceCount > 0 && bullets.length < 3) {
+    bullets.push('Cross-check trends across multiple regions if expanding.')
+  }
   if (!bullets.length) {
-    bullets.push('Connect LoopC Ops for pipeline-specific recommendations.')
+    bullets.push('Try a more specific question or select a region focus.')
   }
   return bullets.slice(0, 5)
 }
 
-function formatMarketForReply(marketSection) {
-  const sources = marketSection?.sources || []
+function formatMarketForReply(marketSection, userMessage = '') {
+  const ranked = rankSources(marketSection?.sources || [], userMessage)
   const answers = marketSection?.answers || []
   const lines = []
   if (answers.length) {
@@ -90,56 +106,51 @@ function formatMarketForReply(marketSection) {
     answers.forEach((a) => lines.push(`- ${a}`))
     lines.push('')
   }
-  if (sources.length) {
+  const contentSnippets = extractContentSnippets(ranked, 4)
+  if (contentSnippets.length) {
+    lines.push('**Key findings:**')
+    contentSnippets.forEach((c) => lines.push(`- ${c.slice(0, 280)}${c.length > 280 ? '…' : ''}`))
+    lines.push('')
+  }
+  if (ranked.length) {
     lines.push('**Sources:**')
-    sources.slice(0, 8).forEach((src) => lines.push(`- [${src.title}](${src.url})`))
+    ranked.slice(0, 8).forEach((src) => lines.push(`- [${src.title}](${src.url})`))
   }
   if (!lines.length) return String(marketSection?.content || 'No web research results.')
   return lines.join('\n')
 }
 
-function formatCrmForReply(crmSnapshot) {
-  if (!crmSnapshot) return '_LoopC Ops not connected._'
-  const s = crmSnapshot.summary || {}
-  return [
-    `- Pipeline value: **$${(s.pipelineValueUSD ?? 0).toLocaleString()}**`,
-    `- Active leads: **${s.activeLeads ?? 0}** | Hot: **${s.hotLeads ?? 0}**`,
-    `- Win rate: **${s.winRate ?? 0}%** | Overdue follow-ups: **${s.overdueFollowups ?? 0}**`,
-  ].join('\n')
+function formatHistoryContext(history = []) {
+  const recent = (history || [])
+    .slice(-6)
+    .filter((m) => m && (m.role === 'user' || m.role === 'assistant'))
+  if (!recent.length) return ''
+  const lines = recent.map((m) => `- **${m.role}:** ${String(m.content || '').slice(0, 400)}`)
+  return `## Recent conversation\n${lines.join('\n')}\n`
 }
 
 function runTemplateStrategyAgent({
   userMessage,
+  history = [],
   marketSection,
-  crmSnapshot,
-  metalRates,
-  emailSection = null,
   chatInputs = {},
+  fallbackReason = '',
 }) {
-  const emailOnly = isEmailOnlyQuestion(userMessage)
-  const directAnswer = buildDirectAnswer(userMessage, marketSection, crmSnapshot, metalRates, chatInputs, emailSection)
-  const recommendations = emailOnly ? [] : buildRecommendations(crmSnapshot, marketSection)
-  const showCrm = !emailOnly && (classifyQuestion(userMessage) === 'pipeline' || classifyQuestion(userMessage) === 'mixed')
-  const showEmail = classifyEmailIntent(userMessage)
-  const showMarket = !emailOnly
+  const rankedSources = rankSources(marketSection?.sources || [], userMessage)
+  const enrichedSection = { ...marketSection, sources: rankedSources }
+  const historyBlock = formatHistoryContext(history)
+  const directAnswer = buildDirectAnswer(userMessage, enrichedSection, chatInputs, fallbackReason)
+  const recommendations = buildRecommendations(userMessage, enrichedSection)
+  const hasSources = rankedSources.length > 0
 
   const replyParts = [
-    '_Template mode — market research + strategy synthesis._',
-    '',
+    fallbackReason ? '_Template fallback — configure Groq for full AI answers._' : null,
+    historyBlock || null,
     '## Answer',
     directAnswer,
-    '',
-    showEmail ? '## Inbox' : null,
-    showEmail ? (emailSection?.content || 'Connect LoopC Ops to check inbox.') : null,
-    showEmail ? '' : null,
-    showMarket ? '## Market research' : null,
-    showMarket ? formatMarketForReply(marketSection) : null,
-    showMarket ? '' : null,
-    showCrm ? '## CRM data' : null,
-    showCrm ? formatCrmForReply(crmSnapshot) : null,
-    showCrm && metalRates ? '' : null,
-    showCrm && metalRates ? '## Live metal rates' : null,
-    showCrm && metalRates ? formatMetalsForPrompt(metalRates) : null,
+    hasSources ? '' : null,
+    hasSources ? '## Market research' : null,
+    hasSources ? formatMarketForReply(enrichedSection, userMessage) : null,
     recommendations.length ? '## Suggested next steps' : null,
     ...(recommendations.map((b) => `- ${b}`)),
   ].filter((block) => block !== null && block !== '')
@@ -153,4 +164,4 @@ function runTemplateStrategyAgent({
   }
 }
 
-module.exports = { runTemplateStrategyAgent, buildRecommendations }
+module.exports = { runTemplateStrategyAgent, buildRecommendations, rankSources, dedupeSources }

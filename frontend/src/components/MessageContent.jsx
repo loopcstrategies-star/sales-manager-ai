@@ -1,6 +1,29 @@
 import React from 'react'
 
 function renderInlineMarkdown(text) {
+  const linkPattern = /\[([^\]]+)\]\(([^)]+)\)/g
+  const parts = []
+  let lastIndex = 0
+  let match = linkPattern.exec(text)
+  while (match) {
+    if (match.index > lastIndex) {
+      parts.push(...renderBoldSpans(text.slice(lastIndex, match.index)))
+    }
+    parts.push(
+      <a key={`${match.index}-link`} href={match[2]} target="_blank" rel="noopener noreferrer">
+        {match[1]}
+      </a>,
+    )
+    lastIndex = match.index + match[0].length
+    match = linkPattern.exec(text)
+  }
+  if (lastIndex < text.length) {
+    parts.push(...renderBoldSpans(text.slice(lastIndex)))
+  }
+  return parts.length ? parts : renderBoldSpans(text)
+}
+
+function renderBoldSpans(text) {
   const parts = String(text || '').split(/(\*\*[^*]+\*\*)/g)
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
@@ -10,7 +33,7 @@ function renderInlineMarkdown(text) {
   })
 }
 
-export default function MessageContent({ content, sections }) {
+export default function MessageContent({ content, sections, meta }) {
   const blocks = String(content || '').split('\n')
   const sources = (sections || []).flatMap((s) => s.sources || [])
 
@@ -18,16 +41,26 @@ export default function MessageContent({ content, sections }) {
     <div>
       {blocks.map((line, i) => {
         if (line.startsWith('## ')) {
-          return <h3 key={i} style={{ margin: '0.5rem 0 0.25rem', fontSize: '1rem' }}>{line.slice(3)}</h3>
+          return <h3 key={i} className="msg-heading">{line.slice(3)}</h3>
         }
         if (line.startsWith('- ')) {
-          return <div key={i} style={{ paddingLeft: 8 }}>• {renderInlineMarkdown(line.slice(2))}</div>
+          return <div key={i} className="msg-bullet">• {renderInlineMarkdown(line.slice(2))}</div>
+        }
+        if (line.startsWith('_') && line.endsWith('_')) {
+          return <div key={i} className="msg-muted">{line.slice(1, -1)}</div>
         }
         if (!line.trim()) return <br key={i} />
         return <div key={i}>{renderInlineMarkdown(line)}</div>
       })}
+      {meta && (meta.searchQueryCount != null || meta.searchCacheHits > 0) && (
+        <div className="msg-meta">
+          {meta.searchQueryCount != null && `Searches: ${meta.searchQueryCount}`}
+          {meta.searchCacheHits > 0 && ` · Cached: ${meta.searchCacheHits}`}
+          {meta.searchProvider && ` · ${meta.searchProvider}`}
+        </div>
+      )}
       {sources.length > 0 && (
-        <div style={{ marginTop: 8, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+        <div className="msg-sources">
           {sources.slice(0, 5).map((s) => (
             <div key={s.url}>
               <a href={s.url} target="_blank" rel="noopener noreferrer">{s.title || s.url}</a>

@@ -1,12 +1,15 @@
 # Sales Manager AI
 
-Standalone sales intelligence product — market research chat (Tavily) and template strategy synthesis. Optional LoopC Ops connector for CRM pipeline and company inbox.
+Standalone sales intelligence product — web research chat (Brave/Tavily) and Groq/OpenAI/template answer synthesis.
+
+For a full architecture and codebase walkthrough, see [PROJECT_ANALYSIS.md](./PROJECT_ANALYSIS.md).
+
+For chat behavior and UI options, see [CHAT_GUIDE.md](./CHAT_GUIDE.md).
 
 ## Architecture
 
 - **Frontend** — React + Vite (`frontend/`) → deploy to Vercel
 - **Backend** — Express + MongoDB (`backend/`) → deploy to Railway
-- **LoopC connector** — `POST /api/integrations/loopc/connect` stores API key; chat uses LoopC `/api/integrations/sales-ai/*` routes
 
 ## Local development
 
@@ -16,7 +19,7 @@ npm run install:all
 
 # Backend
 cp backend/.env.example backend/.env
-# Set MONGO_URI, JWT_SECRET, TAVILY_API_KEY
+# Set MONGO_URI, JWT_SECRET, GROQ_API_KEY, BRAVE_API_KEY (see CHAT_GUIDE.md)
 
 npm run dev --prefix backend
 
@@ -32,7 +35,7 @@ Open http://localhost:5173
 
 1. Create new Railway project from this repo
 2. Set root directory or use `railway.toml` start command
-3. Env vars: `MONGO_URI`, `JWT_SECRET`, `TAVILY_API_KEY`, `CORS_ORIGIN=https://sales.loopcstrategies.com`
+3. Env vars: `MONGO_URI`, `JWT_SECRET`, `GROQ_API_KEY`, `BRAVE_API_KEY`, `CORS_ORIGIN=https://sales.loopcstrategies.com`
 4. Note the public Railway URL (used in `vercel.json` API proxy)
 
 ### Vercel (UI)
@@ -42,25 +45,26 @@ Open http://localhost:5173
 3. Env: `VITE_API_BASE_URL=` (empty when using proxy) or full API URL
 4. Custom domain: `sales.loopcstrategies.com`
 
-### LoopC ops-dashboard
-
-1. Set `INTEGRATION_API_KEYS=loopc:<secure-key>` on LoopC Railway
-2. Set `VITE_SALES_MANAGER_AI_URL=https://sales.loopcstrategies.com` on LoopC Vercel
-3. In Sales Manager AI Settings, paste the same API key to connect LoopC
-
-## Embed (LoopC iframe)
+## Embed
 
 - Standalone embed route: `https://sales.loopcstrategies.com/embed?token=<jwt>`
-- LoopC in-dashboard iframe: `https://loopc.loopcstrategies.com/sales-ai/embed`
 
-## Day-1 scope
+## Features
 
 - Register / login
-- Chat + Tavily market research
-- Template synthesis (no OpenAI required)
+- Chat + Brave or Tavily web research (with MongoDB response cache)
+- Groq (free), OpenAI, Ollama, or template fallback synthesis
+- Region focus, constraints, deep research, session history, chat export
 
-## Phase 2 (LoopC connected)
+## Minimize API costs
 
-- CRM snapshot in chat
-- Company inbox summary
-- Live metal rates from LoopC
+See [CHAT_GUIDE.md](./CHAT_GUIDE.md#recommended-free-stack-groq--brave). Quick defaults in `backend/.env`:
+
+```env
+SALES_AI_SYNTHESIS_MODE=auto
+GROQ_API_KEY=gsk_...
+OPENAI_BASE_URL=https://api.groq.com/openai/v1
+SEARCH_PROVIDER=brave
+BRAVE_API_KEY=...
+SALES_AI_MAX_TAVILY_SEARCHES=2
+```

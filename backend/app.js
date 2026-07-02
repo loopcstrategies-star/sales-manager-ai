@@ -3,7 +3,6 @@ const cors = require('cors')
 const authRoutes = require('./routes/auth')
 const chatRoutes = require('./routes/chat')
 const configRoutes = require('./routes/config')
-const integrationRoutes = require('./routes/integrations')
 
 function createApp() {
   const app = express()
@@ -29,7 +28,6 @@ function createApp() {
   app.use('/api/auth', authRoutes)
   app.use('/api/config', configRoutes)
   app.use('/api/chat', chatRoutes)
-  app.use('/api/integrations', integrationRoutes)
 
   app.use((req, res) => {
     res.status(404).json({ success: false, message: `Route ${req.originalUrl} not found.` })

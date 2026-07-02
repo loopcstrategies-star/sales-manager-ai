@@ -90,4 +90,30 @@ router.get('/sessions', async (req, res) => {
   })
 })
 
+router.get('/sessions/:id', async (req, res) => {
+  const session = await ChatSession.findOne({
+    _id: req.params.id,
+    userId: req.user._id,
+  }).lean()
+
+  if (!session) {
+    return res.status(404).json({ success: false, message: 'Session not found.' })
+  }
+
+  res.json({
+    success: true,
+    session: {
+      id: session._id,
+      title: session.title,
+      updatedAt: session.updatedAt,
+      createdAt: session.createdAt,
+      messages: (session.messages || []).map((m) => ({
+        role: m.role,
+        content: m.content,
+        sections: m.meta?.sections,
+      })),
+    },
+  })
+})
+
 module.exports = router

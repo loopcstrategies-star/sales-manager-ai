@@ -1,10 +1,16 @@
-const { buildSearchQueries, classifyEmailIntent, classifyQuestion } = require('./prompts')
-const { runTavilySearches, shouldUseAdvancedSearchDepth } = require('./tavilySearch')
+const { buildSearchQueries } = require('./prompts')
+const { runWebSearches, shouldUseAdvancedSearchDepth, getSearchProvider, isSearchConfigured } = require('./webSearch')
 const { runMarketResearchAgent } = require('./agents/marketResearchAgent')
-const { runCrmInsightAgent } = require('./agents/crmInsightAgent')
 const { runTemplateStrategyAgent } = require('./agents/templateStrategyAgent')
-const { isOpenAiConfigured } = require('./openAiClient')
-const { fetchCrmSnapshot, fetchInboxSummary, fetchMetalRates } = require('./loopcConnector')
+const { runOpenAiStrategyAgent } = require('./agents/openAiStrategyAgent')
+const {
+  isOpenAiConfigured,
+  getSynthesisMode,
+  shouldUseLlmSynthesis,
+  getEffectiveSynthesisMode,
+  getLlmProviderLabel,
+  getModel,
+} = require('./openAiClient')
 
 const REGION_OPTIONS = [
   { id: '', label: 'Global' },
@@ -16,17 +22,28 @@ const REGION_OPTIONS = [
   { id: 'china', label: 'China' },
 ]
 
-function wantsCrm(message) {
-  return /pipeline|crm|deal|lead|follow.?up|win rate|customer/i.test(String(message || ''))
-}
+async function runStrategySynthesis({ userMessage, history, marketSection, chatInputs }) {
+  const agentInput = { userMessage, history, marketSection, chatInputs }
 
-function wantsEmail(message) {
-  return classifyEmailIntent(message)
+  if (shouldUseLlmSynthesis()) {
+    try {
+      return await runOpenAiStrategyAgent(agentInput)
+    } catch (err) {
+      console.error('[orchestrator] LLM fallback to template:', err.message)
+      return runTemplateStrategyAgent({ ...agentInput, fallbackReason: err.message })
+    }
+  }
+
+  return runTemplateStrategyAgent(agentInput)
 }
 
 async function runSalesAiChat({ user, message, history = [], chatInputs = {} }) {
   const userMessage = String(message || '').trim()
   if (!userMessage) throw new Error('Message is required.')
+
+  const normalizedHistory = (history || [])
+    .slice(-12)
+    .filter((m) => m && (m.role === 'user' || m.role === 'assistant'))
 
   const normalizedInputs = {
     region: String(chatInputs.region || '').trim(),
@@ -34,91 +51,71 @@ async function runSalesAiChat({ user, message, history = [], chatInputs = {} }) 
     depth: String(chatInputs.depth || '').trim(),
   }
 
-  const workspaceId = user.workspaceId
-  const needsCrm = wantsCrm(userMessage)
-  const needsEmail = wantsEmail(userMessage)
   const searchDepth = shouldUseAdvancedSearchDepth(userMessage, normalizedInputs) ? 'advanced' : 'basic'
+  const queries = buildSearchQueries(userMessage, normalizedInputs)
+  const { batches, cacheHits, provider } = queries.length
+    ? await runWebSearches(queries, { searchDepth })
+    : { batches: [], cacheHits: 0, provider: getSearchProvider() }
+  const marketSection = runMarketResearchAgent(batches, { provider })
 
-  let crmSnapshot = null
-  let emailSection = null
-  let metalRates = null
-
-  if (needsCrm || classifyQuestion(userMessage) === 'mixed') {
-    crmSnapshot = await fetchCrmSnapshot(workspaceId)
-  }
-  if (needsEmail) {
-    const inbox = await fetchInboxSummary(workspaceId)
-    if (!inbox) {
-      emailSection = { connectRequired: true, content: 'Connect LoopC Ops to check your company inbox.' }
-    } else {
-      emailSection = {
-        title: 'Inbox',
-        agent: 'emailInbox',
-        summary: inbox.summary,
-        content: inbox.summary || `Found ${inbox.messageCount || 0} recent message(s).`,
-        messages: inbox.messages || [],
-      }
-    }
-  }
-  if (needsCrm && crmSnapshot) {
-    metalRates = await fetchMetalRates(workspaceId)
-  }
-
-  const skipTavily = needsEmail && !/(market|trend|pipeline|gold price|silver price)/i.test(userMessage)
-  const queries = skipTavily ? [] : buildSearchQueries(userMessage, normalizedInputs)
-  const searchBatches = queries.length ? await runTavilySearches(queries, { searchDepth }) : []
-  const marketSection = runMarketResearchAgent(searchBatches)
-  const crmSection = crmSnapshot ? runCrmInsightAgent(crmSnapshot) : null
-
-  const strategy = runTemplateStrategyAgent({
+  const strategy = await runStrategySynthesis({
     userMessage,
+    history: normalizedHistory,
     marketSection,
-    crmSnapshot,
-    metalRates,
-    emailSection,
     chatInputs: normalizedInputs,
   })
 
   const sections = [
-    ...(emailSection ? [{ title: emailSection.title || 'Inbox', agent: 'emailInbox' }] : []),
     { title: marketSection.title, agent: marketSection.agent, sources: marketSection.sources },
-    ...(crmSection ? [{ title: crmSection.title, agent: crmSection.agent }] : []),
     { title: strategy.title, agent: strategy.agent },
   ]
+
+  const effectiveMode = strategy.meta?.synthesisMode || getEffectiveSynthesisMode()
 
   return {
     reply: strategy.reply,
     sections,
     meta: {
       model: strategy.meta?.model || 'template',
-      synthesisMode: 'template',
+      synthesisMode: effectiveMode,
+      configuredSynthesisMode: getSynthesisMode(),
+      llmProvider: strategy.meta?.llmProvider || getLlmProviderLabel(),
       searchQueryCount: queries.length,
-      loopcConnected: Boolean(crmSnapshot || emailSection?.messages),
-      crmAccessLevel: crmSnapshot?.accessLevel || 'none',
+      searchCacheHits: cacheHits,
+      searchProvider: provider,
       chatInputs: normalizedInputs,
     },
   }
 }
 
 function getSalesAiConfig() {
-  const tavilyReady = Boolean(String(process.env.TAVILY_API_KEY || '').trim())
-  const openaiReady = isOpenAiConfigured()
-  const synthesisMode = String(process.env.SALES_AI_SYNTHESIS_MODE || 'template').trim()
+  const searchReady = isSearchConfigured()
+  const searchProvider = getSearchProvider()
+  const llmReady = isOpenAiConfigured()
+  const llmProvider = getLlmProviderLabel()
+  const synthesisMode = getSynthesisMode()
+  const effectiveSynthesisMode = getEffectiveSynthesisMode()
   return {
     enabled: true,
     providers: {
-      openai: { configured: openaiReady },
-      tavily: { configured: tavilyReady },
+      llm: { configured: llmReady, provider: llmProvider },
+      openai: { configured: llmReady },
+      groq: { configured: Boolean(String(process.env.GROQ_API_KEY || '').trim()) || (llmReady && llmProvider === 'groq') },
+      search: { configured: searchReady, provider: searchProvider },
+      tavily: { configured: Boolean(String(process.env.TAVILY_API_KEY || '').trim()) },
+      brave: { configured: Boolean(String(process.env.BRAVE_API_KEY || '').trim()) },
     },
     synthesisMode,
-    model: synthesisMode === 'template' ? 'template' : 'openai',
+    effectiveSynthesisMode,
+    llmProvider,
+    model: effectiveSynthesisMode === 'template' ? 'template' : getModel(),
     regions: REGION_OPTIONS,
     quickActions: [
       { id: 'market-trends', label: 'Market trends', prompt: 'What are the latest gold and silver jewelry market trends?' },
       { id: 'customer-demand', label: 'Customer demand', prompt: 'Analyze current customer demand patterns for precious metals and jewelry wholesale.' },
       { id: 'opportunities', label: 'New opportunities', prompt: 'What new market opportunities should we pursue in Central Asia and the Middle East?' },
       { id: 'sales-strategy', label: 'Sales strategy', prompt: 'Suggest a sales strategy for the next quarter based on market conditions.' },
-      { id: 'pipeline', label: 'Analyze pipeline', prompt: 'Analyze our CRM pipeline and recommend priorities. (Requires LoopC connection)' },
+      { id: 'pipeline', label: 'Sales pipeline', prompt: 'What B2B sales pipeline strategies work best for precious metals wholesale?' },
     ],
   }
 }

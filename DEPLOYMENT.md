@@ -37,30 +37,11 @@ TTL: 600 (or default)
 
 Verify in Vercel → Project `frontend` → Domains → `sales.loopcstrategies.com`
 
-## LoopC integration
-
-On LoopC Railway (`ops-dashboard`):
-
-```
-INTEGRATION_API_KEYS=loopc:<your-key>
-```
-
-On LoopC Vercel (`ops-dashboard`):
-
-```
-VITE_SALES_MANAGER_AI_URL=https://sales.loopcstrategies.com
-VITE_SALES_MANAGER_AI_EMBED_URL=https://sales.loopcstrategies.com/embed
-```
-
-Users connect in Sales AI → Settings → paste the same API key.
-
-## Smoke tests (passed)
+## Smoke tests
 
 - `GET /api/health` — DB connected
 - Register + login
 - Chat endpoint
-- LoopC connector `GET /api/integrations/sales-ai/health`
-- Sales AI `POST /api/integrations/loopc/connect`
 
 ## Redeploy commands
 

@@ -84,7 +84,7 @@ router.post('/login', validateBody(loginSchema), async (req, res) => {
 
 router.get('/me', protect, async (req, res) => {
   const workspace = req.user.workspaceId
-    ? await Workspace.findById(req.user.workspaceId).select('name loopcConnection.tenant loopcConnection.connectedAt loopcConnection.scopes').lean()
+    ? await Workspace.findById(req.user.workspaceId).select('name').lean()
     : null
   res.json({
     success: true,
@@ -92,8 +92,6 @@ router.get('/me', protect, async (req, res) => {
     workspace: workspace ? {
       id: workspace._id,
       name: workspace.name,
-      loopcConnected: Boolean(workspace.loopcConnection?.tenant && workspace.loopcConnection?.connectedAt),
-      loopcTenant: workspace.loopcConnection?.tenant || '',
     } : null,
   })
 })
