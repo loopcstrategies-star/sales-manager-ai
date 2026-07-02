@@ -42,6 +42,9 @@ export const configApi = {
 }
 
 export const dashboardApi = {
-  get: () => api('/api/dashboard'),
-  refresh: () => api('/api/dashboard/refresh', { method: 'POST' }),
+  get: (region = '') => api(`/api/dashboard${region ? `?region=${encodeURIComponent(region)}` : ''}`),
+  refresh: (region = '') => api('/api/dashboard/refresh', {
+    method: 'POST',
+    body: JSON.stringify({ region }),
+  }),
 }

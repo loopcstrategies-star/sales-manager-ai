@@ -87,13 +87,35 @@ describe('sales-manager-ai backend', () => {
   test('buildCardsFromSources creates cards from search batches', () => {
     const { buildCardsFromSources } = require('../services/dashboardFeed')
     const cards = buildCardsFromSources([{
-      query: 'gold market',
+      query: 'gold market news today',
       category: 'metals',
+      tags: ['gold'],
       answer: 'Gold prices rose.',
       results: [{ title: 'Gold News', url: 'https://example.com/gold', content: 'Spot gold up.' }],
     }])
     expect(cards.length).toBeGreaterThan(0)
     expect(cards.some((c) => c.category === 'metals')).toBe(true)
+    expect(cards[0].type).toBeDefined()
+  })
+
+  test('buildDashboardQueries returns news-focused queries', () => {
+    const { buildDashboardQueries } = require('../services/newsFeeds')
+    const queries = buildDashboardQueries('')
+    expect(queries.length).toBeGreaterThanOrEqual(4)
+    expect(queries[0].query).toMatch(/news|today/i)
+  })
+
+  test('normalizeCard sets headline type', () => {
+    const { normalizeCard } = require('../services/dashboardFeed')
+    const card = normalizeCard({
+      title: 'Test',
+      summary: 'Summary',
+      category: 'metals',
+      type: 'headline',
+      tags: ['gold'],
+    })
+    expect(card.type).toBe('headline')
+    expect(card.tags).toContain('gold')
   })
 
   test('isSnapshotStale detects old snapshots', () => {

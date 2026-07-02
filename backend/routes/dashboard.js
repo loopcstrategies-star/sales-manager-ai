@@ -29,24 +29,28 @@ function formatResponse(snapshot) {
     stale: isSnapshotStale(snapshot?.refreshedAt),
     refreshHours: getRefreshHours(),
     searchProvider: snapshot?.searchProvider || null,
+    region: snapshot?.region || '',
     meta: snapshot?.meta || {},
     cards: snapshot?.cards || [],
+    priceTiles: snapshot?.priceTiles || [],
   }
 }
 
 router.get('/', async (req, res) => {
   try {
     const force = String(req.query.refresh || '') === '1'
-    const snapshot = await getDashboardFeed({ forceRefresh: force })
+    const region = String(req.query.region || '').trim().toLowerCase()
+    const snapshot = await getDashboardFeed({ forceRefresh: force, region })
     res.json(formatResponse(snapshot))
   } catch (err) {
     res.status(500).json({ success: false, message: err.message || 'Failed to load dashboard.' })
   }
 })
 
-router.post('/refresh', refreshLimiter, async (_req, res) => {
+router.post('/refresh', refreshLimiter, async (req, res) => {
   try {
-    const snapshot = await refreshDashboardFeed()
+    const region = String(req.body?.region || req.query?.region || '').trim().toLowerCase()
+    const snapshot = await refreshDashboardFeed({ region })
     res.json(formatResponse(snapshot))
   } catch (err) {
     res.status(500).json({ success: false, message: err.message || 'Dashboard refresh failed.' })

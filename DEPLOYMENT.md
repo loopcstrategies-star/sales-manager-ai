@@ -42,6 +42,18 @@ Verify in Vercel → Project `frontend` → Domains → `sales.loopcstrategies.c
 - `GET /api/health` — DB connected
 - Register + login
 - Chat endpoint
+- `GET /api/dashboard` (auth) — cards, price tiles, refreshedAt
+
+## Dashboard env (Railway `api` service)
+
+| Variable | Purpose |
+|----------|---------|
+| `DASHBOARD_ENABLED` | `true` to enable cron + API |
+| `DASHBOARD_REFRESH_HOURS` | Background refresh interval (default 4) |
+| `DASHBOARD_QUERY_COUNT` | Tavily queries per refresh (default 8) |
+| `DASHBOARD_CARD_CAP` | Max cards stored (default 20) |
+| `GOLDAPI_KEY` | Optional gold/silver price tiles |
+| `NEWSAPI_KEY` | Optional extra headlines |
 
 ## Redeploy commands
 

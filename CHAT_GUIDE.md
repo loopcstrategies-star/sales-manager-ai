@@ -174,7 +174,7 @@ Falls back to template mode if the LLM fails or no key is configured.
 | **Recent chats** | Sidebar list | Load a saved session |
 | **Export** | Top bar | Download chat as markdown |
 | **Mode badge** | Sidebar | Shows `Groq`, `OpenAI`, `Ollama`, or `Template (fallback)` |
-| **Dashboard** | Sidebar nav | Market research cards (metals + general), auto-refresh every 4h |
+| **Dashboard** | Sidebar nav | Live headlines, hero story, price tiles, filters, region focus |
 
 **Rate limit:** 20 messages per minute per user.
 
@@ -182,17 +182,29 @@ Falls back to template mode if the LLM fails or no key is configured.
 
 ## Dashboard
 
-Click **Dashboard** in the sidebar for a card grid of latest market research:
+Click **Dashboard** in the sidebar for a news-rich market view:
 
-- **Precious metals & jewelry** — gold, silver, UAE/GCC trends
+- **Headline ticker** — scrolling strip of today's headlines
+- **Hero card** — top story with image when available
+- **Price tiles** — gold/silver spot (requires `GOLDAPI_KEY`)
+- **Filter chips** — All, Gold, UAE, B2B, Macro
+- **Region focus** — sidebar dropdown scopes Tavily queries (same regions as chat)
+- **Precious metals & jewelry** — headline + analysis cards with tags and relative time
 - **General market & sales** — business and B2B headlines
 
-Data comes from **Tavily** web search + **Groq** summaries, cached in MongoDB. Use **Refresh now** for a manual update (rate-limited). Background refresh runs every `DASHBOARD_REFRESH_HOURS` (default 4).
+Data merges **Tavily** (advanced search), **RSS** (Kitco, Reuters), optional **NewsAPI**, and **Groq** summaries. Cached in MongoDB. Use **Refresh now** for a manual update (rate-limited). Background refresh runs every `DASHBOARD_REFRESH_HOURS` (default 4).
 
 ```env
 DASHBOARD_ENABLED=true
 DASHBOARD_REFRESH_HOURS=4
 DASHBOARD_MANUAL_REFRESH_COOLDOWN_MIN=10
+DASHBOARD_QUERY_COUNT=8
+DASHBOARD_CARD_CAP=20
+
+# Optional
+GOLDAPI_KEY=
+NEWSAPI_KEY=
+METALS_PRICE_CACHE_MIN=30
 ```
 
 Click **Discuss in chat** on any card to open Chat with a pre-filled prompt.
