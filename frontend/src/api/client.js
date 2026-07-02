@@ -40,3 +40,8 @@ export const chatApi = {
 export const configApi = {
   get: () => api('/api/config'),
 }
+
+export const dashboardApi = {
+  get: () => api('/api/dashboard'),
+  refresh: () => api('/api/dashboard/refresh', { method: 'POST' }),
+}

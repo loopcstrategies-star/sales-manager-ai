@@ -78,4 +78,30 @@ describe('sales-manager-ai backend', () => {
     const res = await request(app).get('/api/chat/sessions')
     expect(res.status).toBe(401)
   })
+
+  test('GET /api/dashboard requires auth', async () => {
+    const res = await request(app).get('/api/dashboard')
+    expect(res.status).toBe(401)
+  })
+
+  test('buildCardsFromSources creates cards from search batches', () => {
+    const { buildCardsFromSources } = require('../services/dashboardFeed')
+    const cards = buildCardsFromSources([{
+      query: 'gold market',
+      category: 'metals',
+      answer: 'Gold prices rose.',
+      results: [{ title: 'Gold News', url: 'https://example.com/gold', content: 'Spot gold up.' }],
+    }])
+    expect(cards.length).toBeGreaterThan(0)
+    expect(cards.some((c) => c.category === 'metals')).toBe(true)
+  })
+
+  test('isSnapshotStale detects old snapshots', () => {
+    const { isSnapshotStale, getRefreshHours } = require('../services/dashboardFeed')
+    const hours = getRefreshHours()
+    const old = new Date(Date.now() - (hours + 1) * 60 * 60 * 1000)
+    const recent = new Date()
+    expect(isSnapshotStale(old)).toBe(true)
+    expect(isSnapshotStale(recent)).toBe(false)
+  })
 })

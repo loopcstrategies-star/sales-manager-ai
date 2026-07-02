@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { useAuth } from '../context/AuthContext'
+import { useLocation } from 'react-router-dom'
 import { chatApi, configApi } from '../api/client'
+import AppShell from '../components/AppShell'
 import MessageContent from '../components/MessageContent'
 
 function formatSessionDate(value) {
@@ -10,7 +11,7 @@ function formatSessionDate(value) {
 }
 
 export default function ChatPage() {
-  const { user, workspace, logout } = useAuth()
+  const location = useLocation()
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
@@ -41,6 +42,13 @@ export default function ChatPage() {
     }).catch(() => {})
     loadSessions()
   }, [loadSessions])
+
+  useEffect(() => {
+    if (location.state?.prefill) {
+      setInput(location.state.prefill)
+      window.history.replaceState({}, document.title)
+    }
+  }, [location.state])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -115,141 +123,132 @@ export default function ChatPage() {
     URL.revokeObjectURL(url)
   }, [messages, sessionId])
 
+  const sidebarExtra = (
+    <>
+      <button type="button" className="btn new-chat-btn" onClick={startNewChat}>
+        New chat
+      </button>
+
+      <p className="sidebar-meta synthesis-badge">
+        AI: {llmProvider === 'groq' ? 'Groq' : llmProvider === 'openai' ? 'OpenAI' : llmProvider === 'ollama' ? 'Ollama' : effectiveMode === 'template' ? 'Template (fallback)' : llmProvider}
+        {effectiveMode === 'template' && llmProvider === 'none' && (
+          <span className="sidebar-hint"> — add GROQ_API_KEY for full answers</span>
+        )}
+      </p>
+
+      <label className="sidebar-label">
+        Region focus
+        <select value={region} onChange={(e) => setRegion(e.target.value)} className="sidebar-input">
+          {regions.map((r) => (
+            <option key={r.id || 'global'} value={r.id}>{r.label}</option>
+          ))}
+        </select>
+      </label>
+
+      <label className="sidebar-label">
+        Constraints (optional)
+        <input
+          type="text"
+          value={constraints}
+          onChange={(e) => setConstraints(e.target.value)}
+          placeholder="e.g. wholesale B2B only"
+          className="sidebar-input"
+        />
+      </label>
+
+      <label className="sidebar-label sidebar-checkbox">
+        <input
+          type="checkbox"
+          checked={depth === 'deep'}
+          onChange={(e) => setDepth(e.target.checked ? 'deep' : '')}
+        />
+        Deep research
+      </label>
+
+      <div className="session-list-section">
+        <p className="sidebar-section-title">Recent chats</p>
+        {sessions.length === 0 && (
+          <p className="sidebar-meta">No saved chats yet.</p>
+        )}
+        <ul className="session-list">
+          {sessions.map((s) => (
+            <li key={s.id}>
+              <button
+                type="button"
+                className={`session-item${sessionId === s.id ? ' active' : ''}`}
+                onClick={() => loadSession(s.id)}
+              >
+                <span className="session-title">{s.title || 'Chat'}</span>
+                <span className="session-meta">{formatSessionDate(s.updatedAt)} · {s.messageCount} msgs</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </>
+  )
+
+  const headerExtra = messages.length > 0 ? (
+    <button
+      type="button"
+      className="btn-secondary"
+      onClick={exportChat}
+      style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.3)' }}
+    >
+      Export
+    </button>
+  ) : null
+
   return (
-    <div className="app-shell">
-      <header className="topbar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <button type="button" className="sidebar-toggle" onClick={() => setSidebarOpen((v) => !v)} aria-label="Toggle sidebar">
-            ☰
-          </button>
-          <h1>Sales Manager AI</h1>
-        </div>
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          {messages.length > 0 && (
-            <button type="button" className="btn-secondary" onClick={exportChat} style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.3)' }}>
-              Export
-            </button>
-          )}
-          <span style={{ fontSize: '0.85rem', opacity: 0.85 }}>{user?.name}</span>
-          <button type="button" className="btn-secondary" onClick={logout} style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.3)' }}>
-            Sign out
-          </button>
-        </div>
-      </header>
-
-      <div className="chat-layout">
-        <aside className={`chat-sidebar${sidebarOpen ? ' open' : ''}`}>
-          <button type="button" className="btn new-chat-btn" onClick={startNewChat}>
-            New chat
-          </button>
-
-          <p className="sidebar-meta">
-            Workspace: {workspace?.name || '—'}
-          </p>
-          <p className="sidebar-meta synthesis-badge">
-            AI: {llmProvider === 'groq' ? 'Groq' : llmProvider === 'openai' ? 'OpenAI' : llmProvider === 'ollama' ? 'Ollama' : effectiveMode === 'template' ? 'Template (fallback)' : llmProvider}
-            {effectiveMode === 'template' && llmProvider === 'none' && (
-              <span className="sidebar-hint"> — add GROQ_API_KEY for full answers</span>
-            )}
-          </p>
-
-          <label className="sidebar-label">
-            Region focus
-            <select value={region} onChange={(e) => setRegion(e.target.value)} className="sidebar-input">
-              {regions.map((r) => (
-                <option key={r.id || 'global'} value={r.id}>{r.label}</option>
+    <AppShell
+      sidebarOpen={sidebarOpen}
+      onToggleSidebar={() => setSidebarOpen((v) => !v)}
+      sidebarExtra={sidebarExtra}
+      headerExtra={headerExtra}
+    >
+      <div className="messages">
+        {messages.length === 0 && (
+          <div>
+            <p>Ask about market trends, customer demand, or sales strategy.</p>
+            <div className="chip-row">
+              {quickActions.map((action) => (
+                <button key={action.id} type="button" className="chip" onClick={() => sendMessage(action.prompt)}>
+                  {action.label}
+                </button>
               ))}
-            </select>
-          </label>
-
-          <label className="sidebar-label">
-            Constraints (optional)
-            <input
-              type="text"
-              value={constraints}
-              onChange={(e) => setConstraints(e.target.value)}
-              placeholder="e.g. wholesale B2B only"
-              className="sidebar-input"
-            />
-          </label>
-
-          <label className="sidebar-label sidebar-checkbox">
-            <input
-              type="checkbox"
-              checked={depth === 'deep'}
-              onChange={(e) => setDepth(e.target.checked ? 'deep' : '')}
-            />
-            Deep research
-          </label>
-
-          <div className="session-list-section">
-            <p className="sidebar-section-title">Recent chats</p>
-            {sessions.length === 0 && (
-              <p className="sidebar-meta">No saved chats yet.</p>
-            )}
-            <ul className="session-list">
-              {sessions.map((s) => (
-                <li key={s.id}>
-                  <button
-                    type="button"
-                    className={`session-item${sessionId === s.id ? ' active' : ''}`}
-                    onClick={() => loadSession(s.id)}
-                  >
-                    <span className="session-title">{s.title || 'Chat'}</span>
-                    <span className="session-meta">{formatSessionDate(s.updatedAt)} · {s.messageCount} msgs</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            </div>
           </div>
-        </aside>
-
-        <div className="chat-main">
-          <div className="messages">
-            {messages.length === 0 && (
-              <div>
-                <p>Ask about market trends, customer demand, or sales strategy.</p>
-                <div className="chip-row">
-                  {quickActions.map((action) => (
-                    <button key={action.id} type="button" className="chip" onClick={() => sendMessage(action.prompt)}>
-                      {action.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            {messages.map((msg, i) => (
-              <div key={i} className={`msg msg-${msg.role}`}>
-                <MessageContent content={msg.content} sections={msg.sections} meta={msg.meta} />
-              </div>
-            ))}
-            {busy && <div className="msg msg-assistant">Researching…</div>}
-            <div ref={bottomRef} />
+        )}
+        {messages.map((msg, i) => (
+          <div key={i} className={`msg msg-${msg.role}`}>
+            <MessageContent content={msg.content} sections={msg.sections} meta={msg.meta} />
           </div>
+        ))}
+        {busy && <div className="msg msg-assistant">Researching…</div>}
+        <div ref={bottomRef} />
+      </div>
 
-          <form
-            className="composer"
-            onSubmit={(e) => {
+      <form
+        className="composer"
+        onSubmit={(e) => {
+          e.preventDefault()
+          sendMessage(input)
+        }}
+      >
+        <textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Ask about markets, trends, or strategy…"
+          rows={2}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
               sendMessage(input)
-            }}
-          >
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask about markets, trends, or strategy…"
-              rows={2}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  sendMessage(input)
-                }
-              }}
-            />
-            <button className="btn" type="submit" disabled={busy || !input.trim()}>Send</button>
-          </form>
-        </div>
-      </div>
-    </div>
+            }
+          }}
+        />
+        <button className="btn" type="submit" disabled={busy || !input.trim()}>Send</button>
+      </form>
+    </AppShell>
   )
 }

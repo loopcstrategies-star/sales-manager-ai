@@ -174,8 +174,28 @@ Falls back to template mode if the LLM fails or no key is configured.
 | **Recent chats** | Sidebar list | Load a saved session |
 | **Export** | Top bar | Download chat as markdown |
 | **Mode badge** | Sidebar | Shows `Groq`, `OpenAI`, `Ollama`, or `Template (fallback)` |
+| **Dashboard** | Sidebar nav | Market research cards (metals + general), auto-refresh every 4h |
 
 **Rate limit:** 20 messages per minute per user.
+
+---
+
+## Dashboard
+
+Click **Dashboard** in the sidebar for a card grid of latest market research:
+
+- **Precious metals & jewelry** — gold, silver, UAE/GCC trends
+- **General market & sales** — business and B2B headlines
+
+Data comes from **Tavily** web search + **Groq** summaries, cached in MongoDB. Use **Refresh now** for a manual update (rate-limited). Background refresh runs every `DASHBOARD_REFRESH_HOURS` (default 4).
+
+```env
+DASHBOARD_ENABLED=true
+DASHBOARD_REFRESH_HOURS=4
+DASHBOARD_MANUAL_REFRESH_COOLDOWN_MIN=10
+```
+
+Click **Discuss in chat** on any card to open Chat with a pre-filled prompt.
 
 ---
 

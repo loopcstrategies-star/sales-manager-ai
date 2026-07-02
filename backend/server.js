@@ -2,6 +2,7 @@ require('dotenv').config()
 
 const mongoose = require('mongoose')
 const createApp = require('./app')
+const { startDashboardRefreshJob } = require('./jobs/dashboardRefresh')
 
 const PORT = Number(process.env.PORT) || 5100
 const mongoUri = String(process.env.MONGO_URI || '').trim()
@@ -23,6 +24,9 @@ app.listen(PORT, '0.0.0.0', () => {
 
 if (mongoUri) {
   mongoose.connect(mongoUri)
-    .then(() => console.log('[startup] MongoDB connected'))
+    .then(() => {
+      console.log('[startup] MongoDB connected')
+      startDashboardRefreshJob()
+    })
     .catch((err) => console.error('[startup] Mongo connect failed:', err.message))
 }
