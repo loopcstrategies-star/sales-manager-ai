@@ -68,6 +68,12 @@ powershell -File scripts/set-railway-dashboard-env.ps1
 
 Tavily usage stays ~2 advanced searches per refresh (cached 24h) via `SALES_AI_MAX_TAVILY_SEARCHES`. RSS + NewsAPI add headlines without Tavily.
 
+**Railway Docker warnings (`SecretsUsedInArgOrEnv`):** Disable **Available at Build Time** for secret variables — runtime-only is correct.
+
+**Groq TPM:** `DASHBOARD_LLM_MAX_TOKENS=1500` (default). Optional `DASHBOARD_LLM_MODEL=llama-3.1-8b-instant`.
+
+**Proxy:** `TRUST_PROXY=true` auto-enables when `RAILWAY_ENVIRONMENT` is set on Railway.
+
 ## Redeploy commands
 
 ```bash
