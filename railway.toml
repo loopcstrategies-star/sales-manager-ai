@@ -1,9 +1,9 @@
 [build]
-builder = "nixpacks"
-buildCommand = "npm ci --prefix backend"
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "npm start --prefix backend"
+startCommand = "node server.js"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 120
 restartPolicyType = "on_failure"

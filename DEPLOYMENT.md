@@ -17,6 +17,7 @@
 - Project: `sales-manager-ai`
 - Services: `api` (Express), `MongoDB`
 - Dashboard: https://railway.com/project/9bec621f-9721-41a6-a3f2-1367990f0447
+- **Build:** custom root [`Dockerfile`](Dockerfile) (not Nixpacks) — secrets stay runtime-only, no `SecretsUsedInArgOrEnv` build warnings
 
 ## Vercel project
 
@@ -68,7 +69,7 @@ powershell -File scripts/set-railway-dashboard-env.ps1
 
 Tavily usage stays ~2 advanced searches per refresh (cached 24h) via `SALES_AI_MAX_TAVILY_SEARCHES`. RSS + NewsAPI add headlines without Tavily.
 
-**Railway Docker warnings (`SecretsUsedInArgOrEnv`):** Disable **Available at Build Time** for secret variables — runtime-only is correct.
+**Railway build:** API uses root `Dockerfile` + `.dockerignore`. Do not use Nixpacks for `api` — it injects secrets into build `ARG`/`ENV` and triggers Docker warnings.
 
 **Groq TPM:** `DASHBOARD_LLM_MAX_TOKENS=1500` (default). Optional `DASHBOARD_LLM_MODEL=llama-3.1-8b-instant`.
 
