@@ -9,8 +9,46 @@ const {
   getRefreshHours,
   isDashboardEnabled,
 } = require('../services/dashboardFeed')
+const {
+  verifyImageProxySig,
+  decodeProxiedImageUrl,
+  fetchProxiedImage,
+  isAllowedProxyHost,
+} = require('../services/cardImages')
 
 const router = express.Router()
+
+const imageProxyLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many image requests.',
+})
+
+router.get('/image', imageProxyLimiter, async (req, res) => {
+  try {
+    const u = String(req.query.u || '').trim()
+    const sig = String(req.query.sig || '').trim()
+
+    if (!verifyImageProxySig(u, sig)) {
+      return res.status(403).json({ success: false, message: 'Invalid image signature.' })
+    }
+
+    const imageUrl = decodeProxiedImageUrl(u)
+    if (!imageUrl || !/^https:\/\//i.test(imageUrl) || !isAllowedProxyHost(imageUrl)) {
+      return res.status(403).json({ success: false, message: 'Image URL not allowed.' })
+    }
+
+    const { buffer, contentType } = await fetchProxiedImage(imageUrl)
+    res.setHeader('Content-Type', contentType)
+    res.setHeader('Cache-Control', 'public, max-age=86400')
+    return res.send(buffer)
+  } catch (err) {
+    return res.status(502).json({ success: false, message: err.message || 'Image proxy failed.' })
+  }
+})
+
 router.use(protect)
 
 const refreshLimiter = rateLimit({

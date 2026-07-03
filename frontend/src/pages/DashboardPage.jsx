@@ -43,13 +43,25 @@ function matchFilter(card, filter) {
   return true
 }
 
+function CardImage({ src, className }) {
+  const [failed, setFailed] = useState(false)
+  if (!src || failed) return null
+  return (
+    <img
+      src={src}
+      alt=""
+      className={className}
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  )
+}
+
 function DashboardCard({ card, expanded, onToggle }) {
   const chatPrompt = `Discuss this market update: ${card.title}. ${card.summary}`
   return (
     <article className={`dashboard-card dashboard-card-${card.category}${card.type === 'headline' ? ' is-headline' : ''}`}>
-      {card.imageUrl && (
-        <img src={card.imageUrl} alt="" className="dashboard-card-image" loading="lazy" />
-      )}
+      <CardImage src={card.imageUrl} className="dashboard-card-image" />
       <div className="dashboard-card-badges">
         {card.type === 'headline' && <span className="badge badge-headline">Headline</span>}
         {card.sourceName && <span className="badge badge-source">{card.sourceName}</span>}
@@ -238,7 +250,7 @@ export default function DashboardPage() {
 
         {!loading && hero && (
           <article className="dashboard-hero">
-            {hero.imageUrl && <img src={hero.imageUrl} alt="" className="dashboard-hero-image" loading="lazy" />}
+            <CardImage src={hero.imageUrl} className="dashboard-hero-image" />
             <div className="dashboard-hero-body">
               <span className="badge badge-headline">Top story</span>
               <h2>{hero.title}</h2>

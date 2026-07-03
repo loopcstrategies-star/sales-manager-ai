@@ -16,6 +16,25 @@ function hostFromUrl(url) {
   }
 }
 
+function pickRssImage(entry) {
+  const enclosureUrl = String(entry.enclosure?.url || '').trim()
+  if (enclosureUrl && /^https?:\/\//i.test(enclosureUrl)) {
+    const type = String(entry.enclosure?.type || '').toLowerCase()
+    if (!type || type.startsWith('image/')) return enclosureUrl
+  }
+  const media = entry['media:content'] || entry.mediaContent
+  if (media) {
+    const url = String(media.$?.url || media.url || '').trim()
+    if (url && /^https?:\/\//i.test(url)) return url
+  }
+  const thumb = entry['media:thumbnail'] || entry.mediaThumbnail
+  if (thumb) {
+    const url = String(thumb.$?.url || thumb.url || '').trim()
+    if (url && /^https?:\/\//i.test(url)) return url
+  }
+  return ''
+}
+
 async function fetchRssHeadlines() {
   const items = []
   await Promise.all(RSS_FEEDS.map(async (feed) => {
@@ -23,6 +42,7 @@ async function fetchRssHeadlines() {
       const parsed = await parser.parseURL(feed.url)
       for (const entry of (parsed.items || []).slice(0, 5)) {
         if (!entry.link && !entry.title) continue
+        const imageUrl = pickRssImage(entry)
         items.push({
           query: `rss:${feed.url}`,
           category: feed.category,
@@ -31,6 +51,7 @@ async function fetchRssHeadlines() {
             title: String(entry.title || '').trim(),
             url: String(entry.link || entry.guid || '').trim(),
             content: String(entry.contentSnippet || entry.summary || '').slice(0, 1200),
+            imageUrl,
           }],
           answer: null,
           publishedAt: entry.isoDate || entry.pubDate || null,
@@ -65,6 +86,7 @@ async function fetchNewsApiHeadlines() {
         title: String(a.title || '').trim(),
         url: String(a.url || '').trim(),
         content: String(a.description || '').slice(0, 1200),
+        imageUrl: String(a.urlToImage || '').trim(),
       })).filter((r) => r.url)
 
       if (results.length) {

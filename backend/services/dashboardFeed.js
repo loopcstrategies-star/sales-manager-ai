@@ -10,6 +10,10 @@ const {
   buildDashboardQueries,
   hostFromUrl,
 } = require('./newsFeeds')
+const {
+  resolveCardImageUrl,
+  buildSourceImageMap,
+} = require('./cardImages')
 
 function isDashboardEnabled() {
   return String(process.env.DASHBOARD_ENABLED || 'true').trim().toLowerCase() !== 'false'
@@ -73,6 +77,7 @@ function buildCardsFromSources(searchBatches) {
         sourceName: hostFromUrl(batch.results?.[0]?.url || ''),
         publishedAt: batch.publishedAt,
         tags: batchTags,
+        imageUrl: batch.results?.[0]?.imageUrl || '',
       }))
     }
 
@@ -89,6 +94,7 @@ function buildCardsFromSources(searchBatches) {
         sourceName: hostFromUrl(r.url),
         publishedAt: batch.publishedAt,
         tags: batchTags,
+        imageUrl: r.imageUrl || '',
       }))
       if (cards.length >= cap) break
     }
@@ -125,6 +131,7 @@ async function summarizeCardsWithLlm(searchBatches) {
   try {
     const parsed = JSON.parse(match[0])
     if (!Array.isArray(parsed)) return buildCardsFromSources(searchBatches)
+    const sourceImages = buildSourceImageMap(searchBatches)
     return parsed
       .filter((c) => c && c.title && c.summary)
       .map((c, i) => normalizeCard({
@@ -137,6 +144,7 @@ async function summarizeCardsWithLlm(searchBatches) {
         sourceName: hostFromUrl(c.sourceUrl || ''),
         publishedAt: c.publishedAt,
         tags: c.tags,
+        imageUrl: sourceImages.get(c.sourceUrl) || '',
       }))
       .slice(0, getCardCap())
   } catch {
@@ -144,28 +152,13 @@ async function summarizeCardsWithLlm(searchBatches) {
   }
 }
 
-async function fetchOgImage(url) {
-  const target = String(url || '').trim()
-  if (!target || !/^https?:\/\//i.test(target)) return ''
-  try {
-    const res = await fetch(target, {
-      headers: { 'User-Agent': 'SalesManagerAI/1.0' },
-      signal: AbortSignal.timeout(4000),
-    })
-    const html = await res.text()
-    const match = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
-      || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)
-    return match ? match[1] : ''
-  } catch {
-    return ''
-  }
-}
-
 async function enrichCardImages(cards) {
   const withImages = await Promise.all(cards.map(async (card) => {
-    if (card.imageUrl || !card.sourceUrl) return card
-    const imageUrl = await fetchOgImage(card.sourceUrl)
-    return imageUrl ? { ...card, imageUrl } : card
+    const imageUrl = await resolveCardImageUrl({
+      imageUrl: card.imageUrl,
+      sourceUrl: card.sourceUrl,
+    })
+    return imageUrl ? { ...card, imageUrl } : { ...card, imageUrl: '' }
   }))
   return withImages
 }

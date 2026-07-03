@@ -126,4 +126,41 @@ describe('sales-manager-ai backend', () => {
     expect(isSnapshotStale(old)).toBe(true)
     expect(isSnapshotStale(recent)).toBe(false)
   })
+
+  test('normalizeImageUrl resolves relative paths', () => {
+    const { normalizeImageUrl } = require('../services/cardImages')
+    const url = normalizeImageUrl('/images/gold.jpg', 'https://www.kitco.com/news/article')
+    expect(url).toBe('https://www.kitco.com/images/gold.jpg')
+  })
+
+  test('signImageProxyUrl and verifyImageProxySig round-trip', () => {
+    process.env.JWT_SECRET = 'test-secret'
+    const {
+      signImageProxyUrl,
+      verifyImageProxySig,
+      decodeProxiedImageUrl,
+    } = require('../services/cardImages')
+    const proxied = signImageProxyUrl('https://www.kitco.com/images/gold.jpg')
+    expect(proxied).toMatch(/^\/api\/dashboard\/image\?/)
+    const u = new URL(proxied, 'http://localhost').searchParams.get('u')
+    const sig = new URL(proxied, 'http://localhost').searchParams.get('sig')
+    expect(verifyImageProxySig(u, sig)).toBe(true)
+    expect(decodeProxiedImageUrl(u)).toBe('https://www.kitco.com/images/gold.jpg')
+  })
+
+  test('GET /api/dashboard/image rejects bad signature', async () => {
+    const res = await request(app).get('/api/dashboard/image?u=abc&sig=bad')
+    expect(res.status).toBe(403)
+  })
+
+  test('verifyImageUrl rejects non-image content-type', async () => {
+    const originalFetch = global.fetch
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'text/html' },
+    })
+    const { verifyImageUrl } = require('../services/cardImages')
+    await expect(verifyImageUrl('https://www.kitco.com/images/gold.jpg')).resolves.toBe('')
+    global.fetch = originalFetch
+  })
 })
