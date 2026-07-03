@@ -1,6 +1,6 @@
 const crypto = require('crypto')
 const DashboardSnapshot = require('../models/DashboardSnapshot')
-const { formatTavilyForPrompt } = require('./prompts')
+const { formatDashboardResearchForPrompt } = require('./prompts')
 const { runWebSearches, getSearchProvider, isSearchConfigured } = require('./webSearch')
 const { createChatCompletion, isOpenAiConfigured } = require('./openAiClient')
 const { getMetalsPrices } = require('./metalsPrices')
@@ -104,8 +104,16 @@ function buildCardsFromSources(searchBatches) {
   return cards.slice(0, cap)
 }
 
+function getDashboardLlmMaxTokens() {
+  return Math.min(2500, Math.max(800, Number(process.env.DASHBOARD_LLM_MAX_TOKENS || 1500)))
+}
+
+function getDashboardLlmModel() {
+  return String(process.env.DASHBOARD_LLM_MODEL || '').trim() || undefined
+}
+
 async function summarizeCardsWithLlm(searchBatches) {
-  const { text, sources } = formatTavilyForPrompt(searchBatches)
+  const { text, sources } = formatDashboardResearchForPrompt(searchBatches)
   if (!sources.length && !text.trim()) return []
 
   const system = [
@@ -123,7 +131,12 @@ async function summarizeCardsWithLlm(searchBatches) {
   const content = await createChatCompletion([
     { role: 'system', content: system },
     { role: 'user', content: `Research:\n${text}\n\nSources:\n${sources.map((s) => `- ${s.title} (${s.url})`).join('\n')}` },
-  ], { temperature: 0.35, maxTokens: 3500 })
+  ], {
+    temperature: 0.35,
+    maxTokens: getDashboardLlmMaxTokens(),
+    model: getDashboardLlmModel(),
+    rateLimitRetryMs: 55000,
+  })
 
   const match = content.match(/\[[\s\S]*\]/)
   if (!match) return buildCardsFromSources(searchBatches)

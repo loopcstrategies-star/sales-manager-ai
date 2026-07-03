@@ -110,10 +110,43 @@ function formatTavilyForPrompt(searchBatches) {
   return { text: lines.join('\n'), sources, answers }
 }
 
+function formatDashboardResearchForPrompt(searchBatches) {
+  const maxChars = Math.max(2000, Number(process.env.DASHBOARD_LLM_INPUT_CHARS || 8000))
+  const maxSources = Math.max(5, Number(process.env.DASHBOARD_LLM_MAX_SOURCES || 20))
+  const snippetLen = Math.max(80, Number(process.env.DASHBOARD_LLM_SNIPPET_CHARS || 200))
+
+  const lines = []
+  const sources = []
+  for (const batch of searchBatches || []) {
+    if (batch.error) continue
+    lines.push(`### ${batch.query}`)
+    if (batch.answer) {
+      lines.push(String(batch.answer).slice(0, snippetLen))
+    }
+    for (const r of batch.results || []) {
+      if (sources.length >= maxSources) break
+      const title = String(r.title || '').slice(0, 120)
+      const url = String(r.url || '')
+      const content = String(r.content || '').slice(0, snippetLen)
+      lines.push(`- ${title} (${url}): ${content}`)
+      sources.push({ title, url, content })
+    }
+    if (sources.length >= maxSources) break
+  }
+
+  let text = lines.join('\n')
+  if (text.length > maxChars) {
+    text = `${text.slice(0, maxChars)}\n...[truncated]`
+  }
+
+  return { text, sources }
+}
+
 module.exports = {
   REGION_KEYWORDS,
   buildSearchQueries,
   isSimpleQuestion,
   isSalesDomainQuestion,
   formatTavilyForPrompt,
+  formatDashboardResearchForPrompt,
 }

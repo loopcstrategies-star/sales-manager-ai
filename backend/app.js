@@ -8,6 +8,14 @@ const dashboardRoutes = require('./routes/dashboard')
 function createApp() {
   const app = express()
 
+  if (
+    process.env.TRUST_PROXY === 'true'
+    || process.env.RAILWAY_ENVIRONMENT
+    || process.env.NODE_ENV === 'production'
+  ) {
+    app.set('trust proxy', 1)
+  }
+
   const corsOrigin = String(process.env.CORS_ORIGIN || 'http://localhost:5173')
   app.use(cors({
     origin: corsOrigin.split(',').map((o) => o.trim()).filter(Boolean),

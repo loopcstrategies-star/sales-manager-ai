@@ -44,6 +44,15 @@ function getEffectiveSynthesisMode() {
   return shouldUseLlmSynthesis() ? 'openai' : 'template'
 }
 
+function isRateLimitError(err) {
+  const msg = String(err?.message || err || '').toLowerCase()
+  return msg.includes('rate limit') || msg.includes('429')
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => { setTimeout(resolve, ms) })
+}
+
 async function createChatCompletion(messages, options = {}) {
   const apiKey = getApiKey()
   if (!apiKey) {
@@ -52,29 +61,41 @@ async function createChatCompletion(messages, options = {}) {
 
   const model = options.model || getModel()
   const baseUrl = getApiBaseUrl()
-  const res = await fetch(`${baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: options.temperature ?? 0.4,
-      max_tokens: options.maxTokens ?? 2000,
-    }),
-  })
+  const maxAttempts = options.retryOnRateLimit === false ? 1 : 2
 
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) {
-    const errMsg = data?.error?.message || `LLM HTTP ${res.status}`
-    throw new Error(errMsg)
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: options.temperature ?? 0.4,
+        max_tokens: options.maxTokens ?? 2000,
+      }),
+    })
+
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      const errMsg = data?.error?.message || `LLM HTTP ${res.status}`
+      const err = new Error(errMsg)
+      if (attempt < maxAttempts && (res.status === 429 || isRateLimitError(err))) {
+        const waitMs = Math.max(1000, Number(options.rateLimitRetryMs || 55000))
+        await sleep(waitMs)
+        continue
+      }
+      throw err
+    }
+
+    const content = data?.choices?.[0]?.message?.content
+    if (!content) throw new Error('LLM returned an empty response.')
+    return String(content).trim()
   }
 
-  const content = data?.choices?.[0]?.message?.content
-  if (!content) throw new Error('LLM returned an empty response.')
-  return String(content).trim()
+  throw new Error('LLM request failed after retries.')
 }
 
 module.exports = {

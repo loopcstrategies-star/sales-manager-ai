@@ -163,4 +163,19 @@ describe('sales-manager-ai backend', () => {
     await expect(verifyImageUrl('https://www.kitco.com/images/gold.jpg')).resolves.toBe('')
     global.fetch = originalFetch
   })
+
+  test('formatDashboardResearchForPrompt truncates large input', () => {
+    const { formatDashboardResearchForPrompt } = require('../services/prompts')
+    const batches = [{
+      query: 'gold news',
+      results: Array.from({ length: 30 }, (_, i) => ({
+        title: `Headline ${i}`,
+        url: `https://example.com/${i}`,
+        content: 'x'.repeat(500),
+      })),
+    }]
+    const { text, sources } = formatDashboardResearchForPrompt(batches)
+    expect(sources.length).toBeLessThanOrEqual(20)
+    expect(text.length).toBeLessThanOrEqual(8015)
+  })
 })
