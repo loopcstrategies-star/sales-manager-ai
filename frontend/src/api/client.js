@@ -48,3 +48,8 @@ export const dashboardApi = {
     body: JSON.stringify({ region }),
   }),
 }
+
+export const settingsApi = {
+  get: () => api('/api/settings'),
+  update: (body) => api('/api/settings', { method: 'PATCH', body: JSON.stringify(body) }),
+}

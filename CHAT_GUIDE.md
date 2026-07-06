@@ -174,7 +174,8 @@ Falls back to template mode if the LLM fails or no key is configured.
 | **Recent chats** | Sidebar list | Load a saved session |
 | **Export** | Top bar | Download chat as markdown |
 | **Mode badge** | Sidebar | Shows `Groq`, `OpenAI`, `Ollama`, or `Template (fallback)` |
-| **Dashboard** | Sidebar nav | Live headlines, hero story, price tiles, filters, region focus |
+| **Dashboard** | Sidebar nav | Organized zones: stats, headlines, hero, sections; filters from Settings |
+| **Settings** | Sidebar nav | Display, feed/topics, and account preferences (saved per user) |
 
 **Rate limit:** 20 messages per minute per user.
 
@@ -182,17 +183,23 @@ Falls back to template mode if the LLM fails or no key is configured.
 
 ## Dashboard
 
-Click **Dashboard** in the sidebar for a news-rich market view:
+Click **Dashboard** in the sidebar for a news-rich market view organized into clear zones:
 
-- **Headline ticker** — scrolling strip of today's headlines
-- **Hero card** — top story with image when available
-- **Price tiles** — gold/silver spot (requires `GOLDAPI_KEY`)
-- **Filter chips** — All, Gold, UAE, B2B, Macro
-- **Region focus** — sidebar dropdown scopes Tavily queries (same regions as chat)
-- **Precious metals & jewelry** — headline + analysis cards with tags and relative time
-- **General market & sales** — business and B2B headlines
+1. **Header** — last server refresh, source meta, region quick-switch, **Refresh now**
+2. **Stats bar** — gold/silver spot prices + source counts (Tavily, RSS, NewsAPI)
+3. **Headlines row** — horizontal strip of short headline cards
+4. **Hero** — top story (optional in Settings)
+5. **Sections** — sticky nav: Overview | Metals | General
 
-Data merges **Tavily** (advanced search), **RSS** (Kitco, Reuters), optional **NewsAPI**, and **Groq** summaries. Cached in MongoDB. Use **Refresh now** for a manual update (rate-limited). Background refresh runs every `DASHBOARD_REFRESH_HOURS` (default 4).
+- **Filter chips** — All, Gold, UAE, B2B, Macro (saved in **Settings → Feed & topics**)
+- **Region** — default from Settings; override in dashboard header (saved back to prefs)
+- **Precious metals & jewelry** / **General market & sales** — cards with tags, images, relative time
+
+Data merges **Tavily** (advanced search), **RSS**, optional **NewsAPI**, and **Groq** summaries. Cached in MongoDB.
+
+- **UI auto-refresh** — re-reads cached snapshot (1 / 5 / 10 / 15 min in Settings)
+- **Server refresh** — rebuilds feed every `DASHBOARD_REFRESH_HOURS` (default 4) on Railway
+- **Refresh now** — manual rebuild (rate-limited, default once per 10 min)
 
 ```env
 DASHBOARD_ENABLED=true
@@ -208,6 +215,38 @@ METALS_PRICE_CACHE_MIN=30
 ```
 
 Click **Discuss in chat** on any card to open Chat with a pre-filled prompt.
+
+---
+
+## Settings
+
+Open **Settings** in the sidebar to control layout and feed behavior. Preferences are stored per user in MongoDB.
+
+### Dashboard display
+
+| Setting | Default |
+|---------|---------|
+| Show price tiles | on |
+| Show headline ticker | on |
+| Show headlines row | on |
+| Show hero story | on |
+| Show card images | on |
+| Compact cards | off |
+
+### Feed & topics
+
+| Setting | Default |
+|---------|---------|
+| Default region | Global |
+| Enabled sections | Metals + General |
+| Topic filter | All |
+| Custom topics | none (max 10 keywords) |
+| Sort order | Headlines first |
+| UI auto-refresh | 5 minutes |
+
+**Not configurable in Settings:** server API keys (Groq, Tavily, NewsAPI, GoldAPI) and the server-side feed rebuild interval. The **Account & system** tab shows which providers are connected on the server.
+
+API: `GET /api/settings`, `PATCH /api/settings`
 
 ---
 

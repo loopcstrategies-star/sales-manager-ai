@@ -4,6 +4,7 @@ const authRoutes = require('./routes/auth')
 const chatRoutes = require('./routes/chat')
 const configRoutes = require('./routes/config')
 const dashboardRoutes = require('./routes/dashboard')
+const settingsRoutes = require('./routes/settings')
 
 function createApp() {
   const app = express()
@@ -38,6 +39,7 @@ function createApp() {
   app.use('/api/config', configRoutes)
   app.use('/api/chat', chatRoutes)
   app.use('/api/dashboard', dashboardRoutes)
+  app.use('/api/settings', settingsRoutes)
 
   app.use((req, res) => {
     res.status(404).json({ success: false, message: `Route ${req.originalUrl} not found.` })

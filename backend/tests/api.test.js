@@ -84,6 +84,44 @@ describe('sales-manager-ai backend', () => {
     expect(res.status).toBe(401)
   })
 
+  test('GET /api/settings requires auth', async () => {
+    const res = await request(app).get('/api/settings')
+    expect(res.status).toBe(401)
+  })
+
+  test('PATCH /api/settings requires auth', async () => {
+    const res = await request(app).patch('/api/settings').send({ dashboard: { pollMinutes: 10 } })
+    expect(res.status).toBe(401)
+  })
+
+  test('settings patch schema rejects invalid pollMinutes', () => {
+    const { Joi } = require('../middleware/validate')
+    const patchSchema = Joi.object({
+      dashboard: Joi.object({
+        pollMinutes: Joi.number().valid(1, 5, 10, 15),
+      }).min(1),
+    }).min(1)
+    const { error } = patchSchema.validate({ dashboard: { pollMinutes: 7 } })
+    expect(error).toBeTruthy()
+    const ok = patchSchema.validate({ dashboard: { pollMinutes: 10 } })
+    expect(ok.error).toBeUndefined()
+  })
+
+  test('mergeDashboard applies defaults', () => {
+    const { mergeDashboard, DEFAULT_DASHBOARD } = require('../services/userPreferences')
+    const merged = mergeDashboard({})
+    expect(merged.showPriceTiles).toBe(DEFAULT_DASHBOARD.showPriceTiles)
+    expect(merged.pollMinutes).toBe(5)
+    expect(merged.sections.metals).toBe(true)
+  })
+
+  test('mergeDashboard caps custom topics', () => {
+    const { mergeDashboard } = require('../services/userPreferences')
+    const topics = Array.from({ length: 15 }, (_, i) => `topic${i}`)
+    const merged = mergeDashboard({ customTopics: topics })
+    expect(merged.customTopics).toHaveLength(10)
+  })
+
   test('buildCardsFromSources creates cards from search batches', () => {
     const { buildCardsFromSources } = require('../services/dashboardFeed')
     const cards = buildCardsFromSources([{

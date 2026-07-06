@@ -4,6 +4,7 @@ import { useAuth } from './context/AuthContext'
 import LoginPage from './pages/LoginPage'
 import ChatPage from './pages/ChatPage'
 import DashboardPage from './pages/DashboardPage'
+import SettingsPage from './pages/SettingsPage'
 import EmbedPage from './pages/EmbedPage'
 
 function PrivateRoute({ children }) {
@@ -20,6 +21,7 @@ export default function App() {
       <Route path="/embed" element={<EmbedPage />} />
       <Route path="/" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
       <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
+      <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
