@@ -1,0 +1,304 @@
+import React, { useCallback, useEffect, useState } from 'react'
+import { accountsApi } from '../../api/client'
+import { useAuth } from '../../context/AuthContext'
+import CrmListView from '../../components/crm/CrmListView'
+import CrmModal from '../../components/crm/CrmModal'
+import CustomFieldsEditor from '../../components/crm/CustomFieldsEditor'
+import LookupField from '../../components/crm/LookupField'
+
+const emptyAddress = () => ({
+  country: '',
+  street: '',
+  city: '',
+  zip: '',
+  state: '',
+})
+
+const emptyForm = () => ({
+  name: '',
+  website: '',
+  type: '',
+  description: '',
+  parentAccountId: '',
+  parentAccountName: '',
+  phone: '',
+  billingAddress: emptyAddress(),
+  shippingAddress: emptyAddress(),
+  customFields: [],
+})
+
+const ACCOUNT_TYPES = ['--None--', 'Customer', 'Partner', 'Prospect', 'Other']
+const COUNTRIES = ['--None--', 'United Arab Emirates', 'United States', 'United Kingdom', 'India', 'Other']
+
+function AddressFields({ prefix, value, onChange }) {
+  const set = (key, v) => onChange({ ...value, [key]: v })
+  return (
+    <div className="crm-address-block">
+      <label className="crm-field">
+        <span>{prefix} Country</span>
+        <select value={value.country || '--None--'} onChange={(e) => set('country', e.target.value === '--None--' ? '' : e.target.value)}>
+          {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </label>
+      <label className="crm-field">
+        <span>{prefix} Street</span>
+        <textarea rows={2} value={value.street} onChange={(e) => set('street', e.target.value)} />
+      </label>
+      <label className="crm-field">
+        <span>{prefix} City</span>
+        <input value={value.city} onChange={(e) => set('city', e.target.value)} />
+      </label>
+      <div className="crm-field-row">
+        <label className="crm-field">
+          <span>{prefix} Zip/Postal Code</span>
+          <input value={value.zip} onChange={(e) => set('zip', e.target.value)} />
+        </label>
+        <label className="crm-field">
+          <span>{prefix} State/Province</span>
+          <input value={value.state} onChange={(e) => set('state', e.target.value)} />
+        </label>
+      </div>
+    </div>
+  )
+}
+
+export default function AccountsPage() {
+  const { user } = useAuth()
+  const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [form, setForm] = useState(emptyForm())
+  const [errors, setErrors] = useState({})
+  const [saving, setSaving] = useState(false)
+  const [listError, setListError] = useState('')
+
+  const load = useCallback(async (q = '') => {
+    setLoading(true)
+    setListError('')
+    try {
+      const res = await accountsApi.list(q)
+      setItems(res.data || [])
+    } catch (err) {
+      setListError(err.message || 'Failed to load accounts')
+      setItems([])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    const t = setTimeout(() => load(search), 250)
+    return () => clearTimeout(t)
+  }, [search, load])
+
+  const openNew = () => {
+    setEditingId(null)
+    setForm(emptyForm())
+    setErrors({})
+    setModalOpen(true)
+  }
+
+  const openEdit = (row) => {
+    const item = items.find((a) => a._id === row.id) || row.raw
+    if (!item) return
+    setEditingId(item._id)
+    setForm({
+      name: item.name || '',
+      website: item.website || '',
+      type: item.type || '',
+      description: item.description || '',
+      parentAccountId: item.parentAccountId || '',
+      parentAccountName: item.parentAccountName || '',
+      phone: item.phone || '',
+      billingAddress: { ...emptyAddress(), ...(item.billingAddress || {}) },
+      shippingAddress: { ...emptyAddress(), ...(item.shippingAddress || {}) },
+      customFields: Array.isArray(item.customFields) ? item.customFields : [],
+    })
+    setErrors({})
+    setModalOpen(true)
+  }
+
+  const setField = (key, value) => setForm((f) => ({ ...f, [key]: value }))
+
+  const validate = () => {
+    const next = {}
+    if (!String(form.name || '').trim()) next.name = 'Complete this field.'
+    setErrors(next)
+    return Object.keys(next).length === 0
+  }
+
+  const buildPayload = () => ({
+    name: form.name.trim(),
+    website: form.website,
+    type: form.type,
+    description: form.description,
+    parentAccountId: form.parentAccountId || '',
+    phone: form.phone,
+    billingAddress: form.billingAddress,
+    shippingAddress: form.shippingAddress,
+    customFields: (form.customFields || []).filter((f) => f.label || f.value),
+  })
+
+  const save = async (andNew = false) => {
+    if (!validate()) return
+    setSaving(true)
+    try {
+      const payload = buildPayload()
+      if (editingId) await accountsApi.update(editingId, payload)
+      else await accountsApi.create(payload)
+      await load(search)
+      if (andNew) {
+        setEditingId(null)
+        setForm(emptyForm())
+        setErrors({})
+      } else {
+        setModalOpen(false)
+      }
+    } catch (err) {
+      setErrors({ form: err.message || 'Save failed' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const searchParents = useCallback(async (q) => {
+    const res = await accountsApi.list(q)
+    return (res.data || [])
+      .filter((a) => a._id !== editingId)
+      .map((a) => ({ id: a._id, label: a.name }))
+  }, [editingId])
+
+  const rows = items.map((a) => ({
+    id: a._id,
+    raw: a,
+    name: a.name,
+    phone: a.phone || '—',
+    website: a.website || '—',
+    billingCity: a.billingAddress?.city || '—',
+    billingState: a.billingAddress?.state || '—',
+    ownerAlias: a.ownerAlias || '—',
+  }))
+
+  return (
+    <>
+      {listError ? <p className="crm-banner-error">{listError}</p> : null}
+      <CrmListView
+        title="All Accounts"
+        count={rows.length}
+        sortLabel="Account Name"
+        search={search}
+        onSearchChange={setSearch}
+        actions={(
+          <>
+            <button type="button" className="crm-btn-primary" onClick={openNew}>New</button>
+            <button type="button" className="crm-btn-secondary" disabled title="Coming soon">Import</button>
+            <button type="button" className="crm-btn-secondary" disabled title="Coming soon">Assign Label</button>
+          </>
+        )}
+        columns={[
+          { key: 'name', label: 'Account Name' },
+          { key: 'phone', label: 'Phone' },
+          { key: 'website', label: 'Website' },
+          { key: 'billingCity', label: 'Billing City' },
+          { key: 'billingState', label: 'Billing State/Province' },
+          { key: 'ownerAlias', label: 'Account Owner Alias' },
+        ]}
+        rows={rows}
+        loading={loading}
+        onRowClick={openEdit}
+        emptyTitle="Accounts show where your contacts work."
+        emptyDescription="Improve your reporting and deal tracking with accounts."
+        emptyActionLabel="Add an Account"
+        onEmptyAction={openNew}
+      />
+
+      <CrmModal
+        title={editingId ? 'Edit Account' : 'New Account'}
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        footer={(
+          <>
+            <button type="button" className="crm-btn-secondary" onClick={() => setModalOpen(false)}>Cancel</button>
+            <button type="button" className="crm-btn-secondary" disabled={saving} onClick={() => save(true)}>Save & New</button>
+            <button type="button" className="crm-btn-primary" disabled={saving} onClick={() => save(false)}>
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+          </>
+        )}
+      >
+        {errors.form ? <p className="crm-banner-error">{errors.form}</p> : null}
+
+        <div className="crm-section-bar">About</div>
+        <label className={`crm-field${errors.name ? ' has-error' : ''}`}>
+          <span>* Account Name</span>
+          <input value={form.name} onChange={(e) => setField('name', e.target.value)} />
+          {errors.name ? <span className="crm-field-error">{errors.name}</span> : null}
+        </label>
+        <label className="crm-field">
+          <span>Website</span>
+          <input value={form.website} onChange={(e) => setField('website', e.target.value)} />
+        </label>
+        <label className="crm-field">
+          <span>Type</span>
+          <select
+            value={form.type || '--None--'}
+            onChange={(e) => setField('type', e.target.value === '--None--' ? '' : e.target.value)}
+          >
+            {ACCOUNT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </label>
+        <label className="crm-field">
+          <span>Description</span>
+          <textarea rows={3} value={form.description} onChange={(e) => setField('description', e.target.value)} />
+        </label>
+        <LookupField
+          label="Parent Account"
+          valueId={form.parentAccountId}
+          valueLabel={form.parentAccountName}
+          placeholder="Search Accounts..."
+          onSearch={searchParents}
+          onSelect={(opt) => {
+            setField('parentAccountId', opt.id)
+            setField('parentAccountName', opt.label)
+          }}
+          onClear={() => {
+            setField('parentAccountId', '')
+            setField('parentAccountName', '')
+          }}
+        />
+        <div className="crm-owner-field">
+          <span>Account Owner</span>
+          <div className="crm-owner-value">
+            <span className="crm-avatar">{(user?.name || 'U').slice(0, 1)}</span>
+            {user?.name || '—'}
+          </div>
+        </div>
+
+        <div className="crm-section-bar">Get in Touch</div>
+        <label className="crm-field">
+          <span>Phone</span>
+          <input value={form.phone} onChange={(e) => setField('phone', e.target.value)} />
+        </label>
+        <p className="crm-subsection">Billing Address</p>
+        <AddressFields
+          prefix="Billing"
+          value={form.billingAddress}
+          onChange={(billingAddress) => setField('billingAddress', billingAddress)}
+        />
+        <p className="crm-subsection">Shipping Address</p>
+        <AddressFields
+          prefix="Shipping"
+          value={form.shippingAddress}
+          onChange={(shippingAddress) => setField('shippingAddress', shippingAddress)}
+        />
+
+        <CustomFieldsEditor
+          fields={form.customFields}
+          onChange={(customFields) => setField('customFields', customFields)}
+        />
+      </CrmModal>
+    </>
+  )
+}

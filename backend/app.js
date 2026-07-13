@@ -1,3 +1,4 @@
+const path = require('path')
 const express = require('express')
 const cors = require('cors')
 const authRoutes = require('./routes/auth')
@@ -5,6 +6,13 @@ const chatRoutes = require('./routes/chat')
 const configRoutes = require('./routes/config')
 const dashboardRoutes = require('./routes/dashboard')
 const settingsRoutes = require('./routes/settings')
+const accountsRoutes = require('./routes/accounts')
+const contactsRoutes = require('./routes/contacts')
+const opportunitiesRoutes = require('./routes/opportunities')
+const casesRoutes = require('./routes/cases')
+const campaignsRoutes = require('./routes/campaigns')
+const uploadsRoutes = require('./routes/uploads')
+const crmRoutes = require('./routes/crm')
 
 function createApp() {
   const app = express()
@@ -23,6 +31,7 @@ function createApp() {
     credentials: true,
   }))
   app.use(express.json({ limit: '1mb' }))
+  app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
 
   app.get('/api/health', (_req, res) => {
     const mongoose = require('mongoose')
@@ -40,6 +49,13 @@ function createApp() {
   app.use('/api/chat', chatRoutes)
   app.use('/api/dashboard', dashboardRoutes)
   app.use('/api/settings', settingsRoutes)
+  app.use('/api/accounts', accountsRoutes)
+  app.use('/api/contacts', contactsRoutes)
+  app.use('/api/opportunities', opportunitiesRoutes)
+  app.use('/api/cases', casesRoutes)
+  app.use('/api/campaigns', campaignsRoutes)
+  app.use('/api/uploads', uploadsRoutes)
+  app.use('/api/crm', crmRoutes)
 
   app.use((req, res) => {
     res.status(404).json({ success: false, message: `Route ${req.originalUrl} not found.` })

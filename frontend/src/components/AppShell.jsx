@@ -48,6 +48,9 @@ export default function AppShell({
             <NavLink to="/dashboard" className={({ isActive }) => `sidebar-nav-link${isActive ? ' active' : ''}`}>
               Dashboard
             </NavLink>
+            <NavLink to="/sales" className={({ isActive }) => `sidebar-nav-link${isActive ? ' active' : ''}`}>
+              Sales
+            </NavLink>
             <NavLink to="/settings" className={({ isActive }) => `sidebar-nav-link${isActive ? ' active' : ''}`}>
               Settings
             </NavLink>
