@@ -12,12 +12,16 @@ const {
 const router = express.Router()
 router.use(protect)
 
+const OPEN_STATUSES = ['New', 'Working', 'Escalated']
+
 const bodySchema = Joi.object({
   subject: Joi.string().trim().min(1).max(300).required(),
   contactId: Joi.string().allow(null, ''),
   accountId: Joi.string().allow(null, ''),
   status: Joi.string().valid('New', 'Working', 'Escalated', 'Closed'),
   priority: Joi.string().valid('Low', 'Medium', 'High'),
+  caseOrigin: Joi.string().allow('').max(40),
+  sendNotificationEmail: Joi.boolean(),
   description: Joi.string().allow('').max(5000),
 })
 
@@ -28,6 +32,7 @@ function serialize(doc) {
   const account = obj.accountId && typeof obj.accountId === 'object' ? obj.accountId : null
   return {
     ...obj,
+    caseNumber: obj.caseNumber || '',
     ownerId: owner?._id || obj.ownerId,
     ownerName: owner?.name || '',
     ownerAlias: ownerAlias(owner),
@@ -40,17 +45,42 @@ function serialize(doc) {
   }
 }
 
+async function nextCaseNumber(workspaceId) {
+  const latest = await Case.findOne({ workspaceId, caseNumber: { $exists: true, $ne: '' } })
+    .sort({ caseNumber: -1 })
+    .select('caseNumber')
+    .lean()
+  const current = latest?.caseNumber ? parseInt(latest.caseNumber, 10) : 1000
+  const next = Number.isFinite(current) ? current + 1 : 1001
+  return String(Math.max(next, 1001)).padStart(8, '0')
+}
+
 router.get('/', async (req, res) => {
   try {
     const q = String(req.query.q || '').trim()
+    const view = String(req.query.view || 'open').trim().toLowerCase()
     const filter = { ...workspaceFilter(req.user) }
-    if (q) filter.subject = { $regex: escapeRegex(q), $options: 'i' }
+
+    if (view === 'open') {
+      filter.status = { $in: OPEN_STATUSES }
+    } else if (view !== 'all') {
+      filter.status = view.charAt(0).toUpperCase() + view.slice(1)
+    }
+
+    if (q) {
+      const regex = { $regex: escapeRegex(q), $options: 'i' }
+      filter.$or = [
+        { subject: regex },
+        { caseNumber: regex },
+        { description: regex },
+      ]
+    }
 
     const items = await Case.find(filter)
       .populate('ownerId', 'name')
       .populate('contactId', 'firstName lastName')
       .populate('accountId', 'name')
-      .sort({ updatedAt: -1 })
+      .sort({ caseNumber: 1, createdAt: -1 })
       .limit(500)
       .lean()
 
@@ -62,10 +92,17 @@ router.get('/', async (req, res) => {
 
 router.post('/', validateBody(bodySchema), async (req, res) => {
   try {
+    const caseNumber = await nextCaseNumber(req.user.workspaceId)
     const created = await Case.create({
-      ...req.body,
+      subject: req.body.subject,
       contactId: toObjectId(req.body.contactId),
       accountId: toObjectId(req.body.accountId),
+      status: req.body.status,
+      priority: req.body.priority,
+      caseOrigin: req.body.caseOrigin || '',
+      sendNotificationEmail: Boolean(req.body.sendNotificationEmail),
+      description: req.body.description || '',
+      caseNumber,
       workspaceId: req.user.workspaceId,
       ownerId: req.user._id,
     })
@@ -83,9 +120,14 @@ router.patch('/:id', validateBody(bodySchema), async (req, res) => {
     const updated = await Case.findOneAndUpdate(
       { _id: req.params.id, ...workspaceFilter(req.user) },
       {
-        ...req.body,
+        subject: req.body.subject,
         contactId: toObjectId(req.body.contactId),
         accountId: toObjectId(req.body.accountId),
+        status: req.body.status,
+        priority: req.body.priority,
+        caseOrigin: req.body.caseOrigin || '',
+        sendNotificationEmail: Boolean(req.body.sendNotificationEmail),
+        description: req.body.description || '',
       },
       { new: true, runValidators: true }
     )

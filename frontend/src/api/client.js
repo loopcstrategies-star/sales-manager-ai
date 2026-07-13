@@ -110,7 +110,13 @@ export const leadsApi = {
 }
 
 export const casesApi = {
-  list: (q = '') => api(`/api/cases${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  list: (q = '', view = 'open') => {
+    const params = new URLSearchParams()
+    if (q) params.set('q', q)
+    if (view) params.set('view', view)
+    const qs = params.toString()
+    return api(`/api/cases${qs ? `?${qs}` : ''}`)
+  },
   create: (body) => api('/api/cases', { method: 'POST', body: JSON.stringify(body) }),
   update: (id, body) => api(`/api/cases/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   remove: (id) => api(`/api/cases/${id}`, { method: 'DELETE' }),
