@@ -220,5 +220,9 @@ export const crmApi = {
     method: 'POST',
     body: JSON.stringify({ cap }),
   }),
+  contactsFromAccounts: (cap = 50) => api('/api/crm/contacts/from-accounts', {
+    method: 'POST',
+    body: JSON.stringify({ cap }),
+  }),
 }
 

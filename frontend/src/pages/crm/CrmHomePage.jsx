@@ -8,6 +8,7 @@ export default function CrmHomePage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [refreshMsg, setRefreshMsg] = useState('')
+  const [backfillBusy, setBackfillBusy] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -50,6 +51,21 @@ export default function CrmHomePage() {
       }
     } catch (err) {
       setRefreshMsg(err.message || 'Refresh failed.')
+    }
+  }
+
+  const runContactsFromAccounts = async () => {
+    setBackfillBusy(true)
+    setRefreshMsg('')
+    try {
+      const res = await crmApi.contactsFromAccounts(50)
+      const d = res.data || {}
+      setRefreshMsg(`Contacts from Accounts · created ${d.created || 0}, skipped ${d.skipped || 0}.`)
+      await load()
+    } catch (err) {
+      setRefreshMsg(err.message || 'Contact backfill failed.')
+    } finally {
+      setBackfillBusy(false)
     }
   }
 
@@ -97,6 +113,14 @@ export default function CrmHomePage() {
             <Link className="crm-btn-secondary" to="/sales/pipeline">View Pipeline</Link>
             <button type="button" className="crm-btn-secondary" onClick={runRefresh}>
               Refresh stale records
+            </button>
+            <button
+              type="button"
+              className="crm-btn-secondary"
+              disabled={backfillBusy}
+              onClick={runContactsFromAccounts}
+            >
+              {backfillBusy ? 'Creating…' : 'Create contacts from Accounts'}
             </button>
           </div>
           {refreshMsg ? <p className="crm-muted">{refreshMsg}</p> : null}

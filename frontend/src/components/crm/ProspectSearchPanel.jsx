@@ -9,6 +9,7 @@ export default function ProspectSearchPanel({ onImported }) {
   const [importing, setImporting] = useState(false)
   const [asAccount, setAsAccount] = useState(true)
   const [asLead, setAsLead] = useState(false)
+  const [asContact, setAsContact] = useState(true)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
@@ -36,9 +37,10 @@ export default function ProspectSearchPanel({ onImported }) {
   }
 
   const selectedItems = results.filter((r) => selected[r.id])
+  const canImport = asAccount || asLead || asContact
 
   const importSelected = async () => {
-    if (!selectedItems.length) return
+    if (!selectedItems.length || !canImport) return
     setImporting(true)
     setError('')
     try {
@@ -46,10 +48,11 @@ export default function ProspectSearchPanel({ onImported }) {
         items: selectedItems,
         asAccount,
         asLead,
+        asContact,
       })
       const d = res.data || {}
       setMessage(
-        `Imported · Accounts +${d.accountsCreated || 0} (upd ${d.accountsUpdated || 0}) · Leads +${d.leadsCreated || 0}`,
+        `Imported · Accounts +${d.accountsCreated || 0} (upd ${d.accountsUpdated || 0}) · Contacts +${d.contactsCreated || 0} · Leads +${d.leadsCreated || 0}`,
       )
       onImported?.(d)
     } catch (err) {
@@ -62,7 +65,7 @@ export default function ProspectSearchPanel({ onImported }) {
   return (
     <section className="crm-home-panel crm-prospect-panel">
       <h3>Find companies</h3>
-      <p className="crm-muted">Search the web, then add selected results as Accounts and/or Leads.</p>
+      <p className="crm-muted">Search the web, then add selected results as Accounts, Contacts, and/or Leads.</p>
       <form className="crm-prospect-form" onSubmit={search}>
         <input
           value={query}
@@ -106,13 +109,17 @@ export default function ProspectSearchPanel({ onImported }) {
               Add as Account
             </label>
             <label>
+              <input type="checkbox" checked={asContact} onChange={(e) => setAsContact(e.target.checked)} />
+              Add as Contact
+            </label>
+            <label>
               <input type="checkbox" checked={asLead} onChange={(e) => setAsLead(e.target.checked)} />
               Add as Lead
             </label>
             <button
               type="button"
               className="crm-btn-primary"
-              disabled={importing || !selectedItems.length || (!asAccount && !asLead)}
+              disabled={importing || !selectedItems.length || !canImport}
               onClick={importSelected}
             >
               {importing ? 'Adding…' : `Add selected (${selectedItems.length})`}

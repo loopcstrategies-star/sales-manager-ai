@@ -16,6 +16,18 @@ const { runCrmEnrichRefresh } = require('../jobs/crmEnrichRefresh')
 const router = express.Router()
 router.use(protect)
 
+function contactLastNameFromTitle(title) {
+  const cleaned = String(title || '')
+    .replace(/\s*[-|–—].*$/, '')
+    .replace(/\b(llc|ltd|inc|co|corp|company|manufacturer|jewelry|jewellery|modern|gold|fe)\b/gi, ' ')
+    .replace(/[^\w\s'-]/g, ' ')
+    .trim()
+  const parts = cleaned.split(/\s+/).filter(Boolean)
+  if (!parts.length) return 'Contact'
+  const pick = parts.length === 1 ? parts[0] : parts[parts.length - 1]
+  return String(pick).slice(0, 100) || 'Contact'
+}
+
 function buildQuery(object, record, draft = {}) {
   const src = record || draft || {}
   if (object === 'leads') {
@@ -144,33 +156,47 @@ router.post('/prospect/import', async (req, res) => {
     const items = Array.isArray(req.body.items) ? req.body.items : []
     const asAccount = req.body.asAccount !== false
     const asLead = Boolean(req.body.asLead)
+    const asContact = Boolean(req.body.asContact)
     if (!items.length) {
       return res.status(400).json({ success: false, message: 'Select at least one result.' })
     }
-    if (!asAccount && !asLead) {
-      return res.status(400).json({ success: false, message: 'Choose Add as Account and/or Add as Lead.' })
+    if (!asAccount && !asLead && !asContact) {
+      return res.status(400).json({
+        success: false,
+        message: 'Choose Add as Account, Lead, and/or Contact.',
+      })
     }
 
     const filter = workspaceFilter(req.user)
-    const summary = { accountsCreated: 0, accountsUpdated: 0, leadsCreated: 0, errors: [] }
+    const summary = {
+      accountsCreated: 0,
+      accountsUpdated: 0,
+      leadsCreated: 0,
+      contactsCreated: 0,
+      errors: [],
+    }
 
     for (const item of items.slice(0, 25)) {
       try {
         const title = String(item.title || '').trim() || 'Prospect'
         const url = String(item.url || '').trim()
         const snippet = String(item.snippet || item.content || '').trim()
+        const blob = `${title}\n${snippet}\n${url}`
         let account = null
 
-        if (asAccount) {
+        const needAccount = asAccount || asContact
+        if (needAccount) {
           account = await Account.findOne({
             ...filter,
             name: new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
           })
           if (account) {
-            if (url && !account.website) account.website = url
-            if (snippet && !account.description) account.description = snippet.slice(0, 2000)
-            await account.save()
-            summary.accountsUpdated += 1
+            if (asAccount) {
+              if (url && !account.website) account.website = url
+              if (snippet && !account.description) account.description = snippet.slice(0, 2000)
+              await account.save()
+              summary.accountsUpdated += 1
+            }
           } else {
             account = await Account.create({
               name: title.slice(0, 200),
@@ -180,7 +206,7 @@ router.post('/prospect/import', async (req, res) => {
               workspaceId: req.user.workspaceId,
               ownerId: req.user._id,
             })
-            summary.accountsCreated += 1
+            if (asAccount) summary.accountsCreated += 1
           }
         }
 
@@ -197,6 +223,22 @@ router.post('/prospect/import', async (req, res) => {
           })
           summary.leadsCreated += 1
         }
+
+        if (asContact && account) {
+          const emailMatch = blob.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)
+          const phoneMatch = blob.match(/(?:\+\d{1,3}[\s-]?)?(?:\(?\d{2,4}\)?[\s.-]?)?\d{3}[\s.-]?\d{4}/)
+          await Contact.create({
+            lastName: contactLastNameFromTitle(title),
+            accountId: account._id,
+            description: snippet.slice(0, 2000),
+            phone: phoneMatch ? phoneMatch[0].slice(0, 60) : '',
+            email: emailMatch ? emailMatch[0].toLowerCase().slice(0, 200) : '',
+            title: '',
+            workspaceId: req.user.workspaceId,
+            ownerId: req.user._id,
+          })
+          summary.contactsCreated += 1
+        }
       } catch (e) {
         summary.errors.push({ title: item?.title, message: e.message || 'Failed' })
       }
@@ -205,6 +247,41 @@ router.post('/prospect/import', async (req, res) => {
     res.json({ success: true, data: summary })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message || 'Prospect import failed.' })
+  }
+})
+
+router.post('/contacts/from-accounts', async (req, res) => {
+  try {
+    const filter = workspaceFilter(req.user)
+    const cap = Math.max(1, Math.min(Number(req.body.cap) || 50, 100))
+    const accounts = await Account.find(filter).sort({ createdAt: -1 }).limit(200)
+    let created = 0
+    let skipped = 0
+
+    for (const account of accounts) {
+      if (created >= cap) break
+      const existing = await Contact.countDocuments({ ...filter, accountId: account._id })
+      if (existing > 0) {
+        skipped += 1
+        continue
+      }
+      const name = String(account.name || '').trim()
+      const lastName = contactLastNameFromTitle(name)
+      await Contact.create({
+        lastName: lastName === 'Contact' ? 'Main' : lastName,
+        accountId: account._id,
+        description: String(account.description || '').slice(0, 2000),
+        phone: String(account.phone || '').slice(0, 60),
+        email: '',
+        workspaceId: req.user.workspaceId,
+        ownerId: req.user._id,
+      })
+      created += 1
+    }
+
+    res.json({ success: true, data: { created, skipped, cap } })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Contact backfill failed.' })
   }
 })
 
