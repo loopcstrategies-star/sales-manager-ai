@@ -79,6 +79,7 @@ export default function AccountsPage() {
   const [listError, setListError] = useState('')
   const [importOpen, setImportOpen] = useState(false)
   const [enrichedHint, setEnrichedHint] = useState('')
+  const [selectedIds, setSelectedIds] = useState([])
 
   const load = useCallback(async (q = '') => {
     setLoading(true)
@@ -222,6 +223,14 @@ export default function AccountsPage() {
     ownerAlias: a.ownerAlias || '—',
   }))
 
+  const deleteSelected = async () => {
+    if (!selectedIds.length) return
+    if (!window.confirm(`Delete ${selectedIds.length} account(s)?`)) return
+    await Promise.all(selectedIds.map((id) => accountsApi.remove(id).catch(() => null)))
+    setSelectedIds([])
+    await load(search)
+  }
+
   return (
     <>
       {listError ? <p className="crm-banner-error">{listError}</p> : null}
@@ -231,6 +240,11 @@ export default function AccountsPage() {
         sortLabel="Account Name"
         search={search}
         onSearchChange={setSearch}
+        selectedIds={selectedIds}
+        onSelectionChange={setSelectedIds}
+        bulkActions={(
+          <button type="button" className="crm-btn-secondary" onClick={deleteSelected}>Delete</button>
+        )}
         actions={(
           <>
             <button type="button" className="crm-btn-primary" onClick={openNew}>New</button>
@@ -269,6 +283,20 @@ export default function AccountsPage() {
                 onEnriched={applyEnrichment}
               />
               {enrichedHint ? <span className="crm-enrich-hint">{enrichedHint}</span> : null}
+              {editingId ? (
+                <button
+                  type="button"
+                  className="crm-btn-secondary"
+                  onClick={async () => {
+                    if (!window.confirm('Delete this account?')) return
+                    await accountsApi.remove(editingId)
+                    setModalOpen(false)
+                    await load(search)
+                  }}
+                >
+                  Delete
+                </button>
+              ) : null}
             </div>
             <button type="button" className="crm-btn-secondary" onClick={() => setModalOpen(false)}>Cancel</button>
             <button type="button" className="crm-btn-secondary" disabled={saving} onClick={() => save(true)}>Save & New</button>
