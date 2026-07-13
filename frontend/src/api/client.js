@@ -122,6 +122,20 @@ export const casesApi = {
   remove: (id) => api(`/api/cases/${id}`, { method: 'DELETE' }),
 }
 
+export const messagingSessionsApi = {
+  list: (q = '') => api(`/api/messaging-sessions${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  create: (body) => api('/api/messaging-sessions', { method: 'POST', body: JSON.stringify(body) }),
+  update: (id, body) => api(`/api/messaging-sessions/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  remove: (id) => api(`/api/messaging-sessions/${id}`, { method: 'DELETE' }),
+}
+
+export const knowledgeApi = {
+  list: (q = '') => api(`/api/knowledge-articles${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  create: (body) => api('/api/knowledge-articles', { method: 'POST', body: JSON.stringify(body) }),
+  update: (id, body) => api(`/api/knowledge-articles/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  remove: (id) => api(`/api/knowledge-articles/${id}`, { method: 'DELETE' }),
+}
+
 export const campaignsApi = {
   list: (q = '') => api(`/api/campaigns${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   create: (body) => api('/api/campaigns', { method: 'POST', body: JSON.stringify(body) }),

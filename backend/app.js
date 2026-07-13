@@ -12,6 +12,8 @@ const opportunitiesRoutes = require('./routes/opportunities')
 const casesRoutes = require('./routes/cases')
 const campaignsRoutes = require('./routes/campaigns')
 const leadsRoutes = require('./routes/leads')
+const messagingSessionsRoutes = require('./routes/messagingSessions')
+const knowledgeArticlesRoutes = require('./routes/knowledgeArticles')
 const uploadsRoutes = require('./routes/uploads')
 const crmRoutes = require('./routes/crm')
 
@@ -56,6 +58,8 @@ function createApp() {
   app.use('/api/cases', casesRoutes)
   app.use('/api/campaigns', campaignsRoutes)
   app.use('/api/leads', leadsRoutes)
+  app.use('/api/messaging-sessions', messagingSessionsRoutes)
+  app.use('/api/knowledge-articles', knowledgeArticlesRoutes)
   app.use('/api/uploads', uploadsRoutes)
   app.use('/api/crm', crmRoutes)
 

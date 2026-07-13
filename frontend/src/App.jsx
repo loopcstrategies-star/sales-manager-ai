@@ -12,8 +12,12 @@ import ContactsPage from './pages/crm/ContactsPage'
 import AccountsPage from './pages/crm/AccountsPage'
 import PipelinePage from './pages/crm/PipelinePage'
 import LeadsPage from './pages/crm/LeadsPage'
+import ServiceLayout from './pages/crm/ServiceLayout'
 import ServicePage from './pages/crm/ServicePage'
 import MarketingPage from './pages/crm/MarketingPage'
+import MessagingSessionsPage from './pages/crm/MessagingSessionsPage'
+import ServiceAnalyticsPage from './pages/crm/ServiceAnalyticsPage'
+import KnowledgePage from './pages/crm/KnowledgePage'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -44,7 +48,15 @@ export default function App() {
         <Route path="accounts" element={<AccountsPage />} />
         <Route path="leads" element={<LeadsPage />} />
         <Route path="pipeline" element={<PipelinePage />} />
-        <Route path="service" element={<ServicePage />} />
+        <Route path="service" element={<ServiceLayout />}>
+          <Route index element={<Navigate to="cases" replace />} />
+          <Route path="cases" element={<ServicePage />} />
+          <Route path="contacts" element={<ContactsPage />} />
+          <Route path="accounts" element={<AccountsPage />} />
+          <Route path="messaging" element={<MessagingSessionsPage />} />
+          <Route path="analytics" element={<ServiceAnalyticsPage />} />
+          <Route path="knowledge" element={<KnowledgePage />} />
+        </Route>
         <Route path="marketing" element={<MarketingPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
