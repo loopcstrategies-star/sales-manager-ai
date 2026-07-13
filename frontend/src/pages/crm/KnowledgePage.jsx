@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { knowledgeApi } from '../../api/client'
 import { useAuth } from '../../context/AuthContext'
+import { useServiceListQuery } from '../../hooks/useServiceListQuery'
 import CrmListView from '../../components/crm/CrmListView'
 import CrmModal from '../../components/crm/CrmModal'
 
@@ -62,14 +63,16 @@ export default function KnowledgePage() {
     return () => clearTimeout(t)
   }, [search, load])
 
-  const openNew = () => {
+  const openNew = useCallback(() => {
     setEditingId(null)
     setForm(emptyForm())
     setMeta(null)
     setUrlTouched(false)
     setErrors({})
     setModalOpen(true)
-  }
+  }, [])
+
+  const listFilter = useServiceListQuery(openNew)
 
   const openEdit = (row) => {
     const item = items.find((a) => a._id === row.id) || row.raw
@@ -142,7 +145,15 @@ export default function KnowledgePage() {
     }
   }
 
-  const rows = items.map((a) => ({
+  const filteredItems = useMemo(() => {
+    if (!listFilter) return items
+    if (listFilter === 'published') return items.filter((a) => a.publicationStatus === 'Published')
+    if (listFilter === 'draft') return items.filter((a) => a.publicationStatus === 'Draft')
+    if (listFilter === 'archived') return []
+    return items
+  }, [items, listFilter])
+
+  const rows = filteredItems.map((a) => ({
     id: a._id,
     raw: a,
     title: a.title || '—',

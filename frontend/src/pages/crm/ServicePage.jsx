@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { accountsApi, casesApi, contactsApi } from '../../api/client'
 import { useAuth } from '../../context/AuthContext'
+import { isOwnedBy, useServiceListQuery } from '../../hooks/useServiceListQuery'
 import CrmListView from '../../components/crm/CrmListView'
 import CrmModal from '../../components/crm/CrmModal'
 import LookupField from '../../components/crm/LookupField'
@@ -60,12 +61,14 @@ export default function ServicePage() {
     return () => clearTimeout(t)
   }, [search, load])
 
-  const openNew = () => {
+  const openNew = useCallback(() => {
     setEditingId(null)
     setForm(emptyForm())
     setErrors({})
     setModalOpen(true)
-  }
+  }, [])
+
+  const listFilter = useServiceListQuery(openNew)
 
   const openEdit = (row) => {
     const item = items.find((c) => c._id === row.id) || row.raw
@@ -142,7 +145,18 @@ export default function ServicePage() {
     return (res.data || []).map((a) => ({ id: a._id, label: a.name }))
   }, [])
 
-  const rows = items.map((c) => ({
+  const filteredItems = useMemo(() => {
+    if (!listFilter || listFilter === 'all-open') return items
+    if (listFilter === 'unassigned') {
+      return items.filter((c) => !c.ownerId)
+    }
+    if (listFilter === 'my' || listFilter === 'my-open') {
+      return items.filter((c) => isOwnedBy(c, user))
+    }
+    return items
+  }, [items, listFilter, user])
+
+  const rows = filteredItems.map((c) => ({
     id: c._id,
     raw: c,
     caseNumber: c.caseNumber || '—',

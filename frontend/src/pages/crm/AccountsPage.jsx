@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { accountsApi } from '../../api/client'
 import { useAuth } from '../../context/AuthContext'
+import { isCreatedThisWeek, isOwnedBy, useServiceListQuery } from '../../hooks/useServiceListQuery'
 import CrmListView from '../../components/crm/CrmListView'
 import CrmModal from '../../components/crm/CrmModal'
 import CustomFieldsEditor from '../../components/crm/CustomFieldsEditor'
@@ -93,12 +94,14 @@ export default function AccountsPage() {
     return () => clearTimeout(t)
   }, [search, load])
 
-  const openNew = () => {
+  const openNew = useCallback(() => {
     setEditingId(null)
     setForm(emptyForm())
     setErrors({})
     setModalOpen(true)
-  }
+  }, [])
+
+  const listFilter = useServiceListQuery(openNew)
 
   const openEdit = (row) => {
     const item = items.find((a) => a._id === row.id) || row.raw
@@ -170,7 +173,14 @@ export default function AccountsPage() {
       .map((a) => ({ id: a._id, label: a.name }))
   }, [editingId])
 
-  const rows = items.map((a) => ({
+  const filteredItems = useMemo(() => {
+    if (!listFilter || listFilter === 'all') return items
+    if (listFilter === 'my') return items.filter((a) => isOwnedBy(a, user))
+    if (listFilter === 'new-this-week') return items.filter((a) => isCreatedThisWeek(a))
+    return items
+  }, [items, listFilter, user])
+
+  const rows = filteredItems.map((a) => ({
     id: a._id,
     raw: a,
     name: a.name,
