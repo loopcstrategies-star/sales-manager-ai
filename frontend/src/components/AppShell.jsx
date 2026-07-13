@@ -9,13 +9,15 @@ export default function AppShell({
   sidebarOpen,
   onToggleSidebar,
   hideSidebar = false,
+  theme,
 }) {
   const { user, workspace, logout } = useAuth()
   const showSidebar = !hideSidebar && Boolean(sidebarExtra)
+  const salesMode = theme === 'luxury'
 
   return (
-    <div className="app-shell">
-      <header className="topbar">
+    <div className={`app-shell${salesMode ? ' app-shell--sales' : ''}`}>
+      <header className={`topbar${salesMode ? ' topbar--sales' : ''}`}>
         <div className="topbar-left">
           {showSidebar ? (
             <button

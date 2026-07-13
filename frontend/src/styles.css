@@ -116,6 +116,28 @@ a { color: var(--brand); }
   border-color: rgba(255, 255, 255, 0.3) !important;
 }
 
+/* Sales tab luxury topbar accents */
+.app-shell--sales .topbar--sales {
+  background: #14110f;
+  border-bottom: 1px solid rgba(196, 165, 116, 0.28);
+}
+
+.app-shell--sales .topbar--sales .topbar-nav-link.active {
+  background: #c4a574;
+  border-color: #c4a574;
+  color: #14110f;
+}
+
+.app-shell--sales .topbar--sales .topbar-nav-link:hover:not(.active) {
+  border-color: rgba(196, 165, 116, 0.55);
+  background: rgba(196, 165, 116, 0.1);
+}
+
+.app-shell--sales .topbar--sales .topbar-signout {
+  border-color: rgba(196, 165, 116, 0.4) !important;
+  color: #f7f4ef !important;
+}
+
 .btn {
   border: none;
   border-radius: 8px;
@@ -1649,6 +1671,190 @@ a { color: var(--brand); }
 .crm-recent-list span {
   color: var(--text-muted);
   font-size: 0.82rem;
+}
+
+/* ——— Sales luxury theme (Sales tab only) ——— */
+.crm-theme-luxury {
+  --crm-navy: #14110f;
+  --crm-navy-deep: #0c0b0a;
+  --crm-blue: #c4a574;
+  --crm-blue-dark: #a88754;
+  --crm-section: #efe8dc;
+  --crm-bg: #f7f4ef;
+  --crm-card: #fffcf8;
+  --crm-border: #e4ddd3;
+  --crm-text: #1c1917;
+  --crm-muted: #6b635b;
+  --crm-ink-soft: #2a241f;
+  background: var(--crm-bg);
+  color: var(--crm-text);
+}
+
+.crm-theme-luxury .crm-sidebar {
+  background: linear-gradient(180deg, #1a1612 0%, #14110f 55%, #0c0b0a 100%);
+  border-right: 1px solid rgba(196, 165, 116, 0.22);
+  color: #f7f4ef;
+}
+
+.crm-theme-luxury .crm-sidebar-item {
+  color: rgba(247, 244, 239, 0.88);
+}
+
+.crm-theme-luxury .crm-sidebar-item:hover {
+  background: rgba(196, 165, 116, 0.12);
+  color: #fffcf8;
+}
+
+.crm-theme-luxury .crm-sidebar-item.active {
+  background: var(--crm-ink-soft);
+  outline: 1px solid rgba(196, 165, 116, 0.75);
+  color: #c4a574;
+}
+
+.crm-theme-luxury .crm-main {
+  background: var(--crm-bg);
+  color: var(--crm-text);
+}
+
+.crm-theme-luxury .crm-list-title,
+.crm-theme-luxury .crm-home-header h2,
+.crm-theme-luxury .crm-home-panel h3 {
+  color: var(--crm-text);
+}
+
+.crm-theme-luxury .crm-list-meta,
+.crm-theme-luxury .crm-muted,
+.crm-theme-luxury .crm-home-header p,
+.crm-theme-luxury .crm-empty-desc,
+.crm-theme-luxury .crm-recent-list span {
+  color: var(--crm-muted);
+}
+
+.crm-theme-luxury .crm-list-search,
+.crm-theme-luxury .crm-field input,
+.crm-theme-luxury .crm-field select,
+.crm-theme-luxury .crm-field textarea {
+  border-color: var(--crm-border);
+  background: var(--crm-card);
+  color: var(--crm-text);
+}
+
+.crm-theme-luxury .crm-table-wrap,
+.crm-theme-luxury .crm-stat-card,
+.crm-theme-luxury .crm-home-panel {
+  border-color: var(--crm-border);
+  background: var(--crm-card);
+}
+
+.crm-theme-luxury .crm-table th {
+  background: var(--crm-section);
+  color: var(--crm-muted);
+  border-bottom-color: var(--crm-border);
+}
+
+.crm-theme-luxury .crm-table td {
+  border-bottom-color: var(--crm-border);
+}
+
+.crm-theme-luxury .crm-row-clickable:hover {
+  background: rgba(196, 165, 116, 0.08);
+}
+
+.crm-theme-luxury .crm-section-bar {
+  background: var(--crm-section);
+  color: var(--crm-text);
+}
+
+.crm-theme-luxury .crm-btn-primary {
+  background: var(--crm-blue);
+  border-color: var(--crm-blue);
+  color: #14110f;
+}
+
+.crm-theme-luxury .crm-btn-primary:hover {
+  background: var(--crm-blue-dark);
+  border-color: var(--crm-blue-dark);
+  color: #fffcf8;
+}
+
+.crm-theme-luxury .crm-btn-secondary {
+  background: var(--crm-card);
+  color: var(--crm-blue-dark);
+  border-color: var(--crm-blue);
+}
+
+.crm-theme-luxury .crm-btn-link {
+  color: var(--crm-blue-dark);
+}
+
+.crm-theme-luxury .crm-empty-art {
+  background:
+    radial-gradient(circle at 35% 35%, #efe8dc 0%, #c4a574 48%, #2a241f 100%);
+}
+
+.crm-theme-luxury .crm-empty-art::after {
+  border-color: rgba(255, 252, 248, 0.9);
+}
+
+.crm-theme-luxury .crm-modal {
+  background: var(--crm-card);
+  border: 1px solid var(--crm-border);
+}
+
+.crm-theme-luxury .crm-modal-header {
+  border-bottom-color: var(--crm-border);
+  background: #faf7f2;
+}
+
+.crm-theme-luxury .crm-modal-header h2 {
+  color: var(--crm-text);
+}
+
+.crm-theme-luxury .crm-modal-legend {
+  color: #a88754;
+}
+
+.crm-theme-luxury .crm-modal-footer {
+  background: #faf7f2;
+  border-top-color: var(--crm-border);
+}
+
+.crm-theme-luxury .crm-avatar {
+  background: var(--crm-navy);
+  color: #c4a574;
+}
+
+.crm-theme-luxury .crm-stat-value {
+  color: var(--crm-navy);
+}
+
+.crm-theme-luxury .crm-stat-label {
+  color: var(--crm-muted);
+}
+
+.crm-theme-luxury .crm-photo-preview {
+  border-color: var(--crm-border);
+  background: var(--crm-section);
+}
+
+.crm-theme-luxury .crm-lookup-menu {
+  border-color: var(--crm-border);
+  background: var(--crm-card);
+}
+
+.crm-theme-luxury .crm-lookup-option:hover {
+  background: rgba(196, 165, 116, 0.12);
+}
+
+.crm-theme-luxury .crm-field input:focus,
+.crm-theme-luxury .crm-field select:focus,
+.crm-theme-luxury .crm-field textarea:focus {
+  border-color: var(--crm-blue);
+  box-shadow: 0 0 0 1px var(--crm-blue);
+}
+
+.crm-theme-luxury a {
+  color: var(--crm-blue-dark);
 }
 
 .chat-main:has(.crm-shell) {
