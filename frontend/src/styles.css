@@ -1415,7 +1415,10 @@ a { color: var(--brand); }
 }
 
 .crm-field.has-error input,
-.crm-field.has-error .crm-lookup input {
+.crm-field.has-error select,
+.crm-field.has-error .crm-lookup input,
+.crm-field.has-error .crm-name-row input,
+.crm-field.has-error .crm-name-row select {
   border-color: var(--crm-error);
   background: var(--crm-error-bg);
   box-shadow: none;
@@ -1424,6 +1427,31 @@ a { color: var(--brand); }
 .crm-field-error {
   color: var(--crm-error);
   font-size: 0.78rem;
+}
+
+.crm-name-row {
+  display: grid;
+  grid-template-columns: 0.85fr 1.1fr 1.1fr;
+  gap: 0.5rem;
+  align-items: start;
+}
+
+.crm-name-row input,
+.crm-name-row select {
+  width: 100%;
+  min-width: 0;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #c9c9c9;
+  border-radius: 6px;
+  font: inherit;
+  background: #fff;
+}
+
+.crm-name-row input:focus,
+.crm-name-row select:focus {
+  outline: none;
+  border-color: var(--crm-blue);
+  box-shadow: 0 0 0 1px var(--crm-blue);
 }
 
 .crm-field-row {
@@ -1736,6 +1764,7 @@ a { color: var(--brand); }
     grid-template-columns: 1fr;
   }
   .crm-field-row,
+  .crm-name-row,
   .crm-custom-field-row {
     grid-template-columns: 1fr;
   }

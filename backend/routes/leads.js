@@ -13,15 +13,30 @@ router.use(protect)
 
 const OPEN_STATUSES = ['Open', 'Working']
 
+const addressSchema = Joi.object({
+  country: Joi.string().allow('').max(100),
+  street: Joi.string().allow('').max(500),
+  city: Joi.string().allow('').max(100),
+  zip: Joi.string().allow('').max(40),
+  state: Joi.string().allow('').max(100),
+}).default({})
+
 const bodySchema = Joi.object({
+  salutation: Joi.string().allow('').max(40),
   firstName: Joi.string().allow('').max(100),
   lastName: Joi.string().trim().min(1).max(100).required(),
-  company: Joi.string().allow('').max(200),
+  company: Joi.string().trim().min(1).max(200).required(),
   title: Joi.string().allow('').max(120),
+  website: Joi.string().allow('').max(300),
   phone: Joi.string().allow('').max(60),
   email: Joi.string().trim().allow('').max(200),
   status: Joi.string().valid('Open', 'Working', 'Qualified', 'Unqualified'),
-  state: Joi.string().allow('').max(100),
+  address: addressSchema,
+  emailOptOut: Joi.boolean(),
+  numberOfEmployees: Joi.string().allow('').max(40),
+  annualRevenue: Joi.string().allow('').max(60),
+  leadSource: Joi.string().allow('').max(80),
+  industry: Joi.string().allow('').max(80),
   description: Joi.string().allow('').max(5000),
 })
 
@@ -30,8 +45,18 @@ function serialize(doc) {
   const owner = obj.ownerId && typeof obj.ownerId === 'object' ? obj.ownerId : null
   const fullName = obj.fullName
     || [obj.firstName, obj.lastName].filter(Boolean).join(' ').trim()
+  const address = obj.address || {}
+  const state = address.state || obj.state || ''
   return {
     ...obj,
+    address: {
+      country: address.country || '',
+      street: address.street || '',
+      city: address.city || '',
+      zip: address.zip || '',
+      state,
+    },
+    state,
     fullName,
     ownerId: owner?._id || obj.ownerId,
     ownerName: owner?.name || '',

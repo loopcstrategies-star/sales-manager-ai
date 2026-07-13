@@ -5,16 +5,71 @@ import CrmListView from '../../components/crm/CrmListView'
 import CrmModal from '../../components/crm/CrmModal'
 
 const STATUSES = ['Open', 'Working', 'Qualified', 'Unqualified']
+const SALUTATIONS = ['--None--', 'Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Prof.']
+const COUNTRIES = ['--None--', 'United Arab Emirates', 'United States', 'United Kingdom', 'India', 'Other']
+const LEAD_SOURCES = [
+  '--None--',
+  'Web',
+  'Phone Inquiry',
+  'Partner Referral',
+  'Purchased List',
+  'Other',
+]
+const INDUSTRIES = [
+  '--None--',
+  'Agriculture',
+  'Banking',
+  'Biotechnology',
+  'Communications',
+  'Construction',
+  'Consulting',
+  'Education',
+  'Electronics',
+  'Energy',
+  'Entertainment',
+  'Finance',
+  'Food & Beverage',
+  'Government',
+  'Healthcare',
+  'Hospitality',
+  'Insurance',
+  'Manufacturing',
+  'Media',
+  'Not For Profit',
+  'Recreation',
+  'Retail',
+  'Shipping',
+  'Technology',
+  'Telecommunications',
+  'Transportation',
+  'Utilities',
+  'Other',
+]
+
+const emptyAddress = () => ({
+  country: '',
+  street: '',
+  city: '',
+  zip: '',
+  state: '',
+})
 
 const emptyForm = () => ({
+  salutation: '',
   firstName: '',
   lastName: '',
   company: '',
   title: '',
+  website: '',
   phone: '',
   email: '',
   status: 'Open',
-  state: '',
+  address: emptyAddress(),
+  emailOptOut: false,
+  numberOfEmployees: '',
+  annualRevenue: '',
+  leadSource: '',
+  industry: '',
   description: '',
 })
 
@@ -66,16 +121,30 @@ export default function LeadsPage() {
   const openEdit = (row) => {
     const item = items.find((l) => l._id === row.id) || row.raw
     if (!item) return
+    const address = item.address || {}
     setEditingId(item._id)
     setForm({
+      salutation: item.salutation || '',
       firstName: item.firstName || '',
       lastName: item.lastName || '',
       company: item.company || '',
       title: item.title || '',
+      website: item.website || '',
       phone: item.phone || '',
       email: item.email || '',
       status: item.status || 'Open',
-      state: item.state || '',
+      address: {
+        country: address.country || '',
+        street: address.street || '',
+        city: address.city || '',
+        zip: address.zip || '',
+        state: address.state || item.state || '',
+      },
+      emailOptOut: Boolean(item.emailOptOut),
+      numberOfEmployees: item.numberOfEmployees || '',
+      annualRevenue: item.annualRevenue || '',
+      leadSource: item.leadSource || '',
+      industry: item.industry || '',
       description: item.description || '',
     })
     setErrors({})
@@ -84,22 +153,40 @@ export default function LeadsPage() {
 
   const setField = (key, value) => setForm((f) => ({ ...f, [key]: value }))
 
+  const setAddress = (key, value) => {
+    setForm((f) => ({ ...f, address: { ...f.address, [key]: value } }))
+  }
+
   const validate = () => {
     const next = {}
     if (!String(form.lastName || '').trim()) next.lastName = 'Complete this field.'
+    if (!String(form.company || '').trim()) next.company = 'Complete this field.'
     setErrors(next)
     return Object.keys(next).length === 0
   }
 
   const buildPayload = () => ({
+    salutation: form.salutation,
     firstName: form.firstName,
     lastName: form.lastName.trim(),
-    company: form.company,
+    company: form.company.trim(),
     title: form.title,
+    website: form.website,
     phone: form.phone,
     email: form.email,
     status: form.status,
-    state: form.state,
+    address: {
+      country: form.address.country || '',
+      street: form.address.street || '',
+      city: form.address.city || '',
+      zip: form.address.zip || '',
+      state: form.address.state || '',
+    },
+    emailOptOut: Boolean(form.emailOptOut),
+    numberOfEmployees: form.numberOfEmployees,
+    annualRevenue: form.annualRevenue,
+    leadSource: form.leadSource,
+    industry: form.industry,
     description: form.description,
   })
 
@@ -130,7 +217,7 @@ export default function LeadsPage() {
     raw: l,
     name: l.fullName || [l.firstName, l.lastName].filter(Boolean).join(' '),
     company: l.company || '—',
-    state: l.state || '—',
+    state: l.address?.state || l.state || '—',
     phone: l.phone || '—',
     email: l.email || '—',
     status: l.status || '—',
@@ -192,27 +279,52 @@ export default function LeadsPage() {
 
         <div className="crm-section-bar">About</div>
         <label className="crm-field">
-          <span>First Name</span>
-          <input value={form.firstName} onChange={(e) => setField('firstName', e.target.value)} />
+          <span>* Lead Status</span>
+          <select value={form.status} onChange={(e) => setField('status', e.target.value)}>
+            {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
         </label>
-        <label className={`crm-field${errors.lastName ? ' has-error' : ''}`}>
-          <span>* Last Name</span>
-          <input value={form.lastName} onChange={(e) => setField('lastName', e.target.value)} />
+
+        <div className={`crm-field${errors.lastName ? ' has-error' : ''}`}>
+          <span>* Name</span>
+          <div className="crm-name-row">
+            <select
+              aria-label="Salutation"
+              value={form.salutation || '--None--'}
+              onChange={(e) => setField('salutation', e.target.value === '--None--' ? '' : e.target.value)}
+            >
+              {SALUTATIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <input
+              placeholder="First Name"
+              value={form.firstName}
+              onChange={(e) => setField('firstName', e.target.value)}
+            />
+            <input
+              placeholder="Last Name"
+              value={form.lastName}
+              onChange={(e) => setField('lastName', e.target.value)}
+            />
+          </div>
           {errors.lastName ? <span className="crm-field-error">{errors.lastName}</span> : null}
-        </label>
-        <label className="crm-field">
-          <span>Company</span>
+        </div>
+
+        <label className={`crm-field${errors.company ? ' has-error' : ''}`}>
+          <span>* Company</span>
           <input value={form.company} onChange={(e) => setField('company', e.target.value)} />
+          {errors.company ? <span className="crm-field-error">{errors.company}</span> : null}
         </label>
         <label className="crm-field">
           <span>Title</span>
           <input value={form.title} onChange={(e) => setField('title', e.target.value)} />
         </label>
         <label className="crm-field">
-          <span>Lead Status</span>
-          <select value={form.status} onChange={(e) => setField('status', e.target.value)}>
-            {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+          <span>Website</span>
+          <input value={form.website} onChange={(e) => setField('website', e.target.value)} />
+        </label>
+        <label className="crm-field">
+          <span>Description</span>
+          <textarea rows={3} value={form.description} onChange={(e) => setField('description', e.target.value)} />
         </label>
         <div className="crm-owner-field">
           <span>Lead Owner</span>
@@ -231,13 +343,88 @@ export default function LeadsPage() {
           <span>Email</span>
           <input type="email" value={form.email} onChange={(e) => setField('email', e.target.value)} />
         </label>
+
+        <p className="crm-subsection">Address</p>
         <label className="crm-field">
-          <span>State/Province</span>
-          <input value={form.state} onChange={(e) => setField('state', e.target.value)} />
+          <span>Country</span>
+          <select
+            value={form.address.country || '--None--'}
+            onChange={(e) => setAddress('country', e.target.value === '--None--' ? '' : e.target.value)}
+          >
+            {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
         </label>
         <label className="crm-field">
-          <span>Description</span>
-          <textarea rows={3} value={form.description} onChange={(e) => setField('description', e.target.value)} />
+          <span>Street</span>
+          <textarea rows={2} value={form.address.street} onChange={(e) => setAddress('street', e.target.value)} />
+        </label>
+        <label className="crm-field">
+          <span>City</span>
+          <input value={form.address.city} onChange={(e) => setAddress('city', e.target.value)} />
+        </label>
+        <div className="crm-field-row">
+          <label className="crm-field">
+            <span>Zip/Postal Code</span>
+            <input value={form.address.zip} onChange={(e) => setAddress('zip', e.target.value)} />
+          </label>
+          <label className="crm-field">
+            <span>State/Province</span>
+            <select
+              value={form.address.state || '--None--'}
+              onChange={(e) => setAddress('state', e.target.value === '--None--' ? '' : e.target.value)}
+            >
+              <option value="--None--">--None--</option>
+              <option value="Abu Dhabi">Abu Dhabi</option>
+              <option value="Dubai">Dubai</option>
+              <option value="Sharjah">Sharjah</option>
+              <option value="Ajman">Ajman</option>
+              <option value="Umm Al Quwain">Umm Al Quwain</option>
+              <option value="Ras Al Khaimah">Ras Al Khaimah</option>
+              <option value="Fujairah">Fujairah</option>
+              <option value="California">California</option>
+              <option value="New York">New York</option>
+              <option value="Texas">Texas</option>
+              <option value="England">England</option>
+              <option value="Maharashtra">Maharashtra</option>
+              <option value="Other">Other</option>
+            </select>
+          </label>
+        </div>
+        <label className="crm-checkbox">
+          <input
+            type="checkbox"
+            checked={form.emailOptOut}
+            onChange={(e) => setField('emailOptOut', e.target.checked)}
+          />
+          Email Opt Out
+        </label>
+
+        <div className="crm-section-bar">Segment</div>
+        <label className="crm-field">
+          <span>No. of Employees</span>
+          <input value={form.numberOfEmployees} onChange={(e) => setField('numberOfEmployees', e.target.value)} />
+        </label>
+        <label className="crm-field">
+          <span>Annual Revenue</span>
+          <input value={form.annualRevenue} onChange={(e) => setField('annualRevenue', e.target.value)} />
+        </label>
+        <label className="crm-field">
+          <span>Lead Source</span>
+          <select
+            value={form.leadSource || '--None--'}
+            onChange={(e) => setField('leadSource', e.target.value === '--None--' ? '' : e.target.value)}
+          >
+            {LEAD_SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </label>
+        <label className="crm-field">
+          <span>Industry</span>
+          <select
+            value={form.industry || '--None--'}
+            onChange={(e) => setField('industry', e.target.value === '--None--' ? '' : e.target.value)}
+          >
+            {INDUSTRIES.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
         </label>
       </CrmModal>
     </>
