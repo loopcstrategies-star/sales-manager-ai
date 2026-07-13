@@ -2642,3 +2642,234 @@ a { color: var(--brand); }
   align-items: center;
   margin-top: 0.75rem;
 }
+
+.crm-list-toolbar-end {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.crm-bulk-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.crm-pipeline-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.crm-view-toggle {
+  display: inline-flex;
+  border: 1px solid var(--crm-border, #ddd);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.crm-view-toggle button {
+  border: 0;
+  background: transparent;
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+}
+
+.crm-view-toggle button.active {
+  background: var(--brand, #c4a574);
+  color: #111;
+}
+
+.crm-kanban {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(180px, 1fr));
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding-bottom: 1rem;
+}
+
+.crm-kanban-col {
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid var(--crm-border, #e5e5e5);
+  border-radius: 8px;
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+}
+
+.crm-kanban-col header {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--crm-border, #e5e5e5);
+}
+
+.crm-kanban-col h3 {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.crm-kanban-cards {
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.crm-kanban-card {
+  background: #fff;
+  border: 1px solid var(--crm-border, #ddd);
+  border-radius: 6px;
+  padding: 0.6rem;
+  cursor: grab;
+}
+
+.crm-kanban-card a {
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.crm-kanban-card p {
+  margin: 0.25rem 0;
+  font-size: 0.8rem;
+  color: var(--text-muted, #666);
+}
+
+.crm-opp-product-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr auto;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.crm-record-detail {
+  padding: 0.25rem 0 1.5rem;
+}
+
+.crm-record-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.crm-record-header h2 {
+  margin: 0.15rem 0 0;
+}
+
+.crm-record-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.crm-record-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 1rem;
+}
+
+.crm-detail-dl {
+  margin: 0;
+}
+
+.crm-detail-dl > div {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--crm-border, #eee);
+  font-size: 0.9rem;
+}
+
+.crm-detail-dl dt {
+  color: var(--text-muted, #666);
+}
+
+.crm-detail-dl dd {
+  margin: 0;
+}
+
+.crm-activity-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.crm-activity-form input {
+  flex: 1;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--crm-border, #ccc);
+  border-radius: 6px;
+}
+
+.crm-activity-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.crm-activity-list li {
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--crm-border, #eee);
+}
+
+.crm-activity-list label {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.crm-activity-list li.is-done strong {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.crm-activity-list em {
+  display: block;
+  font-style: normal;
+  font-size: 0.75rem;
+  color: var(--text-muted, #666);
+}
+
+.crm-analytics-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.crm-analytics-bar-row {
+  display: grid;
+  grid-template-columns: 140px 1fr 120px;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.crm-analytics-bar-track {
+  height: 8px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.crm-analytics-bar-fill {
+  height: 100%;
+  background: var(--brand, #c4a574);
+}
+
+@media (max-width: 1100px) {
+  .crm-kanban {
+    grid-template-columns: repeat(3, minmax(200px, 1fr));
+  }
+  .crm-record-grid {
+    grid-template-columns: 1fr;
+  }
+  .crm-analytics-bar-row {
+    grid-template-columns: 1fr;
+  }
+}
+

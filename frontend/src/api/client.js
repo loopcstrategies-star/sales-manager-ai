@@ -90,6 +90,7 @@ export const contactsApi = {
 
 export const opportunitiesApi = {
   list: (q = '') => api(`/api/opportunities${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  get: (id) => api(`/api/opportunities/${id}`),
   create: (body) => api('/api/opportunities', { method: 'POST', body: JSON.stringify(body) }),
   update: (id, body) => api(`/api/opportunities/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   remove: (id) => api(`/api/opportunities/${id}`, { method: 'DELETE' }),
@@ -107,6 +108,10 @@ export const leadsApi = {
   create: (body) => api('/api/leads', { method: 'POST', body: JSON.stringify(body) }),
   update: (id, body) => api(`/api/leads/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   remove: (id) => api(`/api/leads/${id}`, { method: 'DELETE' }),
+  convert: (id, body = {}) => api(`/api/leads/${id}/convert`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  }),
 }
 
 export const casesApi = {
@@ -148,6 +153,26 @@ export const priceBooksApi = {
   create: (body) => api('/api/price-books', { method: 'POST', body: JSON.stringify(body) }),
   update: (id, body) => api(`/api/price-books/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   remove: (id) => api(`/api/price-books/${id}`, { method: 'DELETE' }),
+  listEntries: (id) => api(`/api/price-books/${id}/entries`),
+  upsertEntry: (id, body) => api(`/api/price-books/${id}/entries`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  }),
+  removeEntry: (id, entryId) => api(`/api/price-books/${id}/entries/${entryId}`, { method: 'DELETE' }),
+}
+
+export const tasksApi = {
+  list: ({ q = '', relatedType = '', relatedId = '' } = {}) => {
+    const params = new URLSearchParams()
+    if (q) params.set('q', q)
+    if (relatedType) params.set('relatedType', relatedType)
+    if (relatedId) params.set('relatedId', relatedId)
+    const qs = params.toString()
+    return api(`/api/tasks${qs ? `?${qs}` : ''}`)
+  },
+  create: (body) => api('/api/tasks', { method: 'POST', body: JSON.stringify(body) }),
+  update: (id, body) => api(`/api/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  remove: (id) => api(`/api/tasks/${id}`, { method: 'DELETE' }),
 }
 
 export const calendarEventsApi = {
@@ -181,6 +206,7 @@ export const uploadsApi = {
 
 export const crmApi = {
   stats: () => api('/api/crm/stats'),
+  analytics: () => api('/api/crm/analytics'),
   importCsv: (objectType, file, { mapping, preview } = {}) => {
     const form = new FormData()
     form.append('file', file)

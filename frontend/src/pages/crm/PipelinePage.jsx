@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react'
-import { accountsApi, opportunitiesApi } from '../../api/client'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { accountsApi, opportunitiesApi, productsApi } from '../../api/client'
 import CrmListView from '../../components/crm/CrmListView'
 import CrmModal from '../../components/crm/CrmModal'
 import LookupField from '../../components/crm/LookupField'
@@ -14,23 +15,32 @@ const emptyForm = () => ({
   stage: 'Prospecting',
   closeDate: '',
   description: '',
+  products: [],
 })
 
 export default function PipelinePage() {
   const [items, setItems] = useState([])
+  const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [view, setView] = useState('kanban')
   const [modalOpen, setModalOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [form, setForm] = useState(emptyForm())
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
+  const [selectedIds, setSelectedIds] = useState([])
+  const [dragId, setDragId] = useState(null)
 
   const load = useCallback(async (q = '') => {
     setLoading(true)
     try {
-      const res = await opportunitiesApi.list(q)
-      setItems(res.data || [])
+      const [oppRes, prodRes] = await Promise.all([
+        opportunitiesApi.list(q),
+        productsApi.list('').catch(() => ({ data: [] })),
+      ])
+      setItems(oppRes.data || [])
+      setProducts(prodRes.data || [])
     } catch {
       setItems([])
     } finally {
@@ -50,9 +60,9 @@ export default function PipelinePage() {
     setModalOpen(true)
   }
 
-  const openEdit = (row) => {
-    const item = items.find((o) => o._id === row.id)
-    if (!item) return
+  const openEdit = (rowOrItem) => {
+    const item = items.find((o) => o._id === (rowOrItem.id || rowOrItem._id)) || rowOrItem
+    if (!item?._id) return
     setEditingId(item._id)
     setForm({
       name: item.name || '',
@@ -62,6 +72,12 @@ export default function PipelinePage() {
       stage: item.stage || 'Prospecting',
       closeDate: item.closeDate ? String(item.closeDate).slice(0, 10) : '',
       description: item.description || '',
+      products: Array.isArray(item.products) ? item.products.map((p) => ({
+        productId: p.productId || '',
+        productName: p.productName || '',
+        quantity: p.quantity ?? 1,
+        unitPrice: p.unitPrice ?? 0,
+      })) : [],
     })
     setErrors({})
     setModalOpen(true)
@@ -76,6 +92,7 @@ export default function PipelinePage() {
     }
     setSaving(true)
     try {
+      const products = (form.products || []).filter((p) => p.productName || p.productId)
       const payload = {
         name: form.name.trim(),
         accountId: form.accountId || '',
@@ -83,6 +100,7 @@ export default function PipelinePage() {
         stage: form.stage,
         closeDate: form.closeDate || null,
         description: form.description,
+        products,
       }
       if (editingId) await opportunitiesApi.update(editingId, payload)
       else await opportunitiesApi.create(payload)
@@ -99,14 +117,47 @@ export default function PipelinePage() {
     }
   }
 
+  const moveStage = async (id, stage) => {
+    try {
+      await opportunitiesApi.update(id, { stage })
+      await load(search)
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const deleteSelected = async () => {
+    if (!selectedIds.length) return
+    if (!window.confirm(`Delete ${selectedIds.length} opportunit${selectedIds.length === 1 ? 'y' : 'ies'}?`)) return
+    await Promise.all(selectedIds.map((id) => opportunitiesApi.remove(id).catch(() => null)))
+    setSelectedIds([])
+    await load(search)
+  }
+
   const searchAccounts = useCallback(async (q) => {
     const res = await accountsApi.list(q)
     return (res.data || []).map((a) => ({ id: a._id, label: a.name }))
   }, [])
 
+  const addProductLine = () => {
+    setForm((f) => ({
+      ...f,
+      products: [...(f.products || []), { productId: '', productName: '', quantity: 1, unitPrice: 0 }],
+    }))
+  }
+
+  const setProductLine = (idx, patch) => {
+    setForm((f) => {
+      const products = [...(f.products || [])]
+      products[idx] = { ...products[idx], ...patch }
+      const amount = products.reduce((s, p) => s + (Number(p.quantity) || 0) * (Number(p.unitPrice) || 0), 0)
+      return { ...f, products, amount: String(amount) }
+    })
+  }
+
   const rows = items.map((o) => ({
     id: o._id,
-    name: o.name,
+    name: <Link to={`/sales/pipeline/${o._id}`} onClick={(e) => e.stopPropagation()}>{o.name}</Link>,
     accountName: o.accountName || '—',
     amount: o.amount != null ? `$${Number(o.amount).toLocaleString()}` : '—',
     stage: o.stage,
@@ -114,31 +165,90 @@ export default function PipelinePage() {
     ownerAlias: o.ownerAlias || '—',
   }))
 
+  const byStage = useMemo(() => {
+    const map = Object.fromEntries(STAGES.map((s) => [s, []]))
+    items.forEach((o) => {
+      const stage = STAGES.includes(o.stage) ? o.stage : 'Prospecting'
+      map[stage].push(o)
+    })
+    return map
+  }, [items])
+
   return (
     <>
-      <CrmListView
-        title="Opportunities"
-        count={rows.length}
-        sortLabel="Last Updated"
-        search={search}
-        onSearchChange={setSearch}
-        actions={<button type="button" className="crm-btn-primary" onClick={openNew}>New</button>}
-        columns={[
-          { key: 'name', label: 'Opportunity Name' },
-          { key: 'accountName', label: 'Account' },
-          { key: 'amount', label: 'Amount' },
-          { key: 'stage', label: 'Stage' },
-          { key: 'closeDate', label: 'Close Date' },
-          { key: 'ownerAlias', label: 'Owner' },
-        ]}
-        rows={rows}
-        loading={loading}
-        onRowClick={openEdit}
-        emptyTitle="Track deals in your pipeline."
-        emptyDescription="Create opportunities to manage stages from prospecting to close."
-        emptyActionLabel="Add an Opportunity"
-        onEmptyAction={openNew}
-      />
+      <div className="crm-pipeline-toolbar">
+        <div className="crm-view-toggle">
+          <button type="button" className={view === 'kanban' ? 'active' : ''} onClick={() => setView('kanban')}>Kanban</button>
+          <button type="button" className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}>List</button>
+        </div>
+        <button type="button" className="crm-btn-primary" onClick={openNew}>New</button>
+      </div>
+
+      {view === 'kanban' ? (
+        <div className="crm-kanban">
+          {loading ? <p className="crm-muted">Loading…</p> : null}
+          {!loading && STAGES.map((stage) => (
+            <div
+              key={stage}
+              className="crm-kanban-col"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => {
+                if (dragId) moveStage(dragId, stage)
+                setDragId(null)
+              }}
+            >
+              <header>
+                <h3>{stage}</h3>
+                <span>{byStage[stage].length}</span>
+              </header>
+              <div className="crm-kanban-cards">
+                {byStage[stage].map((o) => (
+                  <article
+                    key={o._id}
+                    className="crm-kanban-card"
+                    draggable
+                    onDragStart={() => setDragId(o._id)}
+                    onDoubleClick={() => openEdit(o)}
+                  >
+                    <Link to={`/sales/pipeline/${o._id}`}>{o.name}</Link>
+                    <p>{o.accountName || 'No account'}</p>
+                    <strong>${Number(o.amount || 0).toLocaleString()}</strong>
+                  </article>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <CrmListView
+          title="Opportunities"
+          count={rows.length}
+          sortLabel="Last Updated"
+          search={search}
+          onSearchChange={setSearch}
+          selectedIds={selectedIds}
+          onSelectionChange={setSelectedIds}
+          bulkActions={(
+            <button type="button" className="crm-btn-secondary" onClick={deleteSelected}>Delete</button>
+          )}
+          actions={<button type="button" className="crm-btn-primary" onClick={openNew}>New</button>}
+          columns={[
+            { key: 'name', label: 'Opportunity Name' },
+            { key: 'accountName', label: 'Account' },
+            { key: 'amount', label: 'Amount' },
+            { key: 'stage', label: 'Stage' },
+            { key: 'closeDate', label: 'Close Date' },
+            { key: 'ownerAlias', label: 'Owner' },
+          ]}
+          rows={rows}
+          loading={loading}
+          onRowClick={openEdit}
+          emptyTitle="Track deals in your pipeline."
+          emptyDescription="Create opportunities to manage stages from prospecting to close."
+          emptyActionLabel="Add an Opportunity"
+          onEmptyAction={openNew}
+        />
+      )}
 
       <CrmModal
         title={editingId ? 'Edit Opportunity' : 'New Opportunity'}
@@ -146,6 +256,20 @@ export default function PipelinePage() {
         onClose={() => setModalOpen(false)}
         footer={(
           <>
+            {editingId ? (
+              <button
+                type="button"
+                className="crm-btn-secondary"
+                onClick={async () => {
+                  if (!window.confirm('Delete this opportunity?')) return
+                  await opportunitiesApi.remove(editingId)
+                  setModalOpen(false)
+                  await load(search)
+                }}
+              >
+                Delete
+              </button>
+            ) : null}
             <button type="button" className="crm-btn-secondary" onClick={() => setModalOpen(false)}>Cancel</button>
             <button type="button" className="crm-btn-secondary" disabled={saving} onClick={() => save(true)}>Save & New</button>
             <button type="button" className="crm-btn-primary" disabled={saving} onClick={() => save(false)}>
@@ -194,6 +318,41 @@ export default function PipelinePage() {
           <span>Description</span>
           <textarea rows={3} value={form.description} onChange={(e) => setField('description', e.target.value)} />
         </label>
+
+        <div className="crm-section-bar">Products</div>
+        {(form.products || []).map((line, idx) => (
+          <div key={idx} className="crm-opp-product-row">
+            <select
+              value={line.productId || ''}
+              onChange={(e) => {
+                const p = products.find((x) => x._id === e.target.value)
+                setProductLine(idx, {
+                  productId: e.target.value,
+                  productName: p?.name || line.productName,
+                })
+              }}
+            >
+              <option value="">Select product…</option>
+              {products.map((p) => <option key={p._id} value={p._id}>{p.name}</option>)}
+            </select>
+            <input
+              type="number"
+              min="0"
+              value={line.quantity}
+              onChange={(e) => setProductLine(idx, { quantity: Number(e.target.value) })}
+              aria-label="Quantity"
+            />
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={line.unitPrice}
+              onChange={(e) => setProductLine(idx, { unitPrice: Number(e.target.value) })}
+              aria-label="Unit price"
+            />
+          </div>
+        ))}
+        <button type="button" className="crm-btn-secondary" onClick={addProductLine}>Add product</button>
       </CrmModal>
     </>
   )

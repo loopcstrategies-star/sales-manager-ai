@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { accountsApi, contactsApi } from '../../api/client'
 import { useAuth } from '../../context/AuthContext'
 import { isCreatedThisWeek, isOwnedBy, useServiceListQuery } from '../../hooks/useServiceListQuery'
@@ -201,7 +202,11 @@ export default function ContactsPage() {
   const rows = filteredItems.map((c) => ({
     id: c._id,
     raw: c,
-    name: c.fullName || [c.firstName, c.lastName].filter(Boolean).join(' '),
+    name: (
+      <Link to={`/sales/contacts/${c._id}`} onClick={(e) => e.stopPropagation()}>
+        {c.fullName || [c.firstName, c.lastName].filter(Boolean).join(' ') || '—'}
+      </Link>
+    ),
     accountName: c.accountName || '—',
     title: c.title || '—',
     phone: c.phone || '—',

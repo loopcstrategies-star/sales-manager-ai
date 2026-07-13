@@ -21,7 +21,7 @@ const leadSchema = new mongoose.Schema({
   email: { type: String, trim: true, default: '', lowercase: true, maxlength: 200 },
   status: {
     type: String,
-    enum: ['Open', 'Working', 'Qualified', 'Unqualified'],
+    enum: ['Open', 'Working', 'Qualified', 'Unqualified', 'Converted'],
     default: 'Open',
   },
   address: { type: addressSchema, default: () => ({}) },
@@ -34,6 +34,10 @@ const leadSchema = new mongoose.Schema({
   industry: { type: String, trim: true, default: '', maxlength: 80 },
   description: { type: String, trim: true, default: '', maxlength: 5000 },
   lastEnrichedAt: { type: Date, default: null },
+  convertedAt: { type: Date, default: null },
+  convertedAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Account', default: null },
+  convertedContactId: { type: mongoose.Schema.Types.ObjectId, ref: 'Contact', default: null },
+  convertedOpportunityId: { type: mongoose.Schema.Types.ObjectId, ref: 'Opportunity', default: null },
 }, { timestamps: true })
 
 leadSchema.index({ workspaceId: 1, company: 1 })

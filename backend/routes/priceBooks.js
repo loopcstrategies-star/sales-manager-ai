@@ -91,4 +91,81 @@ router.delete('/:id', async (req, res) => {
   }
 })
 
+const entrySchema = Joi.object({
+  productId: Joi.string().required(),
+  listPrice: Joi.number().min(0).required(),
+  active: Joi.boolean(),
+})
+
+router.get('/:id/entries', async (req, res) => {
+  try {
+    const PriceBookEntry = require('../models/PriceBookEntry')
+    const Product = require('../models/Product')
+    const book = await PriceBook.findOne({ _id: req.params.id, ...workspaceFilter(req.user) }).select('_id')
+    if (!book) return res.status(404).json({ success: false, message: 'Price book not found.' })
+    const entries = await PriceBookEntry.find({
+      ...workspaceFilter(req.user),
+      priceBookId: book._id,
+    }).lean()
+    const productIds = entries.map((e) => e.productId).filter(Boolean)
+    const products = await Product.find({ _id: { $in: productIds } }).select('name productCode sku').lean()
+    const byId = Object.fromEntries(products.map((p) => [String(p._id), p]))
+    res.json({
+      success: true,
+      data: entries.map((e) => ({
+        ...e,
+        productName: byId[String(e.productId)]?.name || '',
+        productCode: byId[String(e.productId)]?.productCode || '',
+      })),
+    })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Failed to list entries.' })
+  }
+})
+
+router.post('/:id/entries', validateBody(entrySchema), async (req, res) => {
+  try {
+    const PriceBookEntry = require('../models/PriceBookEntry')
+    const Product = require('../models/Product')
+    const { toObjectId } = require('../services/crmHelpers')
+    const book = await PriceBook.findOne({ _id: req.params.id, ...workspaceFilter(req.user) }).select('_id')
+    if (!book) return res.status(404).json({ success: false, message: 'Price book not found.' })
+    const productId = toObjectId(req.body.productId)
+    const product = await Product.findOne({ _id: productId, ...workspaceFilter(req.user) })
+    if (!product) return res.status(400).json({ success: false, message: 'Product not found.' })
+    const entry = await PriceBookEntry.findOneAndUpdate(
+      { workspaceId: req.user.workspaceId, priceBookId: book._id, productId },
+      {
+        listPrice: Number(req.body.listPrice) || 0,
+        active: req.body.active !== false,
+        workspaceId: req.user.workspaceId,
+        priceBookId: book._id,
+        productId,
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    )
+    res.status(201).json({
+      success: true,
+      data: { ...entry.toObject(), productName: product.name, productCode: product.productCode },
+    })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Failed to save entry.' })
+  }
+})
+
+router.delete('/:id/entries/:entryId', async (req, res) => {
+  try {
+    const PriceBookEntry = require('../models/PriceBookEntry')
+    const deleted = await PriceBookEntry.findOneAndDelete({
+      _id: req.params.entryId,
+      priceBookId: req.params.id,
+      ...workspaceFilter(req.user),
+    })
+    if (!deleted) return res.status(404).json({ success: false, message: 'Entry not found.' })
+    res.json({ success: true, data: { id: deleted._id } })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Failed to delete entry.' })
+  }
+})
+
 module.exports = router

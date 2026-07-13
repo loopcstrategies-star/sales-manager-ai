@@ -22,6 +22,7 @@ import ProductsPage from './pages/crm/ProductsPage'
 import PriceBooksPage from './pages/crm/PriceBooksPage'
 import CalendarPage from './pages/crm/CalendarPage'
 import SalesAnalyticsPage from './pages/crm/SalesAnalyticsPage'
+import RecordDetailPage from './components/crm/RecordDetailPage'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -49,9 +50,13 @@ export default function App() {
         <Route index element={<Navigate to="home" replace />} />
         <Route path="home" element={<CrmHomePage />} />
         <Route path="contacts" element={<ContactsPage />} />
+        <Route path="contacts/:id" element={<RecordDetailPage objectType="contacts" />} />
         <Route path="accounts" element={<AccountsPage />} />
+        <Route path="accounts/:id" element={<RecordDetailPage objectType="accounts" />} />
         <Route path="leads" element={<LeadsPage />} />
+        <Route path="leads/:id" element={<RecordDetailPage objectType="leads" />} />
         <Route path="pipeline" element={<PipelinePage />} />
+        <Route path="pipeline/:id" element={<RecordDetailPage objectType="opportunities" />} />
         <Route path="products" element={<ProductsPage />} />
         <Route path="price-books" element={<PriceBooksPage />} />
         <Route path="calendar" element={<CalendarPage />} />

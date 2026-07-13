@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { accountsApi } from '../../api/client'
 import { useAuth } from '../../context/AuthContext'
 import { isCreatedThisWeek, isOwnedBy, useServiceListQuery } from '../../hooks/useServiceListQuery'
@@ -211,7 +212,9 @@ export default function AccountsPage() {
   const rows = filteredItems.map((a) => ({
     id: a._id,
     raw: a,
-    name: a.name,
+    name: (
+      <Link to={`/sales/accounts/${a._id}`} onClick={(e) => e.stopPropagation()}>{a.name}</Link>
+    ),
     phone: a.phone || '—',
     website: a.website || '—',
     billingCity: a.billingAddress?.city || '—',

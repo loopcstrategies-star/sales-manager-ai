@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { leadsApi } from '../../api/client'
 import { useAuth } from '../../context/AuthContext'
 import CrmListView from '../../components/crm/CrmListView'
@@ -95,6 +96,10 @@ export default function LeadsPage() {
   const [listError, setListError] = useState('')
   const [importOpen, setImportOpen] = useState(false)
   const [enrichedHint, setEnrichedHint] = useState('')
+  const [selectedIds, setSelectedIds] = useState([])
+  const [convertOpen, setConvertOpen] = useState(false)
+  const [converting, setConverting] = useState(false)
+  const [convertForm, setConvertForm] = useState({ createOpportunity: true, opportunityName: '', amount: '' })
 
   const load = useCallback(async (q = '') => {
     setLoading(true)
@@ -245,7 +250,11 @@ export default function LeadsPage() {
   const rows = items.map((l) => ({
     id: l._id,
     raw: l,
-    name: l.fullName || [l.firstName, l.lastName].filter(Boolean).join(' '),
+    name: (
+      <Link to={`/sales/leads/${l._id}`} onClick={(e) => e.stopPropagation()}>
+        {l.fullName || [l.firstName, l.lastName].filter(Boolean).join(' ') || '—'}
+      </Link>
+    ),
     company: l.company || '—',
     state: l.address?.state || l.state || '—',
     phone: l.phone || '—',
@@ -254,6 +263,33 @@ export default function LeadsPage() {
     createdDate: formatDate(l.createdAt),
     ownerAlias: l.ownerAlias || '—',
   }))
+
+  const deleteSelected = async () => {
+    if (!selectedIds.length) return
+    if (!window.confirm(`Delete ${selectedIds.length} lead(s)?`)) return
+    await Promise.all(selectedIds.map((id) => leadsApi.remove(id).catch(() => null)))
+    setSelectedIds([])
+    await load(search)
+  }
+
+  const runConvert = async () => {
+    if (!editingId) return
+    setConverting(true)
+    try {
+      await leadsApi.convert(editingId, {
+        createOpportunity: convertForm.createOpportunity,
+        opportunityName: convertForm.opportunityName,
+        amount: Number(convertForm.amount) || 0,
+      })
+      setConvertOpen(false)
+      setModalOpen(false)
+      await load(search)
+    } catch (err) {
+      setErrors({ form: err.message || 'Convert failed' })
+    } finally {
+      setConverting(false)
+    }
+  }
 
   return (
     <>
@@ -264,6 +300,11 @@ export default function LeadsPage() {
         sortLabel="Company · Filtered by All leads - Lead Status"
         search={search}
         onSearchChange={setSearch}
+        selectedIds={selectedIds}
+        onSelectionChange={setSelectedIds}
+        bulkActions={(
+          <button type="button" className="crm-btn-secondary" onClick={deleteSelected}>Delete</button>
+        )}
         actions={(
           <>
             <button type="button" className="crm-btn-primary" onClick={openNew}>New</button>
@@ -305,6 +346,36 @@ export default function LeadsPage() {
                 onEnriched={applyEnrichment}
               />
               {enrichedHint ? <span className="crm-enrich-hint">{enrichedHint}</span> : null}
+              {editingId ? (
+                <button
+                  type="button"
+                  className="crm-btn-primary"
+                  onClick={() => {
+                    setConvertForm({
+                      createOpportunity: true,
+                      opportunityName: `${form.company} — Opportunity`,
+                      amount: '',
+                    })
+                    setConvertOpen(true)
+                  }}
+                >
+                  Convert
+                </button>
+              ) : null}
+              {editingId ? (
+                <button
+                  type="button"
+                  className="crm-btn-secondary"
+                  onClick={async () => {
+                    if (!window.confirm('Delete this lead?')) return
+                    await leadsApi.remove(editingId)
+                    setModalOpen(false)
+                    await load(search)
+                  }}
+                >
+                  Delete
+                </button>
+              ) : null}
             </div>
             <button type="button" className="crm-btn-secondary" onClick={() => setModalOpen(false)}>Cancel</button>
             <button type="button" className="crm-btn-secondary" disabled={saving} onClick={() => save(true)}>Save & New</button>
@@ -473,6 +544,51 @@ export default function LeadsPage() {
         onClose={() => setImportOpen(false)}
         onImported={() => load(search)}
       />
+
+      <CrmModal
+        title="Convert Lead"
+        open={convertOpen}
+        onClose={() => setConvertOpen(false)}
+        requiredLegend={false}
+        footer={(
+          <>
+            <button type="button" className="crm-btn-secondary" onClick={() => setConvertOpen(false)}>Cancel</button>
+            <button type="button" className="crm-btn-primary" disabled={converting} onClick={runConvert}>
+              {converting ? 'Converting…' : 'Convert'}
+            </button>
+          </>
+        )}
+      >
+        <p className="crm-muted">Creates Account + Contact{convertForm.createOpportunity ? ' + Opportunity' : ''} from this lead.</p>
+        <label className="crm-checkbox">
+          <input
+            type="checkbox"
+            checked={convertForm.createOpportunity}
+            onChange={(e) => setConvertForm((f) => ({ ...f, createOpportunity: e.target.checked }))}
+          />
+          Create Opportunity
+        </label>
+        {convertForm.createOpportunity ? (
+          <>
+            <label className="crm-field">
+              <span>Opportunity Name</span>
+              <input
+                value={convertForm.opportunityName}
+                onChange={(e) => setConvertForm((f) => ({ ...f, opportunityName: e.target.value }))}
+              />
+            </label>
+            <label className="crm-field">
+              <span>Amount</span>
+              <input
+                type="number"
+                min="0"
+                value={convertForm.amount}
+                onChange={(e) => setConvertForm((f) => ({ ...f, amount: e.target.value }))}
+              />
+            </label>
+          </>
+        ) : null}
+      </CrmModal>
     </>
   )
 }

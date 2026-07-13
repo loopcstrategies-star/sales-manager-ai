@@ -30,7 +30,7 @@ const bodySchema = Joi.object({
   website: Joi.string().allow('').max(300),
   phone: Joi.string().allow('').max(60),
   email: Joi.string().trim().allow('').max(200),
-  status: Joi.string().valid('Open', 'Working', 'Qualified', 'Unqualified'),
+  status: Joi.string().valid('Open', 'Working', 'Qualified', 'Unqualified', 'Converted'),
   address: addressSchema,
   emailOptOut: Joi.boolean(),
   numberOfEmployees: Joi.string().allow('').max(40),
@@ -72,6 +72,12 @@ router.get('/', async (req, res) => {
 
     if (view === 'open') {
       filter.status = { $in: OPEN_STATUSES }
+      filter.$and = [
+        ...(filter.$and || []),
+        { $or: [{ convertedAt: null }, { convertedAt: { $exists: false } }] },
+      ]
+    } else if (view === 'converted') {
+      filter.status = 'Converted'
     } else if (view !== 'all') {
       filter.status = view.charAt(0).toUpperCase() + view.slice(1)
     }
@@ -138,6 +144,113 @@ router.patch('/:id', validateBody(bodySchema), async (req, res) => {
     res.json({ success: true, data: serialize(updated) })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message || 'Failed to update lead.' })
+  }
+})
+
+const convertSchema = Joi.object({
+  createOpportunity: Joi.boolean().default(true),
+  opportunityName: Joi.string().allow('').max(200),
+  amount: Joi.number().min(0).default(0),
+  accountId: Joi.string().allow(null, ''),
+})
+
+router.post('/:id/convert', validateBody(convertSchema), async (req, res) => {
+  try {
+    const Account = require('../models/Account')
+    const Contact = require('../models/Contact')
+    const Opportunity = require('../models/Opportunity')
+    const { toObjectId } = require('../services/crmHelpers')
+
+    const lead = await Lead.findOne({ _id: req.params.id, ...workspaceFilter(req.user) })
+    if (!lead) return res.status(404).json({ success: false, message: 'Lead not found.' })
+    if (lead.status === 'Converted' || lead.convertedAt) {
+      return res.status(400).json({ success: false, message: 'Lead is already converted.' })
+    }
+
+    const filter = workspaceFilter(req.user)
+    let account = null
+    const accountId = toObjectId(req.body.accountId)
+    if (accountId) {
+      account = await Account.findOne({ _id: accountId, ...filter })
+      if (!account) return res.status(400).json({ success: false, message: 'Account not found.' })
+    } else {
+      const company = String(lead.company || '').trim()
+      account = await Account.findOne({
+        ...filter,
+        name: new RegExp(`^${company.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+      })
+      if (!account) {
+        account = await Account.create({
+          name: company.slice(0, 200),
+          website: lead.website || '',
+          phone: lead.phone || '',
+          description: lead.description || '',
+          type: lead.industry || 'Prospect',
+          billingAddress: lead.address || {},
+          workspaceId: req.user.workspaceId,
+          ownerId: req.user._id,
+        })
+      }
+    }
+
+    let contact = null
+    if (lead.email) {
+      contact = await Contact.findOne({ ...filter, email: String(lead.email).toLowerCase() })
+    }
+    if (!contact) {
+      contact = await Contact.create({
+        salutation: lead.salutation || '',
+        firstName: lead.firstName || '',
+        lastName: lead.lastName,
+        accountId: account._id,
+        title: lead.title || '',
+        phone: lead.phone || '',
+        email: lead.email || '',
+        mailingAddress: lead.address || {},
+        emailOptOut: Boolean(lead.emailOptOut),
+        description: lead.description || '',
+        workspaceId: req.user.workspaceId,
+        ownerId: req.user._id,
+      })
+    } else if (!contact.accountId) {
+      contact.accountId = account._id
+      await contact.save()
+    }
+
+    let opportunity = null
+    if (req.body.createOpportunity !== false) {
+      const oppName = String(req.body.opportunityName || '').trim()
+        || `${account.name} — Opportunity`
+      opportunity = await Opportunity.create({
+        name: oppName.slice(0, 200),
+        accountId: account._id,
+        contactId: contact._id,
+        amount: Number(req.body.amount) || 0,
+        stage: 'Prospecting',
+        description: lead.description || '',
+        workspaceId: req.user.workspaceId,
+        ownerId: req.user._id,
+      })
+    }
+
+    lead.status = 'Converted'
+    lead.convertedAt = new Date()
+    lead.convertedAccountId = account._id
+    lead.convertedContactId = contact._id
+    lead.convertedOpportunityId = opportunity?._id || null
+    await lead.save()
+
+    res.json({
+      success: true,
+      data: {
+        lead: serialize(lead),
+        account,
+        contact,
+        opportunity,
+      },
+    })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Convert failed.' })
   }
 })
 

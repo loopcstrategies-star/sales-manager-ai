@@ -17,7 +17,25 @@ export default function CrmListView({
   onEmptyAction,
   loading,
   onRowClick,
+  selectedIds = [],
+  onSelectionChange,
+  bulkActions,
 }) {
+  const ids = rows.map((r) => r.id)
+  const allSelected = ids.length > 0 && ids.every((id) => selectedIds.includes(id))
+  const someSelected = selectedIds.length > 0
+
+  const toggleAll = () => {
+    if (!onSelectionChange) return
+    onSelectionChange(allSelected ? [] : ids)
+  }
+
+  const toggleOne = (id) => {
+    if (!onSelectionChange) return
+    if (selectedIds.includes(id)) onSelectionChange(selectedIds.filter((x) => x !== id))
+    else onSelectionChange([...selectedIds, id])
+  }
+
   return (
     <div className="crm-list-view">
       <div className="crm-list-header">
@@ -32,21 +50,33 @@ export default function CrmListView({
         <p className="crm-list-meta">
           {count} item{count === 1 ? '' : 's'}
           {sortLabel ? ` · Sorted by ${sortLabel}` : ''}
+          {someSelected ? ` · ${selectedIds.length} selected` : ''}
         </p>
-        <input
-          className="crm-list-search"
-          type="search"
-          value={search}
-          onChange={(e) => onSearchChange?.(e.target.value)}
-          placeholder={searchPlaceholder}
-        />
+        <div className="crm-list-toolbar-end">
+          {someSelected && bulkActions ? <div className="crm-bulk-actions">{bulkActions}</div> : null}
+          <input
+            className="crm-list-search"
+            type="search"
+            value={search}
+            onChange={(e) => onSearchChange?.(e.target.value)}
+            placeholder={searchPlaceholder}
+          />
+        </div>
       </div>
 
       <div className="crm-table-wrap">
         <table className="crm-table">
           <thead>
             <tr>
-              <th className="crm-check-col"><input type="checkbox" disabled aria-label="Select all" /></th>
+              <th className="crm-check-col">
+                <input
+                  type="checkbox"
+                  aria-label="Select all"
+                  checked={allSelected}
+                  disabled={!onSelectionChange || ids.length === 0}
+                  onChange={toggleAll}
+                />
+              </th>
               {columns.map((col) => (
                 <th key={col.key}>{col.label}</th>
               ))}
@@ -64,7 +94,13 @@ export default function CrmListView({
                 onClick={() => onRowClick?.(row)}
               >
                 <td className="crm-check-col" onClick={(e) => e.stopPropagation()}>
-                  <input type="checkbox" aria-label="Select row" />
+                  <input
+                    type="checkbox"
+                    aria-label="Select row"
+                    checked={selectedIds.includes(row.id)}
+                    disabled={!onSelectionChange}
+                    onChange={() => toggleOne(row.id)}
+                  />
                 </td>
                 {columns.map((col) => (
                   <td key={col.key}>{col.render ? col.render(row) : row[col.key]}</td>
