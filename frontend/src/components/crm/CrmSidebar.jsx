@@ -48,6 +48,42 @@ const ITEMS = [
     ),
   },
   {
+    to: '/sales/products',
+    label: 'Products',
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path fill="currentColor" d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z" />
+      </svg>
+    ),
+  },
+  {
+    to: '/sales/price-books',
+    label: 'Price Books',
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path fill="currentColor" d="M6 3h11a2 2 0 0 1 2 2v14l-4-2-4 2-4-2-4 2V5a2 2 0 0 1 2-2zm0 2v11.2l2-.9 4 2 4-2 2 .9V5H6z" />
+      </svg>
+    ),
+  },
+  {
+    to: '/sales/calendar',
+    label: 'Calendar',
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path fill="currentColor" d="M7 2h2v2h6V2h2v2h3v16H4V4h3V2zm11 6H6v10h12V8z" />
+      </svg>
+    ),
+  },
+  {
+    to: '/sales/analytics',
+    label: 'Analytics',
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path fill="currentColor" d="M4 18h3V9H4v9zm6.5 0h3V5h-3v13zM17 18h3v-7h-3v7z" />
+      </svg>
+    ),
+  },
+  {
     to: '/sales/service',
     label: 'Service',
     icon: (

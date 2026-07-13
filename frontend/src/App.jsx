@@ -18,6 +18,10 @@ import MarketingPage from './pages/crm/MarketingPage'
 import MessagingSessionsPage from './pages/crm/MessagingSessionsPage'
 import ServiceAnalyticsPage from './pages/crm/ServiceAnalyticsPage'
 import KnowledgePage from './pages/crm/KnowledgePage'
+import ProductsPage from './pages/crm/ProductsPage'
+import PriceBooksPage from './pages/crm/PriceBooksPage'
+import CalendarPage from './pages/crm/CalendarPage'
+import SalesAnalyticsPage from './pages/crm/SalesAnalyticsPage'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -48,6 +52,10 @@ export default function App() {
         <Route path="accounts" element={<AccountsPage />} />
         <Route path="leads" element={<LeadsPage />} />
         <Route path="pipeline" element={<PipelinePage />} />
+        <Route path="products" element={<ProductsPage />} />
+        <Route path="price-books" element={<PriceBooksPage />} />
+        <Route path="calendar" element={<CalendarPage />} />
+        <Route path="analytics" element={<SalesAnalyticsPage />} />
         <Route path="service" element={<ServiceLayout />}>
           <Route index element={<Navigate to="cases" replace />} />
           <Route path="cases" element={<ServicePage />} />

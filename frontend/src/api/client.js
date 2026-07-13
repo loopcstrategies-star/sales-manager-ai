@@ -136,6 +136,34 @@ export const knowledgeApi = {
   remove: (id) => api(`/api/knowledge-articles/${id}`, { method: 'DELETE' }),
 }
 
+export const productsApi = {
+  list: (q = '') => api(`/api/products${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  create: (body) => api('/api/products', { method: 'POST', body: JSON.stringify(body) }),
+  update: (id, body) => api(`/api/products/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  remove: (id) => api(`/api/products/${id}`, { method: 'DELETE' }),
+}
+
+export const priceBooksApi = {
+  list: (q = '') => api(`/api/price-books${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  create: (body) => api('/api/price-books', { method: 'POST', body: JSON.stringify(body) }),
+  update: (id, body) => api(`/api/price-books/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  remove: (id) => api(`/api/price-books/${id}`, { method: 'DELETE' }),
+}
+
+export const calendarEventsApi = {
+  list: (q = '', from = '', to = '') => {
+    const params = new URLSearchParams()
+    if (q) params.set('q', q)
+    if (from) params.set('from', from)
+    if (to) params.set('to', to)
+    const qs = params.toString()
+    return api(`/api/calendar-events${qs ? `?${qs}` : ''}`)
+  },
+  create: (body) => api('/api/calendar-events', { method: 'POST', body: JSON.stringify(body) }),
+  update: (id, body) => api(`/api/calendar-events/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  remove: (id) => api(`/api/calendar-events/${id}`, { method: 'DELETE' }),
+}
+
 export const campaignsApi = {
   list: (q = '') => api(`/api/campaigns${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   create: (body) => api('/api/campaigns', { method: 'POST', body: JSON.stringify(body) }),
