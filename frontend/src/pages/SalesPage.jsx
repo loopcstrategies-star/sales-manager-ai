@@ -5,8 +5,8 @@ import CrmSidebar from '../components/crm/CrmSidebar'
 
 export default function SalesPage() {
   return (
-    <AppShell hideSidebar theme="luxury">
-      <div className="crm-shell crm-theme-luxury">
+    <AppShell hideSidebar>
+      <div className="crm-shell">
         <CrmSidebar />
         <div className="crm-main">
           <Outlet />
