@@ -2563,6 +2563,33 @@ a { color: var(--brand); }
   margin: 0.75rem 0;
 }
 
+.crm-prospect-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.5rem 0 0;
+}
+
+.crm-prospect-chip {
+  border: 1px solid var(--crm-border, #ccc);
+  background: transparent;
+  color: inherit;
+  font-size: 0.75rem;
+  padding: 0.3rem 0.55rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.crm-prospect-chip:hover:not(:disabled) {
+  border-color: var(--brand, #c4a574);
+  color: var(--brand, #c4a574);
+}
+
+.crm-prospect-chip:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .crm-prospect-form input {
   flex: 1;
   padding: 0.5rem 0.75rem;

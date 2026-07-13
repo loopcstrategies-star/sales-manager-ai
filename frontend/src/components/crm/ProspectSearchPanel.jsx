@@ -1,6 +1,14 @@
 import React, { useState } from 'react'
 import { crmApi } from '../../api/client'
 
+export const DEFAULT_PROSPECT_QUERIES = [
+  'jewelry manufacturers Dubai',
+  'gold wholesale Dubai',
+  'diamond traders UAE',
+  'precious metals suppliers Middle East',
+  'jewelry exporters India Dubai',
+]
+
 export default function ProspectSearchPanel({ onImported }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])
@@ -13,15 +21,17 @@ export default function ProspectSearchPanel({ onImported }) {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
-  const search = async (e) => {
+  const search = async (e, overrideQuery) => {
     e?.preventDefault?.()
-    if (!query.trim()) return
+    const q = String(overrideQuery ?? query).trim()
+    if (!q) return
+    if (overrideQuery != null) setQuery(q)
     setBusy(true)
     setError('')
     setMessage('')
     setSelected({})
     try {
-      const res = await crmApi.prospectSearch(query.trim())
+      const res = await crmApi.prospectSearch(q)
       setResults(res.data?.results || [])
       if (!(res.data?.results || []).length) setMessage('No results. Try a different query.')
     } catch (err) {
@@ -66,6 +76,19 @@ export default function ProspectSearchPanel({ onImported }) {
     <section className="crm-home-panel crm-prospect-panel">
       <h3>Find companies</h3>
       <p className="crm-muted">Search the web, then add selected results as Accounts, Contacts, and/or Leads.</p>
+      <div className="crm-prospect-chips" role="list">
+        {DEFAULT_PROSPECT_QUERIES.map((chip) => (
+          <button
+            key={chip}
+            type="button"
+            className="crm-prospect-chip"
+            disabled={busy}
+            onClick={() => search(null, chip)}
+          >
+            {chip}
+          </button>
+        ))}
+      </div>
       <form className="crm-prospect-form" onSubmit={search}>
         <input
           value={query}

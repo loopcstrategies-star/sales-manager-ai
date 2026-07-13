@@ -9,6 +9,7 @@ export default function CrmHomePage() {
   const [loading, setLoading] = useState(true)
   const [refreshMsg, setRefreshMsg] = useState('')
   const [backfillBusy, setBackfillBusy] = useState(false)
+  const [bulkBusy, setBulkBusy] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -69,6 +70,28 @@ export default function CrmHomePage() {
     }
   }
 
+  const runBulkImport = async () => {
+    setBulkBusy(true)
+    setRefreshMsg('Importing from web… this may take a minute.')
+    try {
+      const res = await crmApi.prospectBulk({
+        asAccount: true,
+        asContact: true,
+        asLead: true,
+        perQuery: 8,
+      })
+      const d = res.data || {}
+      setRefreshMsg(
+        `Web import · Accounts +${d.accountsCreated || 0} · Contacts +${d.contactsCreated || 0} · Leads +${d.leadsCreated || 0} · skipped ${d.skippedDuplicates || 0} duplicates (${d.resultsSeen || 0} seen).`,
+      )
+      await load()
+    } catch (err) {
+      setRefreshMsg(err.message || 'Web import failed.')
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
   const counts = data?.counts || {}
 
   return (
@@ -107,7 +130,15 @@ export default function CrmHomePage() {
           </div>
 
           <div className="crm-home-actions">
-            <Link className="crm-btn-primary" to="/sales/leads">New Lead</Link>
+            <button
+              type="button"
+              className="crm-btn-primary"
+              disabled={bulkBusy}
+              onClick={runBulkImport}
+            >
+              {bulkBusy ? 'Importing from web…' : 'Import from web'}
+            </button>
+            <Link className="crm-btn-secondary" to="/sales/leads">New Lead</Link>
             <Link className="crm-btn-secondary" to="/sales/contacts">New Contact</Link>
             <Link className="crm-btn-secondary" to="/sales/accounts">New Account</Link>
             <Link className="crm-btn-secondary" to="/sales/pipeline">View Pipeline</Link>

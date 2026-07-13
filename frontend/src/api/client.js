@@ -224,5 +224,9 @@ export const crmApi = {
     method: 'POST',
     body: JSON.stringify({ cap }),
   }),
+  prospectBulk: (body = {}) => api('/api/crm/prospect/bulk', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  }),
 }
 
