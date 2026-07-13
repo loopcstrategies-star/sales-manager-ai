@@ -95,6 +95,20 @@ export const opportunitiesApi = {
   remove: (id) => api(`/api/opportunities/${id}`, { method: 'DELETE' }),
 }
 
+export const leadsApi = {
+  list: (q = '', view = 'open') => {
+    const params = new URLSearchParams()
+    if (q) params.set('q', q)
+    if (view) params.set('view', view)
+    const qs = params.toString()
+    return api(`/api/leads${qs ? `?${qs}` : ''}`)
+  },
+  get: (id) => api(`/api/leads/${id}`),
+  create: (body) => api('/api/leads', { method: 'POST', body: JSON.stringify(body) }),
+  update: (id, body) => api(`/api/leads/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  remove: (id) => api(`/api/leads/${id}`, { method: 'DELETE' }),
+}
+
 export const casesApi = {
   list: (q = '') => api(`/api/cases${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   create: (body) => api('/api/cases', { method: 'POST', body: JSON.stringify(body) }),

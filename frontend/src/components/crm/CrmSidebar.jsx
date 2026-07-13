@@ -12,6 +12,15 @@ const ITEMS = [
     ),
   },
   {
+    to: '/sales/leads',
+    label: 'Leads',
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path fill="currentColor" d="M12 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zm0 1.5c-3.2 0-7 1.6-7 4.5V20h14v-2c0-2.9-3.8-4.5-7-4.5z" />
+      </svg>
+    ),
+  },
+  {
     to: '/sales/contacts',
     label: 'Contacts',
     icon: (
@@ -31,7 +40,7 @@ const ITEMS = [
   },
   {
     to: '/sales/pipeline',
-    label: 'Sales',
+    label: 'Opportunities',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path fill="currentColor" d="M4 18h16v2H4v-2zm2-3 3.5-4.5 3 2.5L17 7l1.5 1.2-5.5 7.3-3-2.5L6 15z" />

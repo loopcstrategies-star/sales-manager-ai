@@ -11,6 +11,7 @@ import CrmHomePage from './pages/crm/CrmHomePage'
 import ContactsPage from './pages/crm/ContactsPage'
 import AccountsPage from './pages/crm/AccountsPage'
 import PipelinePage from './pages/crm/PipelinePage'
+import LeadsPage from './pages/crm/LeadsPage'
 import ServicePage from './pages/crm/ServicePage'
 import MarketingPage from './pages/crm/MarketingPage'
 
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="home" element={<CrmHomePage />} />
         <Route path="contacts" element={<ContactsPage />} />
         <Route path="accounts" element={<AccountsPage />} />
+        <Route path="leads" element={<LeadsPage />} />
         <Route path="pipeline" element={<PipelinePage />} />
         <Route path="service" element={<ServicePage />} />
         <Route path="marketing" element={<MarketingPage />} />

@@ -39,6 +39,10 @@ export default function CrmHomePage() {
         <>
           <div className="crm-stat-grid">
             <div className="crm-stat-card">
+              <span className="crm-stat-label">Open Leads</span>
+              <strong className="crm-stat-value">{counts.openLeads ?? 0}</strong>
+            </div>
+            <div className="crm-stat-card">
               <span className="crm-stat-label">Contacts</span>
               <strong className="crm-stat-value">{counts.contacts ?? 0}</strong>
             </div>
@@ -54,14 +58,11 @@ export default function CrmHomePage() {
               <span className="crm-stat-label">Open Cases</span>
               <strong className="crm-stat-value">{counts.openCases ?? 0}</strong>
             </div>
-            <div className="crm-stat-card">
-              <span className="crm-stat-label">Campaigns</span>
-              <strong className="crm-stat-value">{counts.campaigns ?? 0}</strong>
-            </div>
           </div>
 
           <div className="crm-home-actions">
-            <Link className="crm-btn-primary" to="/sales/contacts">New Contact</Link>
+            <Link className="crm-btn-primary" to="/sales/leads">New Lead</Link>
+            <Link className="crm-btn-secondary" to="/sales/contacts">New Contact</Link>
             <Link className="crm-btn-secondary" to="/sales/accounts">New Account</Link>
             <Link className="crm-btn-secondary" to="/sales/pipeline">View Pipeline</Link>
           </div>

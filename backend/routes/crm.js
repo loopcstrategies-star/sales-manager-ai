@@ -5,6 +5,7 @@ const Contact = require('../models/Contact')
 const Opportunity = require('../models/Opportunity')
 const Case = require('../models/Case')
 const Campaign = require('../models/Campaign')
+const Lead = require('../models/Lead')
 const { workspaceFilter } = require('../services/crmHelpers')
 
 const router = express.Router()
@@ -16,6 +17,7 @@ router.get('/stats', async (req, res) => {
     const [
       accounts,
       contacts,
+      openLeads,
       openDeals,
       openCases,
       campaigns,
@@ -24,6 +26,7 @@ router.get('/stats', async (req, res) => {
     ] = await Promise.all([
       Account.countDocuments(filter),
       Contact.countDocuments(filter),
+      Lead.countDocuments({ ...filter, status: { $in: ['Open', 'Working'] } }),
       Opportunity.countDocuments({
         ...filter,
         stage: { $nin: ['Closed Won', 'Closed Lost'] },
@@ -42,7 +45,7 @@ router.get('/stats', async (req, res) => {
     res.json({
       success: true,
       data: {
-        counts: { accounts, contacts, openDeals, openCases, campaigns },
+        counts: { accounts, contacts, openLeads, openDeals, openCases, campaigns },
         recentAccounts,
         recentContacts: recentContacts.map((c) => ({
           ...c,

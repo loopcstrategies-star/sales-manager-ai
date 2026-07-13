@@ -11,6 +11,7 @@ const contactsRoutes = require('./routes/contacts')
 const opportunitiesRoutes = require('./routes/opportunities')
 const casesRoutes = require('./routes/cases')
 const campaignsRoutes = require('./routes/campaigns')
+const leadsRoutes = require('./routes/leads')
 const uploadsRoutes = require('./routes/uploads')
 const crmRoutes = require('./routes/crm')
 
@@ -54,6 +55,7 @@ function createApp() {
   app.use('/api/opportunities', opportunitiesRoutes)
   app.use('/api/cases', casesRoutes)
   app.use('/api/campaigns', campaignsRoutes)
+  app.use('/api/leads', leadsRoutes)
   app.use('/api/uploads', uploadsRoutes)
   app.use('/api/crm', crmRoutes)
 
