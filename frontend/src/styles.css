@@ -32,7 +32,9 @@ body {
 a { color: var(--brand); }
 
 .app-shell {
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -46,8 +48,10 @@ a { color: var(--brand); }
   background: #14110f;
   color: #f7f4ef;
   border-bottom: 1px solid rgba(196, 165, 116, 0.28);
-  position: relative;
-  z-index: 20;
+  position: sticky;
+  top: 0;
+  flex-shrink: 0;
+  z-index: 30;
 }
 
 .topbar-left {
@@ -168,9 +172,9 @@ a { color: var(--brand); }
 
 .chat-layout {
   flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: 280px 1fr;
-  min-height: calc(100vh - 64px);
 }
 
 .chat-layout-full {
