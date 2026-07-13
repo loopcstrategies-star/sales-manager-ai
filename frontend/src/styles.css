@@ -1104,6 +1104,7 @@ a { color: var(--brand); }
   padding: 0;
   display: flex;
   flex-direction: column;
+  overflow: visible;
 }
 
 .crm-service-outlet > * {
@@ -1830,9 +1831,12 @@ a { color: var(--brand); }
   min-height: 0;
   flex: 1;
   height: 100%;
+  overflow: visible;
 }
 
 .crm-service-tabs {
+  position: relative;
+  z-index: 50;
   display: flex;
   align-items: stretch;
   gap: 0.25rem;
@@ -1841,6 +1845,7 @@ a { color: var(--brand); }
   background: #fff;
   border-bottom: 1px solid var(--crm-border);
   flex-shrink: 0;
+  overflow: visible;
 }
 
 .crm-service-app-label {
@@ -1857,7 +1862,7 @@ a { color: var(--brand); }
   display: flex;
   align-items: stretch;
   gap: 0.15rem;
-  overflow-x: auto;
+  overflow: visible;
   flex: 1;
 }
 
@@ -1865,6 +1870,7 @@ a { color: var(--brand); }
   position: relative;
   display: flex;
   align-items: stretch;
+  overflow: visible;
 }
 
 .crm-service-tab-inner {
@@ -1929,7 +1935,7 @@ a { color: var(--brand); }
   border: 1px solid #dddbda;
   border-radius: 6px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
-  z-index: 40;
+  z-index: 60;
   padding: 0.35rem 0;
 }
 
