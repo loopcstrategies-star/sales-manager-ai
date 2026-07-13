@@ -33,6 +33,7 @@ const leadSchema = new mongoose.Schema({
   leadSource: { type: String, trim: true, default: '', maxlength: 80 },
   industry: { type: String, trim: true, default: '', maxlength: 80 },
   description: { type: String, trim: true, default: '', maxlength: 5000 },
+  lastEnrichedAt: { type: Date, default: null },
 }, { timestamps: true })
 
 leadSchema.index({ workspaceId: 1, company: 1 })

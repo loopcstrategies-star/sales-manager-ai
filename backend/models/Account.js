@@ -25,6 +25,7 @@ const accountSchema = new mongoose.Schema({
   billingAddress: { type: addressSchema, default: () => ({}) },
   shippingAddress: { type: addressSchema, default: () => ({}) },
   customFields: { type: [customFieldSchema], default: [] },
+  lastEnrichedAt: { type: Date, default: null },
 }, { timestamps: true })
 
 accountSchema.index({ workspaceId: 1, name: 1 })

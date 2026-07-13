@@ -2493,3 +2493,125 @@ a { color: var(--brand); }
     grid-template-columns: 1fr;
   }
 }
+
+/* CRM import / enrich / prospect */
+.crm-import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.crm-file-label {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.crm-import-map {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.crm-import-table-wrap {
+  overflow: auto;
+  max-height: 220px;
+  border: 1px solid var(--crm-border, #ddd);
+  border-radius: 6px;
+}
+
+.crm-import-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.crm-import-table th,
+.crm-import-table td {
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--crm-border, #eee);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.crm-import-summary {
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+}
+
+.crm-enrich-wrap {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  align-items: flex-start;
+}
+
+.crm-enrich-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted, #666);
+}
+
+.crm-prospect-panel {
+  margin: 1.25rem 0;
+}
+
+.crm-prospect-form {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.crm-prospect-form input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--crm-border, #ccc);
+  border-radius: 6px;
+}
+
+.crm-prospect-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 280px;
+  overflow: auto;
+}
+
+.crm-prospect-list li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--crm-border, #eee);
+}
+
+.crm-prospect-list label {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+.crm-prospect-list span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.85rem;
+}
+
+.crm-prospect-list a {
+  font-size: 0.75rem;
+  word-break: break-all;
+}
+
+.crm-prospect-list em {
+  font-style: normal;
+  color: var(--text-muted, #666);
+  font-size: 0.8rem;
+}
+
+.crm-prospect-import {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 0.75rem;
+}

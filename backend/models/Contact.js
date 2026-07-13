@@ -29,6 +29,7 @@ const contactSchema = new mongoose.Schema({
   emailOptOut: { type: Boolean, default: false },
   photoUrl: { type: String, trim: true, default: '', maxlength: 500 },
   customFields: { type: [customFieldSchema], default: [] },
+  lastEnrichedAt: { type: Date, default: null },
 }, { timestamps: true })
 
 contactSchema.index({ workspaceId: 1, lastName: 1, firstName: 1 })

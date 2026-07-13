@@ -3,6 +3,8 @@ import { leadsApi } from '../../api/client'
 import { useAuth } from '../../context/AuthContext'
 import CrmListView from '../../components/crm/CrmListView'
 import CrmModal from '../../components/crm/CrmModal'
+import CrmImportModal from '../../components/crm/CrmImportModal'
+import CrmEnrichButton from '../../components/crm/CrmEnrichButton'
 
 const STATUSES = ['Open', 'Working', 'Qualified', 'Unqualified']
 const SALUTATIONS = ['--None--', 'Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Prof.']
@@ -91,6 +93,8 @@ export default function LeadsPage() {
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
   const [listError, setListError] = useState('')
+  const [importOpen, setImportOpen] = useState(false)
+  const [enrichedHint, setEnrichedHint] = useState('')
 
   const load = useCallback(async (q = '') => {
     setLoading(true)
@@ -115,6 +119,7 @@ export default function LeadsPage() {
     setEditingId(null)
     setForm(emptyForm())
     setErrors({})
+    setEnrichedHint('')
     setModalOpen(true)
   }
 
@@ -147,8 +152,33 @@ export default function LeadsPage() {
       industry: item.industry || '',
       description: item.description || '',
     })
+    setEnrichedHint(item.lastEnrichedAt
+      ? `Updated from web · ${new Date(item.lastEnrichedAt).toLocaleString()}`
+      : '')
     setErrors({})
     setModalOpen(true)
+  }
+
+  const applyEnrichment = (data) => {
+    const fields = data?.record || data?.fields || {}
+    setForm((f) => ({
+      ...f,
+      website: fields.website ?? f.website,
+      phone: fields.phone ?? f.phone,
+      industry: fields.industry ?? f.industry,
+      description: fields.description ?? f.description,
+      numberOfEmployees: fields.numberOfEmployees ?? f.numberOfEmployees,
+      annualRevenue: fields.annualRevenue ?? f.annualRevenue,
+      address: {
+        ...f.address,
+        city: fields.address?.city ?? fields.city ?? f.address.city,
+        country: fields.address?.country ?? fields.country ?? f.address.country,
+      },
+    }))
+    if (data?.record?.lastEnrichedAt) {
+      setEnrichedHint(`Updated from web · ${new Date(data.record.lastEnrichedAt).toLocaleString()}`)
+    }
+    if (data?.record?._id) load(search)
   }
 
   const setField = (key, value) => setForm((f) => ({ ...f, [key]: value }))
@@ -237,7 +267,7 @@ export default function LeadsPage() {
         actions={(
           <>
             <button type="button" className="crm-btn-primary" onClick={openNew}>New</button>
-            <button type="button" className="crm-btn-secondary" disabled title="Coming soon">Import</button>
+            <button type="button" className="crm-btn-secondary" onClick={() => setImportOpen(true)}>Import</button>
             <button type="button" className="crm-btn-secondary" disabled title="Coming soon">Add to Campaign</button>
             <button type="button" className="crm-btn-secondary" disabled title="Coming soon">Send Email</button>
           </>
@@ -267,6 +297,15 @@ export default function LeadsPage() {
         onClose={() => setModalOpen(false)}
         footer={(
           <>
+            <div className="crm-footer-start">
+              <CrmEnrichButton
+                objectType="leads"
+                id={editingId}
+                draft={form}
+                onEnriched={applyEnrichment}
+              />
+              {enrichedHint ? <span className="crm-enrich-hint">{enrichedHint}</span> : null}
+            </div>
             <button type="button" className="crm-btn-secondary" onClick={() => setModalOpen(false)}>Cancel</button>
             <button type="button" className="crm-btn-secondary" disabled={saving} onClick={() => save(true)}>Save & New</button>
             <button type="button" className="crm-btn-primary" disabled={saving} onClick={() => save(false)}>
@@ -427,6 +466,13 @@ export default function LeadsPage() {
           </select>
         </label>
       </CrmModal>
+
+      <CrmImportModal
+        objectType="leads"
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => load(search)}
+      />
     </>
   )
 }

@@ -1,11 +1,26 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { crmApi } from '../../api/client'
+import ProspectSearchPanel from '../../components/crm/ProspectSearchPanel'
 
 export default function CrmHomePage() {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [refreshMsg, setRefreshMsg] = useState('')
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const res = await crmApi.stats()
+      setData(res.data)
+      setError('')
+    } catch (err) {
+      setError(err.message || 'Failed to load home')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -22,6 +37,21 @@ export default function CrmHomePage() {
     })()
     return () => { cancelled = true }
   }, [])
+
+  const runRefresh = async () => {
+    setRefreshMsg('')
+    try {
+      const res = await crmApi.enrichRefresh(50)
+      const d = res.data || {}
+      if (d.skipped) {
+        setRefreshMsg(`Refresh skipped: ${d.reason}`)
+      } else {
+        setRefreshMsg(`Re-enriched ${d.totalEnriched || 0} records (cap ${d.cap}).`)
+      }
+    } catch (err) {
+      setRefreshMsg(err.message || 'Refresh failed.')
+    }
+  }
 
   const counts = data?.counts || {}
 
@@ -65,7 +95,13 @@ export default function CrmHomePage() {
             <Link className="crm-btn-secondary" to="/sales/contacts">New Contact</Link>
             <Link className="crm-btn-secondary" to="/sales/accounts">New Account</Link>
             <Link className="crm-btn-secondary" to="/sales/pipeline">View Pipeline</Link>
+            <button type="button" className="crm-btn-secondary" onClick={runRefresh}>
+              Refresh stale records
+            </button>
           </div>
+          {refreshMsg ? <p className="crm-muted">{refreshMsg}</p> : null}
+
+          <ProspectSearchPanel onImported={() => load()} />
 
           <div className="crm-home-columns">
             <section className="crm-home-panel">

@@ -181,5 +181,44 @@ export const uploadsApi = {
 
 export const crmApi = {
   stats: () => api('/api/crm/stats'),
+  importCsv: (objectType, file, { mapping, preview } = {}) => {
+    const form = new FormData()
+    form.append('file', file)
+    if (mapping) form.append('mapping', JSON.stringify(mapping))
+    if (preview) form.append('preview', '1')
+    return apiForm(`/api/crm/import/${objectType}`, form)
+  },
+  downloadImportTemplate: async (objectType) => {
+    const headers = {}
+    const token = getToken()
+    if (token) headers.Authorization = `Bearer ${token}`
+    const res = await fetch(`${API_BASE}/api/crm/import/template/${objectType}`, { headers })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.message || `Request failed (${res.status})`)
+    }
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${objectType}-template.csv`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  },
+  enrich: (body) => api('/api/crm/enrich', { method: 'POST', body: JSON.stringify(body) }),
+  prospectSearch: (query) => api('/api/crm/prospect/search', {
+    method: 'POST',
+    body: JSON.stringify({ query }),
+  }),
+  prospectImport: (body) => api('/api/crm/prospect/import', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  }),
+  enrichRefresh: (cap) => api('/api/crm/enrich/refresh', {
+    method: 'POST',
+    body: JSON.stringify({ cap }),
+  }),
 }
 

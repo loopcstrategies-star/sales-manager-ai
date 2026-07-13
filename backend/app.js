@@ -19,6 +19,9 @@ const priceBooksRoutes = require('./routes/priceBooks')
 const calendarEventsRoutes = require('./routes/calendarEvents')
 const uploadsRoutes = require('./routes/uploads')
 const crmRoutes = require('./routes/crm')
+const crmImportRoutes = require('./routes/crmImport')
+const crmEnrichRoutes = require('./routes/crmEnrich')
+const crmWebhooksRoutes = require('./routes/crmWebhooks')
 
 function createApp() {
   const app = express()
@@ -67,6 +70,9 @@ function createApp() {
   app.use('/api/price-books', priceBooksRoutes)
   app.use('/api/calendar-events', calendarEventsRoutes)
   app.use('/api/uploads', uploadsRoutes)
+  app.use('/api/crm/webhooks', crmWebhooksRoutes)
+  app.use('/api/crm', crmImportRoutes)
+  app.use('/api/crm', crmEnrichRoutes)
   app.use('/api/crm', crmRoutes)
 
   app.use((req, res) => {
