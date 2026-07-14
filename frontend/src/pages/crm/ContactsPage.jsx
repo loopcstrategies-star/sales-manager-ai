@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { accountsApi, contactsApi } from '../../api/client'
+import { accountsApi, contactsApi, crmApi } from '../../api/client'
 import { useAuth } from '../../context/AuthContext'
 import { isCreatedThisWeek, isOwnedBy, useServiceListQuery } from '../../hooks/useServiceListQuery'
 import CrmListView from '../../components/crm/CrmListView'
@@ -59,12 +59,16 @@ export default function ContactsPage() {
   const [selectedIds, setSelectedIds] = useState([])
   const [countryFilter, setCountryFilter] = useState('')
   const [needsVerifyOnly, setNeedsVerifyOnly] = useState(searchParams.get('needsVerify') === '1')
+  const [sourceFilter, setSourceFilter] = useState(searchParams.get('source') || '')
 
   const load = useCallback(async (q = '') => {
     setLoading(true)
     setListError('')
     try {
-      const res = await contactsApi.list(q, { needsVerify: needsVerifyOnly })
+      const res = await contactsApi.list(q, {
+        needsVerify: needsVerifyOnly,
+        source: sourceFilter || undefined,
+      })
       setItems(res.data || [])
     } catch (err) {
       setListError(err.message || 'Failed to load contacts')
@@ -72,7 +76,7 @@ export default function ContactsPage() {
     } finally {
       setLoading(false)
     }
-  }, [needsVerifyOnly])
+  }, [needsVerifyOnly, sourceFilter])
 
   useEffect(() => {
     const t = setTimeout(() => load(search), 250)
@@ -82,8 +86,9 @@ export default function ContactsPage() {
   useEffect(() => {
     const next = {}
     if (needsVerifyOnly) next.needsVerify = '1'
+    if (sourceFilter) next.source = sourceFilter
     setSearchParams(next, { replace: true })
-  }, [needsVerifyOnly, setSearchParams])
+  }, [needsVerifyOnly, sourceFilter, setSearchParams])
 
   const openNew = useCallback(() => {
     setEditingId(null)
@@ -255,6 +260,29 @@ export default function ContactsPage() {
     await load(search)
   }
 
+  const markSelectedVerified = async () => {
+    if (!selectedIds.length) return
+    try {
+      await crmApi.markVerified(selectedIds)
+      setSelectedIds([])
+      await load(search)
+    } catch (err) {
+      setListError(err.message || 'Could not mark verified')
+    }
+  }
+
+  const markAllVerifyQueue = async () => {
+    if (!needsVerifyOnly) return
+    if (!window.confirm(`Mark all ${filteredItems.length} listed contacts as verified?`)) return
+    try {
+      await crmApi.markVerified(filteredItems.map((c) => c._id))
+      setSelectedIds([])
+      await load(search)
+    } catch (err) {
+      setListError(err.message || 'Could not mark verified')
+    }
+  }
+
   return (
     <>
       {listError ? <p className="crm-banner-error">{listError}</p> : null}
@@ -267,10 +295,25 @@ export default function ContactsPage() {
         selectedIds={selectedIds}
         onSelectionChange={setSelectedIds}
         bulkActions={(
-          <button type="button" className="crm-btn-secondary" onClick={deleteSelected}>Delete</button>
+          <>
+            <button type="button" className="crm-btn-secondary" onClick={markSelectedVerified}>
+              Mark verified
+            </button>
+            <button type="button" className="crm-btn-secondary" onClick={deleteSelected}>Delete</button>
+          </>
         )}
         actions={(
           <>
+            <label className="crm-inline-filter">
+              <span>Source</span>
+              <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}>
+                <option value="">All</option>
+                <option value="manual">manual</option>
+                <option value="csv">csv</option>
+                <option value="web_llm">AI / web</option>
+                <option value="hunter">hunter</option>
+              </select>
+            </label>
             <label className="crm-inline-filter">
               <span>Country</span>
               <select value={countryFilter} onChange={(e) => setCountryFilter(e.target.value)}>
@@ -288,6 +331,11 @@ export default function ContactsPage() {
               />
               Needs verify
             </label>
+            {needsVerifyOnly ? (
+              <button type="button" className="crm-btn-secondary" onClick={markAllVerifyQueue}>
+                Mark all verified
+              </button>
+            ) : null}
             <button type="button" className="crm-btn-secondary" onClick={() => setImportOpen(true)}>Import</button>
             <button type="button" className="crm-btn-primary" onClick={openNew}>New</button>
           </>

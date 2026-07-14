@@ -25,7 +25,7 @@ const {
   resolveCountry,
   normalizeRegionLabel,
 } = require('../services/prospectQuality')
-const { findContactsForCompany } = require('../services/contactFind')
+const { findContactsForCompany, isStubContact } = require('../services/contactFind')
 const { hunterDomainSearch, isHunterConfigured } = require('../services/hunterClient')
 
 const router = express.Router()
@@ -679,13 +679,26 @@ router.post('/prospect/hunter-contacts', async (req, res) => {
   }
 })
 
+async function accountHasRealEmailedContact(filter, accountId) {
+  const contacts = await Contact.find({
+    ...filter,
+    accountId,
+    email: { $nin: [null, ''] },
+  })
+    .select('firstName lastName')
+    .limit(30)
+    .lean()
+  return contacts.some((c) => !isStubContact(c))
+}
+
 router.post('/prospect/find-contacts-batch', async (req, res) => {
   try {
     const filter = workspaceFilter(req.user)
     const region = String(req.body.region || '').trim()
     const cap = Math.max(1, Math.min(Number(req.body.cap) || 15, 25))
+    const thinOnly = req.body.thinOnly !== false
 
-    const accounts = await Account.find(filter).sort({ updatedAt: -1 }).limit(80)
+    const accounts = await Account.find(filter).sort({ updatedAt: -1 }).limit(120)
     const summary = {
       accountsProcessed: 0,
       contactsCreated: 0,
@@ -693,6 +706,7 @@ router.post('/prospect/find-contacts-batch', async (req, res) => {
       skipped: 0,
       errors: [],
       region,
+      thinOnly,
     }
 
     for (const account of accounts) {
@@ -701,14 +715,13 @@ router.post('/prospect/find-contacts-batch', async (req, res) => {
         summary.skipped += 1
         continue
       }
-      const withEmail = await Contact.countDocuments({
-        ...filter,
-        accountId: account._id,
-        email: { $nin: [null, ''] },
-      })
-      if (withEmail > 0) {
+      const hasReal = await accountHasRealEmailedContact(filter, account._id)
+      if (hasReal) {
         summary.skipped += 1
         continue
+      }
+      if (!thinOnly) {
+        /* same skip rule: only process accounts without real emailed contacts */
       }
 
       try {

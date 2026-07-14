@@ -119,10 +119,11 @@ export default function CrmHomePage() {
 
   const runFindContactsBatch = async () => {
     setFindBusy(true)
-    setRefreshMsg('Finding public contacts for Accounts… may take a few minutes.')
+    setRefreshMsg('Finding contacts on thin Accounts (website pages + search)… may take a few minutes.')
     try {
       const res = await crmApi.findContactsBatch({
-        cap: 15,
+        cap: 20,
+        thinOnly: true,
         region: region || undefined,
       })
       const d = res.data || {}
@@ -194,7 +195,27 @@ export default function CrmHomePage() {
               <span className="crm-stat-label">Needs verify</span>
               <strong className="crm-stat-value">{counts.needsVerify ?? 0}</strong>
             </div>
+            <div className="crm-stat-card">
+              <span className="crm-stat-label">Missing email</span>
+              <strong className="crm-stat-value">{counts.missingEmail ?? 0}</strong>
+            </div>
+            <div className="crm-stat-card">
+              <span className="crm-stat-label">Thin Accounts</span>
+              <strong className="crm-stat-value">{counts.thinAccounts ?? 0}</strong>
+            </div>
+            <div className="crm-stat-card">
+              <span className="crm-stat-label">Avg contacts / Account</span>
+              <strong className="crm-stat-value">{counts.avgContactsPerAccount ?? 0}</strong>
+            </div>
           </div>
+
+          {(counts.thinAccounts > 0) ? (
+            <p className="crm-banner-warn">
+              {counts.thinAccounts} Accounts still need real people emails.
+              Use <strong>Find contacts on Accounts</strong> (website + search), then verify under{' '}
+              <Link to="/sales/contacts?needsVerify=1">Contacts needing verify</Link>.
+            </p>
+          ) : null}
 
           {(counts.openDeals === 0 && (counts.accounts || 0) > 0) ? (
             <p className="crm-banner-warn">
@@ -241,6 +262,41 @@ export default function CrmHomePage() {
             </section>
           </div>
 
+          <div className="crm-home-columns" style={{ marginBottom: '1rem' }}>
+            <section className="crm-home-panel">
+              <h3>Contacts by source</h3>
+              {(data?.contactSourceMix || []).length === 0 ? (
+                <p className="crm-muted">No contacts yet.</p>
+              ) : (
+                <ul className="crm-recent-list">
+                  {data.contactSourceMix.map((r) => (
+                    <li key={r.label}>
+                      <Link to={`/sales/contacts?source=${encodeURIComponent(r.label)}`}>
+                        {r.label === 'web_llm' ? 'AI / web' : r.label}
+                      </Link>
+                      <span>{r.count}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+            <section className="crm-home-panel">
+              <h3>Contacts by Country</h3>
+              {(data?.contactsByCountry || []).length === 0 ? (
+                <p className="crm-muted">No contact country data yet.</p>
+              ) : (
+                <ul className="crm-recent-list">
+                  {data.contactsByCountry.slice(0, 8).map((r) => (
+                    <li key={r.label}>
+                      <span>{r.label}</span>
+                      <span>{r.count}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </div>
+
           <div className="crm-home-actions">
             <button
               type="button"
@@ -256,7 +312,7 @@ export default function CrmHomePage() {
               disabled={anyBusy}
               onClick={runFindContactsBatch}
             >
-              {findBusy ? 'Finding contacts…' : 'Find contacts on Accounts'}
+              {findBusy ? 'Finding contacts…' : 'Find contacts on thin Accounts'}
             </button>
             <button
               type="button"
@@ -313,7 +369,8 @@ export default function CrmHomePage() {
           </div>
           <p className="crm-muted">
             Free contacts path (no paid email APIs): <strong>Import Contacts (CSV)</strong> for lists you already have,
-            or <strong>Find contacts on Accounts</strong> (Brave/Tavily search + Groq — mark needs verify before outreach).
+            or <strong>Find contacts on thin Accounts</strong> (company website About/Contact pages + Brave/Tavily + Groq —
+            max 8 people/Account; mark needs verify before outreach).
             Needs <code>GROQ_API_KEY</code> and <code>BRAVE_API_KEY</code> (or Tavily) on Railway.
             Web import tags new Accounts with the Region below; <strong>Fill missing countries</strong> infers
             Country from website TLD (.ae, .in, …). Filter Accounts/Contacts by Region or Country in their lists.

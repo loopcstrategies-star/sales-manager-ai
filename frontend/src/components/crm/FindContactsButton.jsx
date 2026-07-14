@@ -29,7 +29,7 @@ export default function FindContactsButton({
       })
       const d = res.data || {}
       setHint(
-        `Found ${ (d.people || []).length } · saved +${d.contactsCreated || 0} · skipped ${d.contactsSkipped || 0}. Verify emails before outreach.`,
+        `Found ${(d.people || []).length} · saved +${d.contactsCreated || 0} · skipped ${d.contactsSkipped || 0}. From site pages + search — verify before outreach.`,
       )
       onFound?.(d)
     } catch (err) {

@@ -1,6 +1,7 @@
 const { searchWithCache, isSearchConfigured } = require('./webSearch')
 const { createChatCompletion, isOpenAiConfigured } = require('./openAiClient')
 const { withRegion, hostnameOf } = require('./prospectQuality')
+const { fetchCompanySiteText } = require('./websitePageText')
 
 function extractJsonObject(text) {
   const raw = String(text || '').trim()
@@ -55,7 +56,7 @@ function parseContactsPayload(parsed) {
     : Array.isArray(parsed?.contacts)
       ? parsed.contacts
       : []
-  for (const item of list.slice(0, 8)) {
+  for (const item of list.slice(0, 10)) {
     const n = normalizePerson(item)
     if (n) people.push(n)
   }
@@ -83,12 +84,19 @@ function parseContactsPayload(parsed) {
   }
 
   return {
-    people: people.slice(0, 5),
-    phones: [...new Set(phones)].slice(0, 5),
-    emails: [...new Set(emails)].slice(0, 5),
+    people: people.slice(0, 8),
+    phones: [...new Set(phones)].slice(0, 8),
+    emails: [...new Set(emails)].slice(0, 8),
     companyPhone: phones[0] || people.find((p) => p.phone)?.phone || '',
     companyEmail: emails[0] || '',
   }
+}
+
+/** Stub “Main” contacts should not block Find on an Account. */
+function isStubContact(doc) {
+  const ln = String(doc?.lastName || '').trim().toLowerCase()
+  const fn = String(doc?.firstName || '').trim()
+  return ln === 'main' && !fn
 }
 
 async function findContactsForCompany({ name, website, region } = {}) {
@@ -107,28 +115,45 @@ async function findContactsForCompany({ name, website, region } = {}) {
   }
 
   const baseQuery = [company, host || site, 'contact email phone'].filter(Boolean).join(' ')
+  const teamQuery = withRegion(
+    [company, host || site, 'team OR staff OR "sales manager" OR director email'].filter(Boolean).join(' '),
+    region,
+  )
   const query = withRegion(baseQuery, region)
-  const search = await searchWithCache(query, { maxResults: 6, searchDepth: 'basic' })
-  if (search.error && !(search.results || []).length) {
+
+  const [search, teamSearch, sitePages] = await Promise.all([
+    searchWithCache(query, { maxResults: 6, searchDepth: 'basic' }),
+    searchWithCache(teamQuery, { maxResults: 4, searchDepth: 'basic' }),
+    fetchCompanySiteText(site),
+  ])
+
+  if (search.error && !(search.results || []).length && !sitePages.text) {
     return { ok: false, error: search.error, people: [], sources: [] }
   }
 
   const snippets = []
   if (search.answer) snippets.push(String(search.answer))
-  ;(search.results || []).forEach((r) => {
-    snippets.push(`Title: ${r.title || ''}\nURL: ${r.url || ''}\n${r.content || ''}`)
+  const allResults = [...(search.results || []), ...(teamSearch.results || [])]
+  const seenUrl = new Set()
+  allResults.forEach((r) => {
+    const url = String(r.url || '')
+    if (url && seenUrl.has(url)) return
+    if (url) seenUrl.add(url)
+    snippets.push(`Title: ${r.title || ''}\nURL: ${url}\n${r.content || ''}`)
   })
-  const blob = snippets.join('\n\n').slice(0, 9000)
+  const blob = snippets.join('\n\n').slice(0, 8000)
+  const pageBlob = String(sitePages.text || '').slice(0, 10000)
 
   const system = [
-    'You extract publicly listed business contact details from web search snippets.',
+    'You extract publicly listed business contact details from website page text and web search snippets.',
     'Return ONLY valid JSON with this shape:',
     '{"people":[{"firstName":"","lastName":"","email":"","phone":"","title":""}],"phones":[],"emails":[]}',
     'Rules:',
-    '- Only include emails/phones clearly present in the snippets.',
+    '- Prefer named people (sales, purchasing, owners, directors) over generic inboxes when both appear.',
+    '- Only include emails/phones clearly present in the provided text.',
     '- Prefer company contact emails (info@, sales@, contact@) and named staff if shown.',
     '- Do not invent names or emails. If unsure, omit.',
-    '- Max 5 people. Empty arrays are OK.',
+    '- Max 8 people. Empty arrays are OK.',
   ].join('\n')
 
   const user = [
@@ -136,7 +161,10 @@ async function findContactsForCompany({ name, website, region } = {}) {
     `Website: ${site || 'Unknown'}`,
     region ? `Region focus: ${region}` : 'Region focus: Worldwide',
     '',
-    'Snippets:',
+    'Website pages (scraped text):',
+    pageBlob || '(none fetched)',
+    '',
+    'Search snippets:',
     blob || '(none)',
   ].join('\n')
 
@@ -147,19 +175,23 @@ async function findContactsForCompany({ name, website, region } = {}) {
         { role: 'system', content: system },
         { role: 'user', content: user },
       ],
-      { temperature: 0.1, maxTokens: 900, retryOnRateLimit: true },
+      { temperature: 0.1, maxTokens: 1100, retryOnRateLimit: true },
     )
   } catch (err) {
     return { ok: false, error: err.message || 'LLM failed', people: [], sources: [] }
   }
 
   const parsed = extractJsonObject(raw)
+  const sources = [
+    ...(sitePages.urls || []).map((url) => ({ title: 'Company site', url })),
+    ...allResults.slice(0, 4).map((r) => ({ title: r.title, url: r.url })),
+  ]
   if (!parsed) {
     return {
       ok: false,
       error: 'Could not parse contact JSON from model.',
       people: [],
-      sources: (search.results || []).slice(0, 3).map((r) => ({ title: r.title, url: r.url })),
+      sources,
       raw,
     }
   }
@@ -169,9 +201,10 @@ async function findContactsForCompany({ name, website, region } = {}) {
     ok: true,
     error: null,
     ...normalized,
-    sources: (search.results || []).slice(0, 3).map((r) => ({ title: r.title, url: r.url })),
+    sources,
     provider: search.provider || null,
     query,
+    pagesFetched: (sitePages.urls || []).length,
   }
 }
 
@@ -180,4 +213,5 @@ module.exports = {
   extractJsonObject,
   parseContactsPayload,
   normalizePerson,
+  isStubContact,
 }

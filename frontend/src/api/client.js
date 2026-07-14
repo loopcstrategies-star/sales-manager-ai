@@ -290,5 +290,9 @@ export const crmApi = {
     method: 'POST',
     body: JSON.stringify({ delete: Boolean(del) }),
   }),
+  markVerified: (ids = null) => api('/api/crm/contacts/mark-verified', {
+    method: 'POST',
+    body: JSON.stringify(ids?.length ? { ids } : {}),
+  }),
 }
 
