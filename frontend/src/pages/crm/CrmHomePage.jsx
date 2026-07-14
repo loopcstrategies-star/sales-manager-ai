@@ -10,6 +10,7 @@ export default function CrmHomePage() {
   const [refreshMsg, setRefreshMsg] = useState('')
   const [backfillBusy, setBackfillBusy] = useState(false)
   const [bulkBusy, setBulkBusy] = useState(false)
+  const [cleanupBusy, setCleanupBusy] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -72,23 +73,43 @@ export default function CrmHomePage() {
 
   const runBulkImport = async () => {
     setBulkBusy(true)
-    setRefreshMsg('Importing from web… this may take a minute.')
+    setRefreshMsg('Importing company Accounts from web… this may take a minute.')
     try {
       const res = await crmApi.prospectBulk({
         asAccount: true,
-        asContact: true,
-        asLead: true,
+        asContact: false,
+        asLead: false,
         perQuery: 8,
       })
       const d = res.data || {}
       setRefreshMsg(
-        `Web import · Accounts +${d.accountsCreated || 0} · Contacts +${d.contactsCreated || 0} · Leads +${d.leadsCreated || 0} · skipped ${d.skippedDuplicates || 0} duplicates (${d.resultsSeen || 0} seen).`,
+        `Web import · Accounts +${d.accountsCreated || 0} (upd ${d.accountsUpdated || 0}) · enriched ${d.enriched || 0} · skipped low-quality ${d.skippedLowQuality || 0} · skipped duplicates ${d.skippedDuplicates || 0} (${d.resultsSeen || 0} seen).`,
       )
       await load()
     } catch (err) {
       setRefreshMsg(err.message || 'Web import failed.')
     } finally {
       setBulkBusy(false)
+    }
+  }
+
+  const runCleanupNoise = async () => {
+    if (!window.confirm(
+      'Delete Prospect accounts that look like news/social/article imports (and related Web Search contacts/leads)?',
+    )) return
+    setCleanupBusy(true)
+    setRefreshMsg('')
+    try {
+      const res = await crmApi.prospectCleanupNoise()
+      const d = res.data || {}
+      setRefreshMsg(
+        `Cleanup · Accounts −${d.accountsDeleted || 0} · Contacts −${d.contactsDeleted || 0} · Leads −${d.leadsDeleted || 0}.`,
+      )
+      await load()
+    } catch (err) {
+      setRefreshMsg(err.message || 'Cleanup failed.')
+    } finally {
+      setCleanupBusy(false)
     }
   }
 
@@ -133,10 +154,18 @@ export default function CrmHomePage() {
             <button
               type="button"
               className="crm-btn-primary"
-              disabled={bulkBusy}
+              disabled={bulkBusy || cleanupBusy}
               onClick={runBulkImport}
             >
               {bulkBusy ? 'Importing from web…' : 'Import from web'}
+            </button>
+            <button
+              type="button"
+              className="crm-btn-secondary"
+              disabled={cleanupBusy || bulkBusy}
+              onClick={runCleanupNoise}
+            >
+              {cleanupBusy ? 'Cleaning…' : 'Clean up noise prospects'}
             </button>
             <Link className="crm-btn-secondary" to="/sales/leads">New Lead</Link>
             <Link className="crm-btn-secondary" to="/sales/contacts">New Contact</Link>
@@ -154,6 +183,10 @@ export default function CrmHomePage() {
               {backfillBusy ? 'Creating…' : 'Create contacts from Accounts'}
             </button>
           </div>
+          <p className="crm-muted">
+            Import from web adds company-like Accounts only (skips news/social/listicles), then enriches them.
+            Use Clean up noise prospects to remove earlier article-style imports.
+          </p>
           {refreshMsg ? <p className="crm-muted">{refreshMsg}</p> : null}
 
           <ProspectSearchPanel onImported={() => load()} />

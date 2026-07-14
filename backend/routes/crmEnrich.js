@@ -12,21 +12,16 @@ const {
 } = require('../services/crmEnrichment')
 const { searchWithCache, isSearchConfigured } = require('../services/webSearch')
 const { runCrmEnrichRefresh } = require('../jobs/crmEnrichRefresh')
+const {
+  assessProspect,
+  companyName: deriveCompanyName,
+  hostnameOf,
+  isNoiseHost,
+  looksLikeListicle,
+} = require('../services/prospectQuality')
 
 const router = express.Router()
 router.use(protect)
-
-function contactLastNameFromTitle(title) {
-  const cleaned = String(title || '')
-    .replace(/\s*[-|–—].*$/, '')
-    .replace(/\b(llc|ltd|inc|co|corp|company|manufacturer|jewelry|jewellery|modern|gold|fe)\b/gi, ' ')
-    .replace(/[^\w\s'-]/g, ' ')
-    .trim()
-  const parts = cleaned.split(/\s+/).filter(Boolean)
-  if (!parts.length) return 'Contact'
-  const pick = parts.length === 1 ? parts[0] : parts[parts.length - 1]
-  return String(pick).slice(0, 100) || 'Contact'
-}
 
 const DEFAULT_PROSPECT_QUERIES = [
   'jewelry manufacturers Dubai',
@@ -44,6 +39,10 @@ function normalizeNameKey(name) {
     .replace(/\s+/g, ' ')
 }
 
+function normalizeHostKey(url) {
+  return hostnameOf(url)
+}
+
 function normalizeUrlKey(url) {
   try {
     const u = new URL(String(url || '').trim())
@@ -53,44 +52,117 @@ function normalizeUrlKey(url) {
   }
 }
 
+function mapSearchHit(r, i) {
+  const title = r.title || 'Untitled'
+  const url = r.url || ''
+  const snippet = r.content || r.snippet || ''
+  const assessment = assessProspect({ title, url, snippet })
+  return {
+    id: `p-${i}-${Buffer.from(String(url || title || i)).toString('base64url').slice(0, 24)}`,
+    title,
+    url,
+    snippet,
+    companyName: assessment.companyName,
+    importable: assessment.ok,
+    skipReason: assessment.reason,
+    score: assessment.score,
+  }
+}
+
+async function maybeEnrichAccount(account, company, url, summary) {
+  if (!account || !isSearchConfigured()) return
+  try {
+    const query = [company, url].filter(Boolean).join(' ').trim()
+    if (!query) return
+    const result = await enrichFromQuery(query)
+    if (result.error && !Object.keys(result.fields || {}).length) {
+      summary.errors.push({ title: company, message: result.error })
+      return
+    }
+    applyAccountEnrichment(account, result.fields, false)
+    await account.save()
+    summary.enriched = (summary.enriched || 0) + 1
+  } catch (e) {
+    summary.errors.push({ title: company, message: e.message || 'Enrich failed' })
+  }
+}
+
+async function maybeEnrichLead(lead, company, url, summary) {
+  if (!lead || !isSearchConfigured()) return
+  try {
+    const query = [company, url].filter(Boolean).join(' ').trim()
+    if (!query) return
+    const result = await enrichFromQuery(query)
+    if (result.error && !Object.keys(result.fields || {}).length) {
+      summary.errors.push({ title: company, message: result.error })
+      return
+    }
+    applyLeadEnrichment(lead, result.fields, false)
+    await lead.save()
+    summary.enriched = (summary.enriched || 0) + 1
+  } catch (e) {
+    summary.errors.push({ title: company, message: e.message || 'Enrich failed' })
+  }
+}
+
 async function importProspectItem(req, filter, item, flags, summary) {
   const title = String(item.title || '').trim() || 'Prospect'
   const url = String(item.url || '').trim()
   const snippet = String(item.snippet || item.content || '').trim()
-  const blob = `${title}\n${snippet}\n${url}`
+  const force = Boolean(flags.force || item.force)
+  const assessment = assessProspect({ title, url, snippet })
+  const company = String(item.companyName || assessment.companyName || deriveCompanyName(title, url)).trim()
+    || 'Prospect'
+
+  if (!assessment.ok && !force) {
+    summary.skippedLowQuality = (summary.skippedLowQuality || 0) + 1
+    return
+  }
+
+  const blob = `${company}\n${title}\n${snippet}\n${url}`
   const { asAccount, asLead, asContact } = flags
   let account = null
+  let createdAccount = false
+  let createdLead = null
 
   const needAccount = asAccount || asContact
   if (needAccount) {
-    account = await Account.findOne({
-      ...filter,
-      name: new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
-    })
+    const nameRe = new RegExp(`^${company.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
+    account = await Account.findOne({ ...filter, name: nameRe })
+    if (!account && url) {
+      const host = hostnameOf(url)
+      if (host) {
+        account = await Account.findOne({
+          ...filter,
+          website: new RegExp(host.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'),
+        })
+      }
+    }
     if (account) {
       if (asAccount) {
-        if (url && !account.website) account.website = url
+        if (url && !account.website) account.website = url.slice(0, 300)
         if (snippet && !account.description) account.description = snippet.slice(0, 2000)
         await account.save()
         summary.accountsUpdated += 1
       }
     } else {
       account = await Account.create({
-        name: title.slice(0, 200),
+        name: company.slice(0, 200),
         website: url.slice(0, 300),
         description: snippet.slice(0, 2000),
         type: 'Prospect',
         workspaceId: req.user.workspaceId,
         ownerId: req.user._id,
       })
+      createdAccount = true
       if (asAccount) summary.accountsCreated += 1
     }
   }
 
   if (asLead) {
-    await Lead.create({
+    createdLead = await Lead.create({
       lastName: 'Prospect',
-      company: title.slice(0, 200),
+      company: company.slice(0, 200),
       website: url.slice(0, 300),
       description: snippet.slice(0, 2000),
       leadSource: 'Web Search',
@@ -105,7 +177,7 @@ async function importProspectItem(req, filter, item, flags, summary) {
     const emailMatch = blob.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)
     const phoneMatch = blob.match(/(?:\+\d{1,3}[\s-]?)?(?:\(?\d{2,4}\)?[\s.-]?)?\d{3}[\s.-]?\d{4}/)
     await Contact.create({
-      lastName: contactLastNameFromTitle(title),
+      lastName: 'Main',
       accountId: account._id,
       description: snippet.slice(0, 2000),
       phone: phoneMatch ? phoneMatch[0].slice(0, 60) : '',
@@ -115,6 +187,13 @@ async function importProspectItem(req, filter, item, flags, summary) {
       ownerId: req.user._id,
     })
     summary.contactsCreated += 1
+  }
+
+  if (createdAccount && account) {
+    await maybeEnrichAccount(account, company, url, summary)
+  }
+  if (createdLead) {
+    await maybeEnrichLead(createdLead, company, url, summary)
   }
 }
 
@@ -220,12 +299,9 @@ router.post('/prospect/search', async (req, res) => {
     if (search.error && !(search.results || []).length) {
       return res.status(502).json({ success: false, message: search.error })
     }
-    const results = (search.results || []).map((r, i) => ({
-      id: `p-${i}-${Buffer.from(String(r.url || r.title || i)).toString('base64url').slice(0, 24)}`,
-      title: r.title || 'Untitled',
-      url: r.url || '',
-      snippet: r.content || '',
-    }))
+    const results = (search.results || [])
+      .map((r, i) => mapSearchHit(r, i))
+      .sort((a, b) => Number(b.importable) - Number(a.importable) || (b.score || 0) - (a.score || 0))
     res.json({
       success: true,
       data: {
@@ -247,6 +323,7 @@ router.post('/prospect/import', async (req, res) => {
     const asAccount = req.body.asAccount !== false
     const asLead = Boolean(req.body.asLead)
     const asContact = Boolean(req.body.asContact)
+    const force = Boolean(req.body.force)
     if (!items.length) {
       return res.status(400).json({ success: false, message: 'Select at least one result.' })
     }
@@ -263,9 +340,11 @@ router.post('/prospect/import', async (req, res) => {
       accountsUpdated: 0,
       leadsCreated: 0,
       contactsCreated: 0,
+      skippedLowQuality: 0,
+      enriched: 0,
       errors: [],
     }
-    const flags = { asAccount, asLead, asContact }
+    const flags = { asAccount, asLead, asContact, force }
 
     for (const item of items.slice(0, 25)) {
       try {
@@ -298,8 +377,8 @@ router.post('/prospect/bulk', async (req, res) => {
     )].slice(0, 5)
     const perQuery = Math.max(1, Math.min(Number(req.body.perQuery) || 8, 8))
     const asAccount = req.body.asAccount !== false
-    const asContact = req.body.asContact !== false
-    const asLead = req.body.asLead !== false
+    const asContact = Boolean(req.body.asContact)
+    const asLead = Boolean(req.body.asLead)
     if (!asAccount && !asLead && !asContact) {
       return res.status(400).json({
         success: false,
@@ -310,7 +389,7 @@ router.post('/prospect/bulk', async (req, res) => {
     const filter = workspaceFilter(req.user)
     const existingAccounts = await Account.find(filter).select('name website').lean()
     const knownNames = new Set(existingAccounts.map((a) => normalizeNameKey(a.name)).filter(Boolean))
-    const knownUrls = new Set(existingAccounts.map((a) => normalizeUrlKey(a.website)).filter(Boolean))
+    const knownHosts = new Set(existingAccounts.map((a) => normalizeHostKey(a.website)).filter(Boolean))
 
     const summary = {
       queriesRun: queries,
@@ -320,45 +399,60 @@ router.post('/prospect/bulk', async (req, res) => {
       leadsCreated: 0,
       contactsCreated: 0,
       skippedDuplicates: 0,
+      skippedLowQuality: 0,
+      enriched: 0,
       resultsSeen: 0,
       errors: [],
     }
-    const flags = { asAccount, asLead, asContact }
+    const flags = { asAccount, asLead, asContact, force: false }
     const seenInRun = new Set()
 
     for (const query of queries) {
       try {
-        const search = await searchWithCache(query, { maxResults: perQuery, searchDepth: 'basic' })
-        const results = (search.results || []).slice(0, perQuery)
+        const search = await searchWithCache(query, { maxResults: Math.min(perQuery * 2, 12), searchDepth: 'basic' })
+        const results = (search.results || []).slice(0, Math.min(perQuery * 2, 12))
+        let importedForQuery = 0
         for (const r of results) {
+          if (importedForQuery >= perQuery) break
           summary.resultsSeen += 1
           const title = String(r.title || '').trim() || 'Prospect'
           const url = String(r.url || '').trim()
-          const nameKey = normalizeNameKey(title)
-          const urlKey = normalizeUrlKey(url)
-          const dedupeKey = nameKey || urlKey
+          const assessment = assessProspect({ title, url, snippet: r.content || '' })
+          if (!assessment.ok) {
+            summary.skippedLowQuality += 1
+            continue
+          }
+          const company = assessment.companyName
+          const nameKey = normalizeNameKey(company)
+          const hostKey = normalizeHostKey(url)
+          const dedupeKey = hostKey || nameKey
           if (!dedupeKey) {
             summary.skippedDuplicates += 1
             continue
           }
-          if (seenInRun.has(dedupeKey) || (nameKey && knownNames.has(nameKey)) || (urlKey && knownUrls.has(urlKey))) {
+          if (
+            seenInRun.has(dedupeKey)
+            || (nameKey && knownNames.has(nameKey))
+            || (hostKey && knownHosts.has(hostKey))
+          ) {
             summary.skippedDuplicates += 1
             continue
           }
           seenInRun.add(dedupeKey)
           if (nameKey) knownNames.add(nameKey)
-          if (urlKey) knownUrls.add(urlKey)
+          if (hostKey) knownHosts.add(hostKey)
 
           try {
             await importProspectItem(
               req,
               filter,
-              { title, url, snippet: r.content || '' },
+              { title, url, snippet: r.content || '', companyName: company },
               flags,
               summary,
             )
+            importedForQuery += 1
           } catch (e) {
-            summary.errors.push({ title, message: e.message || 'Failed' })
+            summary.errors.push({ title: company, message: e.message || 'Failed' })
           }
         }
       } catch (e) {
@@ -376,6 +470,63 @@ router.get('/prospect/default-queries', (_req, res) => {
   res.json({ success: true, data: { queries: DEFAULT_PROSPECT_QUERIES } })
 })
 
+router.post('/prospect/cleanup-noise', async (req, res) => {
+  try {
+    const filter = workspaceFilter(req.user)
+    const prospects = await Account.find({ ...filter, type: 'Prospect' }).limit(500)
+    const noiseAccounts = prospects.filter((a) => {
+      const website = String(a.website || '')
+      const name = String(a.name || '')
+      return isNoiseHost(website) || looksLikeListicle(name)
+    })
+
+    let accountsDeleted = 0
+    let contactsDeleted = 0
+    let leadsDeleted = 0
+
+    for (const account of noiseAccounts) {
+      const contactRes = await Contact.deleteMany({ ...filter, accountId: account._id })
+      contactsDeleted += contactRes.deletedCount || 0
+
+      const website = String(account.website || '').trim()
+      const company = String(account.name || '').trim()
+      const leadQuery = {
+        ...filter,
+        leadSource: 'Web Search',
+        $or: [
+          ...(company ? [{ company }] : []),
+          ...(website ? [{ website }] : []),
+        ],
+      }
+      if (leadQuery.$or.length) {
+        const leadRes = await Lead.deleteMany(leadQuery)
+        leadsDeleted += leadRes.deletedCount || 0
+      }
+
+      await account.deleteOne()
+      accountsDeleted += 1
+    }
+
+    // Orphan Web Search leads that still look like listicles / noise hosts
+    const noisyLeads = await Lead.find({ ...filter, leadSource: 'Web Search' }).limit(500)
+    for (const lead of noisyLeads) {
+      const website = String(lead.website || '')
+      const company = String(lead.company || '')
+      if (isNoiseHost(website) || looksLikeListicle(company)) {
+        await lead.deleteOne()
+        leadsDeleted += 1
+      }
+    }
+
+    res.json({
+      success: true,
+      data: { accountsDeleted, contactsDeleted, leadsDeleted },
+    })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Cleanup failed.' })
+  }
+})
+
 router.post('/contacts/from-accounts', async (req, res) => {
   try {
     const filter = workspaceFilter(req.user)
@@ -391,10 +542,8 @@ router.post('/contacts/from-accounts', async (req, res) => {
         skipped += 1
         continue
       }
-      const name = String(account.name || '').trim()
-      const lastName = contactLastNameFromTitle(name)
       await Contact.create({
-        lastName: lastName === 'Contact' ? 'Main' : lastName,
+        lastName: 'Main',
         accountId: account._id,
         description: String(account.description || '').slice(0, 2000),
         phone: String(account.phone || '').slice(0, 60),

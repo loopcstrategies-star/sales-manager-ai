@@ -9,6 +9,13 @@ export const DEFAULT_PROSPECT_QUERIES = [
   'jewelry exporters India Dubai',
 ]
 
+function skipLabel(reason) {
+  if (reason === 'noise_host') return 'News/social — skipped'
+  if (reason === 'listicle') return 'Article/list — skipped'
+  if (reason === 'empty') return 'Incomplete — skipped'
+  return reason ? 'Skipped' : null
+}
+
 export default function ProspectSearchPanel({ onImported }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])
@@ -17,7 +24,7 @@ export default function ProspectSearchPanel({ onImported }) {
   const [importing, setImporting] = useState(false)
   const [asAccount, setAsAccount] = useState(true)
   const [asLead, setAsLead] = useState(false)
-  const [asContact, setAsContact] = useState(true)
+  const [asContact, setAsContact] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
@@ -29,13 +36,25 @@ export default function ProspectSearchPanel({ onImported }) {
     setBusy(true)
     setError('')
     setMessage('')
-    setSelected({})
     try {
       const res = await crmApi.prospectSearch(q)
-      setResults(res.data?.results || [])
-      if (!(res.data?.results || []).length) setMessage('No results. Try a different query.')
+      const next = res.data?.results || []
+      setResults(next)
+      const defaults = {}
+      next.forEach((r) => {
+        if (r.importable !== false) defaults[r.id] = true
+      })
+      setSelected(defaults)
+      if (!next.length) setMessage('No results. Try a different query.')
+      else {
+        const skipped = next.filter((r) => r.importable === false).length
+        if (skipped) {
+          setMessage(`${skipped} news/social/article hits marked skip — company-like results are pre-selected.`)
+        }
+      }
     } catch (err) {
       setResults([])
+      setSelected({})
       setError(err.message || 'Search failed.')
     } finally {
       setBusy(false)
@@ -54,15 +73,17 @@ export default function ProspectSearchPanel({ onImported }) {
     setImporting(true)
     setError('')
     try {
+      const force = selectedItems.some((r) => r.importable === false)
       const res = await crmApi.prospectImport({
         items: selectedItems,
         asAccount,
         asLead,
         asContact,
+        force,
       })
       const d = res.data || {}
       setMessage(
-        `Imported · Accounts +${d.accountsCreated || 0} (upd ${d.accountsUpdated || 0}) · Contacts +${d.contactsCreated || 0} · Leads +${d.leadsCreated || 0}`,
+        `Imported · Accounts +${d.accountsCreated || 0} (upd ${d.accountsUpdated || 0}) · Contacts +${d.contactsCreated || 0} · Leads +${d.leadsCreated || 0} · enriched ${d.enriched || 0} · skipped low-quality ${d.skippedLowQuality || 0}`,
       )
       onImported?.(d)
     } catch (err) {
@@ -75,7 +96,9 @@ export default function ProspectSearchPanel({ onImported }) {
   return (
     <section className="crm-home-panel crm-prospect-panel">
       <h3>Find companies</h3>
-      <p className="crm-muted">Search the web, then add selected results as Accounts, Contacts, and/or Leads.</p>
+      <p className="crm-muted">
+        Search the web, then add company-like results as Accounts. News, social, and listicle pages are filtered out by default.
+      </p>
       <div className="crm-prospect-chips" role="list">
         {DEFAULT_PROSPECT_QUERIES.map((chip) => (
           <button
@@ -107,24 +130,33 @@ export default function ProspectSearchPanel({ onImported }) {
       {results.length ? (
         <>
           <ul className="crm-prospect-list">
-            {results.map((r) => (
-              <li key={r.id}>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={Boolean(selected[r.id])}
-                    onChange={() => toggle(r.id)}
-                  />
-                  <span>
-                    <strong>{r.title}</strong>
-                    {r.url ? (
-                      <a href={r.url} target="_blank" rel="noreferrer">{r.url}</a>
-                    ) : null}
-                    <em>{r.snippet}</em>
-                  </span>
-                </label>
-              </li>
-            ))}
+            {results.map((r) => {
+              const primary = r.companyName || r.title
+              const showTitle = r.companyName && r.companyName !== r.title
+              const skipped = r.importable === false
+              return (
+                <li key={r.id} className={skipped ? 'crm-prospect-skipped' : undefined}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(selected[r.id])}
+                      onChange={() => toggle(r.id)}
+                    />
+                    <span>
+                      <strong>{primary}</strong>
+                      {skipped && skipLabel(r.skipReason) ? (
+                        <span className="crm-prospect-badge">{skipLabel(r.skipReason)}</span>
+                      ) : null}
+                      {showTitle ? <em className="crm-prospect-orig">{r.title}</em> : null}
+                      {r.url ? (
+                        <a href={r.url} target="_blank" rel="noreferrer">{r.url}</a>
+                      ) : null}
+                      <em>{r.snippet}</em>
+                    </span>
+                  </label>
+                </li>
+              )
+            })}
           </ul>
           <div className="crm-prospect-import">
             <label>

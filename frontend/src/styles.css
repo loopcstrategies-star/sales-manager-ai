@@ -2639,6 +2639,27 @@ a { color: var(--brand); }
   font-size: 0.8rem;
 }
 
+.crm-prospect-list li.crm-prospect-skipped {
+  opacity: 0.55;
+}
+
+.crm-prospect-badge {
+  display: inline-block;
+  width: fit-content;
+  margin-top: 0.15rem;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--crm-muted, #6b635b);
+  border: 1px solid var(--crm-border, #ddd);
+  border-radius: 3px;
+}
+
+.crm-prospect-orig {
+  font-size: 0.75rem !important;
+}
+
 .crm-prospect-import {
   display: flex;
   flex-wrap: wrap;

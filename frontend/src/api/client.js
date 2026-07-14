@@ -254,5 +254,9 @@ export const crmApi = {
     method: 'POST',
     body: JSON.stringify(body),
   }),
+  prospectCleanupNoise: () => api('/api/crm/prospect/cleanup-noise', {
+    method: 'POST',
+    body: JSON.stringify({}),
+  }),
 }
 
