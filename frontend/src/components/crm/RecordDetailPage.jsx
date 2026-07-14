@@ -134,6 +134,8 @@ export default function RecordDetailPage({ objectType }) {
                 <div><dt>Website</dt><dd>{data.website || '—'}</dd></div>
                 <div><dt>Phone</dt><dd>{data.phone || '—'}</dd></div>
                 <div><dt>Type</dt><dd>{data.type || '—'}</dd></div>
+                <div><dt>Region</dt><dd>{data.region || '—'}</dd></div>
+                <div><dt>Country</dt><dd>{data.billingAddress?.country || '—'}</dd></div>
                 <div><dt>Billing City</dt><dd>{data.billingAddress?.city || '—'}</dd></div>
               </>
             ) : null}
@@ -143,6 +145,7 @@ export default function RecordDetailPage({ objectType }) {
                 <div><dt>Title</dt><dd>{data.title || '—'}</dd></div>
                 <div><dt>Email</dt><dd>{data.email || '—'}</dd></div>
                 <div><dt>Phone</dt><dd>{data.phone || '—'}</dd></div>
+                <div><dt>Country</dt><dd>{data.mailingAddress?.country || '—'}</dd></div>
               </>
             ) : null}
             {objectType === 'opportunities' ? (

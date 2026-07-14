@@ -27,13 +27,31 @@ const emptyForm = () => ({
   parentAccountId: '',
   parentAccountName: '',
   phone: '',
+  region: '',
   billingAddress: emptyAddress(),
   shippingAddress: emptyAddress(),
   customFields: [],
 })
 
 const ACCOUNT_TYPES = ['--None--', 'Customer', 'Partner', 'Prospect', 'Other']
-const COUNTRIES = ['--None--', 'United Arab Emirates', 'United States', 'United Kingdom', 'India', 'Other']
+const REGIONS = ['', 'Middle East', 'Europe', 'India', 'Asia Pacific', 'Americas', 'Africa']
+const COUNTRIES = [
+  '--None--',
+  'United Arab Emirates',
+  'Saudi Arabia',
+  'India',
+  'United States',
+  'United Kingdom',
+  'Italy',
+  'Germany',
+  'France',
+  'Belgium',
+  'China',
+  'Hong Kong',
+  'Singapore',
+  'Turkey',
+  'Other',
+]
 
 function AddressFields({ prefix, value, onChange }) {
   const set = (key, v) => onChange({ ...value, [key]: v })
@@ -81,6 +99,8 @@ export default function AccountsPage() {
   const [importOpen, setImportOpen] = useState(false)
   const [enrichedHint, setEnrichedHint] = useState('')
   const [selectedIds, setSelectedIds] = useState([])
+  const [regionFilter, setRegionFilter] = useState('')
+  const [countryFilter, setCountryFilter] = useState('')
 
   const load = useCallback(async (q = '') => {
     setLoading(true)
@@ -123,6 +143,7 @@ export default function AccountsPage() {
       parentAccountId: item.parentAccountId || '',
       parentAccountName: item.parentAccountName || '',
       phone: item.phone || '',
+      region: item.region || '',
       billingAddress: { ...emptyAddress(), ...(item.billingAddress || {}) },
       shippingAddress: { ...emptyAddress(), ...(item.shippingAddress || {}) },
       customFields: Array.isArray(item.customFields) ? item.customFields : [],
@@ -142,6 +163,7 @@ export default function AccountsPage() {
       phone: fields.phone ?? f.phone,
       description: fields.description ?? f.description,
       type: fields.type ?? f.type,
+      region: fields.region ?? f.region,
       billingAddress: {
         ...f.billingAddress,
         city: fields.billingAddress?.city ?? fields.city ?? f.billingAddress.city,
@@ -170,6 +192,7 @@ export default function AccountsPage() {
     description: form.description,
     parentAccountId: form.parentAccountId || '',
     phone: form.phone,
+    region: form.region || '',
     billingAddress: form.billingAddress,
     shippingAddress: form.shippingAddress,
     customFields: (form.customFields || []).filter((f) => f.label || f.value),
@@ -205,11 +228,25 @@ export default function AccountsPage() {
   }, [editingId])
 
   const filteredItems = useMemo(() => {
-    if (!listFilter || listFilter === 'all') return items
-    if (listFilter === 'my') return items.filter((a) => isOwnedBy(a, user))
-    if (listFilter === 'new-this-week') return items.filter((a) => isCreatedThisWeek(a))
-    return items
-  }, [items, listFilter, user])
+    let list = items
+    if (listFilter === 'my') list = list.filter((a) => isOwnedBy(a, user))
+    else if (listFilter === 'new-this-week') list = list.filter((a) => isCreatedThisWeek(a))
+    if (regionFilter) {
+      list = list.filter((a) => String(a.region || '') === regionFilter)
+    }
+    if (countryFilter) {
+      list = list.filter((a) => String(a.billingAddress?.country || '') === countryFilter)
+    }
+    return list
+  }, [items, listFilter, user, regionFilter, countryFilter])
+
+  const countryOptions = useMemo(() => {
+    const set = new Set(
+      items.map((a) => String(a.billingAddress?.country || '').trim()).filter(Boolean),
+    )
+    COUNTRIES.filter((c) => c !== '--None--').forEach((c) => set.add(c))
+    return [...set].sort((a, b) => a.localeCompare(b))
+  }, [items])
 
   const rows = filteredItems.map((a) => ({
     id: a._id,
@@ -217,10 +254,11 @@ export default function AccountsPage() {
     name: (
       <Link to={`/sales/accounts/${a._id}`} onClick={(e) => e.stopPropagation()}>{a.name}</Link>
     ),
+    region: a.region || '—',
+    country: a.billingAddress?.country || '—',
     phone: a.phone || '—',
     website: a.website || '—',
     billingCity: a.billingAddress?.city || '—',
-    billingState: a.billingAddress?.state || '—',
     ownerAlias: a.ownerAlias || '—',
   }))
 
@@ -248,6 +286,24 @@ export default function AccountsPage() {
         )}
         actions={(
           <>
+            <label className="crm-inline-filter">
+              <span>Region</span>
+              <select value={regionFilter} onChange={(e) => setRegionFilter(e.target.value)}>
+                <option value="">All</option>
+                {REGIONS.filter(Boolean).map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </label>
+            <label className="crm-inline-filter">
+              <span>Country</span>
+              <select value={countryFilter} onChange={(e) => setCountryFilter(e.target.value)}>
+                <option value="">All</option>
+                {countryOptions.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </label>
             <button type="button" className="crm-btn-primary" onClick={openNew}>New</button>
             <button type="button" className="crm-btn-secondary" onClick={() => setImportOpen(true)}>Import</button>
             <button type="button" className="crm-btn-secondary" disabled title="Coming soon">Assign Label</button>
@@ -255,10 +311,11 @@ export default function AccountsPage() {
         )}
         columns={[
           { key: 'name', label: 'Account Name' },
+          { key: 'region', label: 'Region' },
+          { key: 'country', label: 'Country' },
           { key: 'phone', label: 'Phone' },
           { key: 'website', label: 'Website' },
           { key: 'billingCity', label: 'Billing City' },
-          { key: 'billingState', label: 'Billing State/Province' },
           { key: 'ownerAlias', label: 'Account Owner Alias' },
         ]}
         rows={rows}
@@ -332,6 +389,18 @@ export default function AccountsPage() {
             onChange={(e) => setField('type', e.target.value === '--None--' ? '' : e.target.value)}
           >
             {ACCOUNT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </label>
+        <label className="crm-field">
+          <span>Region</span>
+          <select
+            value={form.region || ''}
+            onChange={(e) => setField('region', e.target.value)}
+          >
+            <option value="">Worldwide / Unknown</option>
+            {REGIONS.filter(Boolean).map((r) => (
+              <option key={r} value={r}>{r}</option>
+            ))}
           </select>
         </label>
         <label className="crm-field">

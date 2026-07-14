@@ -12,6 +12,7 @@ export default function CrmHomePage() {
   const [bulkBusy, setBulkBusy] = useState(false)
   const [cleanupBusy, setCleanupBusy] = useState(false)
   const [findBusy, setFindBusy] = useState(false)
+  const [geoBusy, setGeoBusy] = useState(false)
   const [region, setRegion] = useState('')
 
   const load = async () => {
@@ -136,8 +137,25 @@ export default function CrmHomePage() {
     }
   }
 
+  const runBackfillGeo = async () => {
+    setGeoBusy(true)
+    setRefreshMsg('Filling missing Region/Country from websites…')
+    try {
+      const res = await crmApi.backfillGeo({ region: region || undefined })
+      const d = res.data || {}
+      setRefreshMsg(
+        `Geo backfill · Accounts updated ${d.accountsUpdated || 0} · Contacts updated ${d.contactsUpdated || 0}.`,
+      )
+      await load()
+    } catch (err) {
+      setRefreshMsg(err.message || 'Geo backfill failed.')
+    } finally {
+      setGeoBusy(false)
+    }
+  }
+
   const counts = data?.counts || {}
-  const anyBusy = bulkBusy || cleanupBusy || findBusy || backfillBusy
+  const anyBusy = bulkBusy || cleanupBusy || findBusy || backfillBusy || geoBusy
 
   return (
     <div className="crm-home">
@@ -195,6 +213,14 @@ export default function CrmHomePage() {
               type="button"
               className="crm-btn-secondary"
               disabled={anyBusy}
+              onClick={runBackfillGeo}
+            >
+              {geoBusy ? 'Filling countries…' : 'Fill missing countries'}
+            </button>
+            <button
+              type="button"
+              className="crm-btn-secondary"
+              disabled={anyBusy}
               onClick={runCleanupNoise}
             >
               {cleanupBusy ? 'Cleaning…' : 'Clean up noise prospects'}
@@ -218,8 +244,9 @@ export default function CrmHomePage() {
           </div>
           <p className="crm-muted">
             For real people worldwide: use <strong>Import Contacts (CSV)</strong> for lists you already have,
-            or <strong>Find contacts on Accounts</strong> (search + AI from public web — verify emails before outreach).
-            Web import adds companies only. Region below applies to Find companies / Import from web / Find contacts.
+            or <strong>Find contacts on Accounts</strong> (search + AI — verify emails before outreach).
+            Web import tags new Accounts with the Region below; <strong>Fill missing countries</strong> infers
+            Country from website TLD (.ae, .in, …). Filter Accounts/Contacts by Region or Country in their lists.
           </p>
           {refreshMsg ? <p className="crm-muted">{refreshMsg}</p> : null}
 

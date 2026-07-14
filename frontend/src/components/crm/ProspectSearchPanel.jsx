@@ -90,6 +90,7 @@ export default function ProspectSearchPanel({ onImported, region = '', onRegionC
         asLead,
         asContact,
         force,
+        region: region || undefined,
       })
       const d = res.data || {}
       setMessage(

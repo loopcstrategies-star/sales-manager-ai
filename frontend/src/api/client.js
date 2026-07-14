@@ -266,5 +266,9 @@ export const crmApi = {
     method: 'POST',
     body: JSON.stringify(body),
   }),
+  backfillGeo: (body = {}) => api('/api/crm/prospect/backfill-geo', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  }),
 }
 

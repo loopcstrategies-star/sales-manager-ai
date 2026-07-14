@@ -54,6 +54,7 @@ export default function ContactsPage() {
   const [importOpen, setImportOpen] = useState(false)
   const [enrichedHint, setEnrichedHint] = useState('')
   const [selectedIds, setSelectedIds] = useState([])
+  const [countryFilter, setCountryFilter] = useState('')
 
   const load = useCallback(async (q = '') => {
     setLoading(true)
@@ -193,12 +194,26 @@ export default function ContactsPage() {
   }, [editingId])
 
   const filteredItems = useMemo(() => {
-    if (!listFilter || listFilter === 'all') return items
-    if (listFilter === 'my') return items.filter((c) => isOwnedBy(c, user))
-    if (listFilter === 'new-this-week') return items.filter((c) => isCreatedThisWeek(c))
-    if (listFilter === 'birthdays') return []
-    return items
-  }, [items, listFilter, user])
+    let list = items
+    if (listFilter === 'my') list = list.filter((c) => isOwnedBy(c, user))
+    else if (listFilter === 'new-this-week') list = list.filter((c) => isCreatedThisWeek(c))
+    else if (listFilter === 'birthdays') list = []
+    else if (listFilter && listFilter !== 'all') {
+      /* keep full list for other filters */
+    }
+    if (countryFilter) {
+      list = list.filter((c) => String(c.mailingAddress?.country || '') === countryFilter)
+    }
+    return list
+  }, [items, listFilter, user, countryFilter])
+
+  const countryOptions = useMemo(() => {
+    const set = new Set(
+      items.map((c) => String(c.mailingAddress?.country || '').trim()).filter(Boolean),
+    )
+    COUNTRIES.filter((c) => c !== '--None--').forEach((c) => set.add(c))
+    return [...set].sort((a, b) => a.localeCompare(b))
+  }, [items])
 
   const rows = filteredItems.map((c) => ({
     id: c._id,
@@ -209,6 +224,7 @@ export default function ContactsPage() {
       </Link>
     ),
     accountName: c.accountName || '—',
+    country: c.mailingAddress?.country || '—',
     title: c.title || '—',
     phone: c.phone || '—',
     email: c.email || '—',
@@ -239,6 +255,15 @@ export default function ContactsPage() {
         )}
         actions={(
           <>
+            <label className="crm-inline-filter">
+              <span>Country</span>
+              <select value={countryFilter} onChange={(e) => setCountryFilter(e.target.value)}>
+                <option value="">All</option>
+                {countryOptions.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </label>
             <button type="button" className="crm-btn-secondary" onClick={() => setImportOpen(true)}>Import</button>
             <button type="button" className="crm-btn-primary" onClick={openNew}>New</button>
           </>
@@ -246,6 +271,7 @@ export default function ContactsPage() {
         columns={[
           { key: 'name', label: 'Name' },
           { key: 'accountName', label: 'Account Name' },
+          { key: 'country', label: 'Country' },
           { key: 'title', label: 'Title' },
           { key: 'phone', label: 'Phone' },
           { key: 'email', label: 'Email' },

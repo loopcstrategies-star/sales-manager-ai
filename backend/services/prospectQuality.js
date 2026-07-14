@@ -183,6 +183,112 @@ function withRegion(query, region) {
   return `${q} ${r}`
 }
 
+const TLD_COUNTRY = {
+  ae: 'United Arab Emirates',
+  sa: 'Saudi Arabia',
+  qa: 'Qatar',
+  kw: 'Kuwait',
+  bh: 'Bahrain',
+  om: 'Oman',
+  in: 'India',
+  pk: 'Pakistan',
+  lk: 'Sri Lanka',
+  bd: 'Bangladesh',
+  uk: 'United Kingdom',
+  gb: 'United Kingdom',
+  us: 'United States',
+  ca: 'Canada',
+  au: 'Australia',
+  nz: 'New Zealand',
+  sg: 'Singapore',
+  my: 'Malaysia',
+  th: 'Thailand',
+  id: 'Indonesia',
+  ph: 'Philippines',
+  vn: 'Vietnam',
+  jp: 'Japan',
+  kr: 'South Korea',
+  cn: 'China',
+  hk: 'Hong Kong',
+  tw: 'Taiwan',
+  it: 'Italy',
+  de: 'Germany',
+  fr: 'France',
+  es: 'Spain',
+  pt: 'Portugal',
+  nl: 'Netherlands',
+  be: 'Belgium',
+  ch: 'Switzerland',
+  at: 'Austria',
+  tr: 'Turkey',
+  eg: 'Egypt',
+  za: 'South Africa',
+  ng: 'Nigeria',
+  ke: 'Kenya',
+  br: 'Brazil',
+  mx: 'Mexico',
+  ar: 'Argentina',
+  cl: 'Chile',
+  ru: 'Russia',
+  ua: 'Ukraine',
+  pl: 'Poland',
+  cz: 'Czech Republic',
+  ie: 'Ireland',
+  se: 'Sweden',
+  no: 'Norway',
+  dk: 'Denmark',
+  fi: 'Finland',
+}
+
+const REGION_COUNTRY_HINT = {
+  India: 'India',
+  'Middle East': '',
+  Europe: '',
+  'Asia Pacific': '',
+  Americas: '',
+  Africa: '',
+}
+
+function countryFromTld(url) {
+  const host = hostnameOf(url)
+  if (!host) return ''
+  const parts = host.split('.').filter(Boolean)
+  if (parts.length < 2) return ''
+  // handle .co.uk, .com.au
+  const last = parts[parts.length - 1]
+  const second = parts[parts.length - 2]
+  if (['uk', 'au', 'nz', 'za', 'in', 'br'].includes(last) && ['co', 'com', 'org', 'net', 'gov', 'ac'].includes(second)) {
+    return TLD_COUNTRY[last] || ''
+  }
+  if (last === 'uk') return 'United Kingdom'
+  return TLD_COUNTRY[last] || ''
+}
+
+function countryHintFromRegion(region) {
+  const r = String(region || '').trim()
+  if (!r || /^worldwide$/i.test(r)) return ''
+  if (Object.prototype.hasOwnProperty.call(REGION_COUNTRY_HINT, r)) {
+    return REGION_COUNTRY_HINT[r] || ''
+  }
+  // free-text region that looks like a country name
+  if (r.length >= 3 && r.length <= 60 && !r.includes(',')) return r
+  return ''
+}
+
+function resolveCountry({ website, region, existingCountry } = {}) {
+  const existing = String(existingCountry || '').trim()
+  if (existing) return existing.slice(0, 100)
+  const fromTld = countryFromTld(website)
+  if (fromTld) return fromTld
+  return countryHintFromRegion(region).slice(0, 100)
+}
+
+function normalizeRegionLabel(region) {
+  const r = String(region || '').trim()
+  if (!r || /^worldwide$/i.test(r)) return ''
+  return r.slice(0, 80)
+}
+
 /**
  * @param {{ title?: string, url?: string, snippet?: string }} hit
  */
@@ -228,6 +334,10 @@ module.exports = {
   brandFromHostname,
   companyWebsiteUrl,
   withRegion,
+  countryFromTld,
+  countryHintFromRegion,
+  resolveCountry,
+  normalizeRegionLabel,
   assessProspect,
   isImportableProspect,
 }

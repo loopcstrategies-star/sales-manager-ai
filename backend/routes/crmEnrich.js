@@ -22,6 +22,8 @@ const {
   withRegion,
   DEFAULT_PROSPECT_QUERIES,
   REGION_PRESETS,
+  resolveCountry,
+  normalizeRegionLabel,
 } = require('../services/prospectQuality')
 const { findContactsForCompany } = require('../services/contactFind')
 
@@ -68,11 +70,31 @@ async function maybeEnrichAccount(account, company, url, summary) {
       return
     }
     applyAccountEnrichment(account, result.fields, false)
+    applyAccountGeo(account, { website: url || account.website, region: account.region })
     await account.save()
     summary.enriched = (summary.enriched || 0) + 1
   } catch (e) {
     summary.errors.push({ title: company, message: e.message || 'Enrich failed' })
   }
+}
+
+function applyAccountGeo(account, { website, region } = {}) {
+  const regionLabel = normalizeRegionLabel(region || account.region)
+  if (regionLabel && !String(account.region || '').trim()) {
+    account.region = regionLabel
+  }
+
+  const billing = { ...(account.billingAddress?.toObject?.() || account.billingAddress || {}) }
+  const country = resolveCountry({
+    website: website || account.website,
+    region: regionLabel || account.region,
+    existingCountry: billing.country,
+  })
+  if (country && !String(billing.country || '').trim()) {
+    billing.country = country
+    account.billingAddress = billing
+  }
+  return account
 }
 
 async function maybeEnrichLead(lead, company, url, summary) {
@@ -98,6 +120,7 @@ async function importProspectItem(req, filter, item, flags, summary) {
   const url = String(item.url || '').trim()
   const snippet = String(item.snippet || item.content || '').trim()
   const force = Boolean(flags.force || item.force)
+  const regionLabel = normalizeRegionLabel(flags.region || item.region)
   const assessment = assessProspect({ title, url, snippet })
   const company = String(item.companyName || assessment.companyName || deriveCompanyName(title, url)).trim()
     || 'Prospect'
@@ -108,6 +131,7 @@ async function importProspectItem(req, filter, item, flags, summary) {
   }
 
   const siteUrl = companyWebsiteUrl(url) || url
+  const country = resolveCountry({ website: siteUrl, region: regionLabel, existingCountry: '' })
   const blob = `${company}\n${title}\n${snippet}\n${siteUrl}`
   const { asAccount, asLead, asContact } = flags
   let account = null
@@ -131,6 +155,7 @@ async function importProspectItem(req, filter, item, flags, summary) {
       if (asAccount) {
         if (siteUrl && !account.website) account.website = siteUrl.slice(0, 300)
         if (snippet && !account.description) account.description = snippet.slice(0, 2000)
+        applyAccountGeo(account, { website: siteUrl, region: regionLabel })
         await account.save()
         summary.accountsUpdated += 1
       }
@@ -140,6 +165,8 @@ async function importProspectItem(req, filter, item, flags, summary) {
         website: siteUrl.slice(0, 300),
         description: snippet.slice(0, 2000),
         type: 'Prospect',
+        region: regionLabel,
+        billingAddress: country ? { country } : {},
         workspaceId: req.user.workspaceId,
         ownerId: req.user._id,
       })
@@ -156,6 +183,7 @@ async function importProspectItem(req, filter, item, flags, summary) {
       description: snippet.slice(0, 2000),
       leadSource: 'Web Search',
       status: 'Open',
+      address: country ? { country } : {},
       workspaceId: req.user.workspaceId,
       ownerId: req.user._id,
     })
@@ -165,6 +193,7 @@ async function importProspectItem(req, filter, item, flags, summary) {
   if (asContact && account) {
     const emailMatch = blob.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)
     const phoneMatch = blob.match(/(?:\+\d{1,3}[\s-]?)?(?:\(?\d{2,4}\)?[\s.-]?)?\d{3}[\s.-]?\d{4}/)
+    const acctCountry = account.billingAddress?.country || country || ''
     await Contact.create({
       lastName: 'Main',
       accountId: account._id,
@@ -172,6 +201,7 @@ async function importProspectItem(req, filter, item, flags, summary) {
       phone: phoneMatch ? phoneMatch[0].slice(0, 60) : '',
       email: emailMatch ? emailMatch[0].toLowerCase().slice(0, 200) : '',
       title: '',
+      mailingAddress: acctCountry ? { country: acctCountry } : {},
       workspaceId: req.user.workspaceId,
       ownerId: req.user._id,
     })
@@ -251,7 +281,10 @@ router.post('/enrich', async (req, res) => {
 
     if (record) {
       if (object === 'leads') patch = applyLeadEnrichment(record, result.fields, overwrite)
-      if (object === 'accounts') patch = applyAccountEnrichment(record, result.fields, overwrite)
+      if (object === 'accounts') {
+        patch = applyAccountEnrichment(record, result.fields, overwrite)
+        applyAccountGeo(record, { website: record.website, region: record.region })
+      }
       if (object === 'contacts') patch = applyContactEnrichment(record, result.fields, overwrite)
       await record.save()
       saved = record.toObject({ virtuals: true })
@@ -316,6 +349,7 @@ router.post('/prospect/import', async (req, res) => {
     const asLead = Boolean(req.body.asLead)
     const asContact = Boolean(req.body.asContact)
     const force = Boolean(req.body.force)
+    const region = String(req.body.region || '').trim()
     if (!items.length) {
       return res.status(400).json({ success: false, message: 'Select at least one result.' })
     }
@@ -336,7 +370,7 @@ router.post('/prospect/import', async (req, res) => {
       enriched: 0,
       errors: [],
     }
-    const flags = { asAccount, asLead, asContact, force }
+    const flags = { asAccount, asLead, asContact, force, region }
 
     for (const item of items.slice(0, 25)) {
       try {
@@ -397,7 +431,7 @@ router.post('/prospect/bulk', async (req, res) => {
       resultsSeen: 0,
       errors: [],
     }
-    const flags = { asAccount, asLead, asContact, force: false }
+    const flags = { asAccount, asLead, asContact, force: false, region }
     const seenInRun = new Set()
 
     for (const query of queries) {
@@ -474,10 +508,16 @@ async function saveFoundContacts(req, filter, account, found, summary) {
   let created = 0
   let skipped = 0
 
+  applyAccountGeo(account, {
+    website: account.website,
+    region: account.region || summary.region,
+  })
   if (found.companyPhone && !account.phone) {
     account.phone = String(found.companyPhone).slice(0, 60)
-    await account.save()
   }
+  await account.save()
+
+  const acctCountry = String(account.billingAddress?.country || '').trim()
 
   for (const person of found.people || []) {
     const email = String(person.email || '').trim().toLowerCase()
@@ -510,6 +550,7 @@ async function saveFoundContacts(req, filter, account, found, summary) {
       title: String(person.title || '').slice(0, 120),
       accountId: account._id,
       description: note,
+      mailingAddress: acctCountry ? { country: acctCountry } : {},
       workspaceId: req.user.workspaceId,
       ownerId: req.user._id,
       lastEnrichedAt: new Date(),
@@ -541,7 +582,7 @@ router.post('/prospect/find-contacts', async (req, res) => {
     const found = await findContactsForCompany({
       name: account.name,
       website: account.website,
-      region,
+      region: region || account.region,
     })
     if (!found.ok) {
       return res.status(502).json({
@@ -551,7 +592,12 @@ router.post('/prospect/find-contacts', async (req, res) => {
       })
     }
 
-    const summary = { contactsCreated: 0, contactsSkipped: 0 }
+    if (region) {
+      applyAccountGeo(account, { website: account.website, region })
+      await account.save()
+    }
+
+    const summary = { contactsCreated: 0, contactsSkipped: 0, region }
     let saveResult = { created: 0, skipped: 0 }
     if (save) {
       saveResult = await saveFoundContacts(req, filter, account, found, summary)
@@ -589,6 +635,7 @@ router.post('/prospect/find-contacts-batch', async (req, res) => {
       contactsSkipped: 0,
       skipped: 0,
       errors: [],
+      region,
     }
 
     for (const account of accounts) {
@@ -597,7 +644,6 @@ router.post('/prospect/find-contacts-batch', async (req, res) => {
         summary.skipped += 1
         continue
       }
-      // Prefer accounts that do not already have an emailed contact
       const withEmail = await Contact.countDocuments({
         ...filter,
         accountId: account._id,
@@ -609,10 +655,14 @@ router.post('/prospect/find-contacts-batch', async (req, res) => {
       }
 
       try {
+        if (region) {
+          applyAccountGeo(account, { website: account.website, region })
+          await account.save()
+        }
         const found = await findContactsForCompany({
           name: account.name,
           website: account.website,
-          region,
+          region: region || account.region,
         })
         summary.accountsProcessed += 1
         if (!found.ok) {
@@ -628,6 +678,52 @@ router.post('/prospect/find-contacts-batch', async (req, res) => {
     res.json({ success: true, data: summary })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message || 'Batch find contacts failed.' })
+  }
+})
+
+router.post('/prospect/backfill-geo', async (req, res) => {
+  try {
+    const filter = workspaceFilter(req.user)
+    const region = normalizeRegionLabel(req.body.region)
+    const accounts = await Account.find(filter).limit(500)
+    let updated = 0
+    let contactsUpdated = 0
+
+    for (const account of accounts) {
+      const beforeRegion = String(account.region || '')
+      const beforeCountry = String(account.billingAddress?.country || '')
+      applyAccountGeo(account, { website: account.website, region: region || account.region })
+      const afterRegion = String(account.region || '')
+      const afterCountry = String(account.billingAddress?.country || '')
+      if (beforeRegion !== afterRegion || beforeCountry !== afterCountry) {
+        await account.save()
+        updated += 1
+      }
+
+      const country = afterCountry
+      if (!country) continue
+      const contacts = await Contact.find({
+        ...filter,
+        accountId: account._id,
+        $or: [
+          { 'mailingAddress.country': { $in: [null, ''] } },
+          { mailingAddress: { $exists: false } },
+        ],
+      }).limit(50)
+      for (const c of contacts) {
+        const mailing = { ...(c.mailingAddress?.toObject?.() || c.mailingAddress || {}) }
+        if (!mailing.country) {
+          mailing.country = country
+          c.mailingAddress = mailing
+          await c.save()
+          contactsUpdated += 1
+        }
+      }
+    }
+
+    res.json({ success: true, data: { accountsUpdated: updated, contactsUpdated } })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Backfill failed.' })
   }
 })
 

@@ -21,6 +21,7 @@ const accountBodySchema = Joi.object({
   description: Joi.string().allow('').max(5000),
   parentAccountId: Joi.string().allow(null, ''),
   phone: Joi.string().allow('').max(60),
+  region: Joi.string().allow('').max(80),
   billingAddress: addressJoi(Joi),
   shippingAddress: addressJoi(Joi),
   customFields: customFieldsJoi(Joi),

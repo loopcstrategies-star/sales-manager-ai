@@ -6,6 +6,9 @@ const {
   looksLikeListicle,
   withRegion,
   brandFromHostname,
+  countryFromTld,
+  resolveCountry,
+  normalizeRegionLabel,
 } = require('../services/prospectQuality')
 const {
   extractJsonObject,
@@ -61,6 +64,16 @@ describe('prospectQuality', () => {
     })
     expect(good.ok).toBe(true)
     expect(good.companyName).toBe('Acme Jewellery Trading LLC')
+  })
+
+  test('countryFromTld and resolveCountry', () => {
+    expect(countryFromTld('https://acme.ae/about')).toBe('United Arab Emirates')
+    expect(countryFromTld('https://shop.co.uk')).toBe('United Kingdom')
+    expect(resolveCountry({ website: 'https://x.in', region: '', existingCountry: '' })).toBe('India')
+    expect(resolveCountry({ website: 'https://x.com', region: 'India', existingCountry: '' })).toBe('India')
+    expect(resolveCountry({ website: 'https://x.in', region: '', existingCountry: 'Belgium' })).toBe('Belgium')
+    expect(normalizeRegionLabel('Worldwide')).toBe('')
+    expect(normalizeRegionLabel('Europe')).toBe('Europe')
   })
 })
 
