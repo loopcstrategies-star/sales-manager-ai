@@ -6,6 +6,7 @@ const {
   applyAccountEnrichment,
 } = require('../services/crmEnrichment')
 const { isSearchConfigured } = require('../services/webSearch')
+const { getAggregatedSalesJobPrefs } = require('../services/userPreferences')
 
 let intervalId = null
 let running = false
@@ -16,7 +17,7 @@ function staleCutoff(days = 30) {
   return d
 }
 
-async function enrichStaleCollection(Model, applyFn, buildQuery, { workspaceId, cap, cutoff }) {
+async function enrichStaleCollection(Model, applyFn, buildQuery, { workspaceId, cap, cutoff, overwrite }) {
   const filter = {
     $and: [
       {
@@ -47,7 +48,7 @@ async function enrichStaleCollection(Model, applyFn, buildQuery, { workspaceId, 
       const query = buildQuery(doc)
       if (!query) continue
       const result = await enrichFromQuery(query)
-      applyFn(doc, result.fields, false)
+      applyFn(doc, result.fields, overwrite)
       await doc.save()
       enriched += 1
     } catch {
@@ -66,9 +67,20 @@ async function runCrmEnrichRefresh(options = {}) {
     return { skipped: true, reason: 'already_running' }
   }
 
+  const jobPrefs = options.jobPrefs || await getAggregatedSalesJobPrefs()
+  if (jobPrefs.enrichRefreshEnabled === false && !options.force) {
+    return { skipped: true, reason: 'disabled_by_sales_settings' }
+  }
+
   running = true
   const cap = Math.max(1, Math.min(Number(options.cap) || Number(process.env.CRM_ENRICH_REFRESH_CAP) || 50, 100))
-  const days = Number(options.days) || Number(process.env.CRM_ENRICH_STALE_DAYS) || 30
+  const days = Number(options.days)
+    || Number(jobPrefs.enrichStaleDays)
+    || Number(process.env.CRM_ENRICH_STALE_DAYS)
+    || 30
+  const overwrite = options.overwrite === true
+    ? true
+    : jobPrefs.enrichFillEmptyOnly === false
   const cutoff = staleCutoff(days)
   const perType = Math.max(1, Math.floor(cap / 2))
 
@@ -77,18 +89,20 @@ async function runCrmEnrichRefresh(options = {}) {
       Lead,
       applyLeadEnrichment,
       (d) => [d.company, d.website, d.industry].filter(Boolean).join(' '),
-      { workspaceId: options.workspaceId, cap: perType, cutoff },
+      { workspaceId: options.workspaceId, cap: perType, cutoff, overwrite },
     )
     const accounts = await enrichStaleCollection(
       Account,
       applyAccountEnrichment,
       (d) => [d.name, d.website, d.type].filter(Boolean).join(' '),
-      { workspaceId: options.workspaceId, cap: perType, cutoff },
+      { workspaceId: options.workspaceId, cap: perType, cutoff, overwrite },
     )
 
     const summary = {
       cutoff: cutoff.toISOString(),
       cap,
+      days,
+      overwrite,
       leads,
       accounts,
       totalEnriched: leads.enriched + accounts.enriched,

@@ -18,9 +18,42 @@ const dashboardPrefsSchema = new mongoose.Schema({
   pollMinutes: { type: Number, enum: [1, 5, 10, 15], default: 5 },
 }, { _id: false })
 
+const stageProbabilitiesSchema = new mongoose.Schema({
+  Prospecting: { type: Number, min: 0, max: 100, default: 10 },
+  Qualification: { type: Number, min: 0, max: 100, default: 25 },
+  Proposal: { type: Number, min: 0, max: 100, default: 50 },
+  Negotiation: { type: Number, min: 0, max: 100, default: 75 },
+  'Closed Won': { type: Number, min: 0, max: 100, default: 100 },
+  'Closed Lost': { type: Number, min: 0, max: 100, default: 0 },
+}, { _id: false })
+
+const salesPrefsSchema = new mongoose.Schema({
+  emailTone: {
+    type: String,
+    enum: ['brief', 'professional', 'warm'],
+    default: 'professional',
+  },
+  saveEmailAsTask: { type: Boolean, default: true },
+  findContactsAutoSave: { type: Boolean, default: true },
+  findContactsMax: { type: Number, min: 3, max: 8, default: 5 },
+  findContactsNeedsVerify: { type: Boolean, default: true },
+  convertCreateOpportunity: { type: Boolean, default: true },
+  convertDefaultStage: {
+    type: String,
+    enum: ['Prospecting', 'Qualification', 'Proposal', 'Negotiation'],
+    default: 'Prospecting',
+  },
+  enrichRefreshEnabled: { type: Boolean, default: true },
+  enrichFillEmptyOnly: { type: Boolean, default: true },
+  enrichStaleDays: { type: Number, min: 7, max: 90, default: 30 },
+  autoTaskFromNextStep: { type: Boolean, default: true },
+  stageProbabilities: { type: stageProbabilitiesSchema, default: () => ({}) },
+}, { _id: false })
+
 const userPreferencesSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
   dashboard: { type: dashboardPrefsSchema, default: () => ({}) },
+  sales: { type: salesPrefsSchema, default: () => ({}) },
 }, { timestamps: true })
 
 module.exports = mongoose.model('UserPreferences', userPreferencesSchema)

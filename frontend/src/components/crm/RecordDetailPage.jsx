@@ -14,6 +14,7 @@ import FindContactsButton from './FindContactsButton'
 import EmailDraftButton from './EmailDraftButton'
 import CrmModal from './CrmModal'
 import LookupField from './LookupField'
+import { CONVERT_STAGES } from './salesPrefs'
 
 const CONFIG = {
   leads: {
@@ -49,7 +50,7 @@ const CONFIG = {
 export default function RecordDetailPage({ objectType }) {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { providers } = usePreferences()
+  const { providers, sales } = usePreferences()
   const hunterConfigured = Boolean(providers?.hunter)
   const cfg = CONFIG[objectType]
   const [data, setData] = useState(null)
@@ -65,6 +66,7 @@ export default function RecordDetailPage({ objectType }) {
     amount: '',
     accountId: '',
     accountName: '',
+    stage: 'Prospecting',
   })
   const [nextStepDraft, setNextStepDraft] = useState({ nextStep: '', nextStepDue: '' })
 
@@ -184,6 +186,7 @@ export default function RecordDetailPage({ objectType }) {
         opportunityName: convertForm.opportunityName,
         amount: Number(convertForm.amount) || 0,
         accountId: convertForm.accountId || undefined,
+        stage: convertForm.stage || undefined,
       })
       const d = res.data || {}
       setConvertOpen(false)
@@ -221,11 +224,12 @@ export default function RecordDetailPage({ objectType }) {
                 disabled={actionBusy}
                 onClick={() => {
                   setConvertForm({
-                    createOpportunity: true,
+                    createOpportunity: sales?.convertCreateOpportunity !== false,
                     opportunityName: data.company ? `${data.company} — Opportunity` : '',
                     amount: '',
                     accountId: '',
                     accountName: '',
+                    stage: sales?.convertDefaultStage || 'Prospecting',
                   })
                   setConvertOpen(true)
                 }}
@@ -448,6 +452,17 @@ export default function RecordDetailPage({ objectType }) {
                 value={convertForm.amount}
                 onChange={(e) => setConvertForm((f) => ({ ...f, amount: e.target.value }))}
               />
+            </label>
+            <label className="crm-field">
+              <span>Stage</span>
+              <select
+                value={convertForm.stage || 'Prospecting'}
+                onChange={(e) => setConvertForm((f) => ({ ...f, stage: e.target.value }))}
+              >
+                {CONVERT_STAGES.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
             </label>
           </>
         ) : null}

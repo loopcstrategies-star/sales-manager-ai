@@ -27,6 +27,7 @@ const {
 } = require('../services/prospectQuality')
 const { findContactsForCompany, isStubContact } = require('../services/contactFind')
 const { hunterDomainSearch, isHunterConfigured } = require('../services/hunterClient')
+const { getUserPreferences } = require('../services/userPreferences')
 
 const router = express.Router()
 router.use(protect)
@@ -506,7 +507,7 @@ router.get('/prospect/default-queries', (_req, res) => {
   })
 })
 
-async function saveFoundContacts(req, filter, account, found, summary) {
+async function saveFoundContacts(req, filter, account, found, summary, options = {}) {
   const note = summary.source === 'hunter'
     ? 'Found via Hunter.io domain search. Confirm before outreach.'
     : 'Found via web+LLM from public snippets. Verify before outreach.'
@@ -524,9 +525,13 @@ async function saveFoundContacts(req, filter, account, found, summary) {
 
   const acctCountry = String(account.billingAddress?.country || '').trim()
   const source = summary.source || 'web_llm'
-  const needsVerify = source !== 'csv'
+  const needsVerify = options.needsVerify !== undefined
+    ? Boolean(options.needsVerify)
+    : source !== 'csv'
+  const maxContacts = Math.max(1, Math.min(8, Number(options.maxContacts) || 8))
+  const people = (found.people || []).slice(0, maxContacts)
 
-  for (const person of found.people || []) {
+  for (const person of people) {
     const email = String(person.email || '').trim().toLowerCase()
     const lastName = String(person.lastName || 'Contact').trim()
     const firstName = String(person.firstName || '').trim()
@@ -575,9 +580,16 @@ async function saveFoundContacts(req, filter, account, found, summary) {
 router.post('/prospect/find-contacts', async (req, res) => {
   try {
     const filter = workspaceFilter(req.user)
+    const salesPrefs = (await getUserPreferences(req.user._id)).sales
     const accountId = req.body.accountId ? String(req.body.accountId) : null
     const region = String(req.body.region || '').trim()
-    const save = req.body.save !== false
+    const save = req.body.save !== undefined
+      ? Boolean(req.body.save)
+      : salesPrefs.findContactsAutoSave !== false
+    const saveOpts = {
+      maxContacts: salesPrefs.findContactsMax,
+      needsVerify: salesPrefs.findContactsNeedsVerify !== false,
+    }
 
     if (!accountId) {
       return res.status(400).json({ success: false, message: 'accountId is required.' })
@@ -609,13 +621,13 @@ router.post('/prospect/find-contacts', async (req, res) => {
     const summary = { contactsCreated: 0, contactsSkipped: 0, region }
     let saveResult = { created: 0, skipped: 0 }
     if (save) {
-      saveResult = await saveFoundContacts(req, filter, account, found, summary)
+      saveResult = await saveFoundContacts(req, filter, account, found, summary, saveOpts)
     }
 
     res.json({
       success: true,
       data: {
-        people: found.people,
+        people: (found.people || []).slice(0, saveOpts.maxContacts),
         phones: found.phones,
         emails: found.emails,
         sources: found.sources,
@@ -657,11 +669,15 @@ router.post('/prospect/hunter-contacts', async (req, res) => {
       return res.status(502).json({ success: false, message: found.error || 'Hunter search failed.' })
     }
 
+    const salesPrefs = (await getUserPreferences(req.user._id)).sales
     const summary = { contactsCreated: 0, contactsSkipped: 0, source: 'hunter' }
     const saveResult = await saveFoundContacts(req, filter, account, {
       people: found.people,
       companyPhone: '',
-    }, summary)
+    }, summary, {
+      maxContacts: salesPrefs.findContactsMax,
+      needsVerify: salesPrefs.findContactsNeedsVerify !== false,
+    })
 
     res.json({
       success: true,
@@ -699,6 +715,11 @@ router.post('/prospect/find-contacts-batch', async (req, res) => {
     const thinOnly = req.body.thinOnly !== false
 
     const accounts = await Account.find(filter).sort({ updatedAt: -1 }).limit(120)
+    const salesPrefs = (await getUserPreferences(req.user._id)).sales
+    const saveOpts = {
+      maxContacts: salesPrefs.findContactsMax,
+      needsVerify: salesPrefs.findContactsNeedsVerify !== false,
+    }
     const summary = {
       accountsProcessed: 0,
       contactsCreated: 0,
@@ -739,7 +760,7 @@ router.post('/prospect/find-contacts-batch', async (req, res) => {
           summary.errors.push({ accountId: account._id, name: account.name, message: found.error })
           continue
         }
-        await saveFoundContacts(req, filter, account, found, summary)
+        await saveFoundContacts(req, filter, account, found, summary, saveOpts)
       } catch (e) {
         summary.errors.push({ accountId: account._id, name: account.name, message: e.message || 'Failed' })
       }

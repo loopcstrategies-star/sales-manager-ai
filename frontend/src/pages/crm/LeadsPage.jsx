@@ -8,6 +8,8 @@ import CrmImportModal from '../../components/crm/CrmImportModal'
 import CrmEnrichButton from '../../components/crm/CrmEnrichButton'
 import LookupField from '../../components/crm/LookupField'
 import EmailDraftButton from '../../components/crm/EmailDraftButton'
+import { usePreferences } from '../../context/PreferencesContext'
+import { CONVERT_STAGES } from '../../components/crm/salesPrefs'
 
 const STATUSES = ['Open', 'Working', 'Qualified', 'Unqualified']
 const SALUTATIONS = ['--None--', 'Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Prof.']
@@ -87,6 +89,7 @@ function formatDate(value) {
 
 export default function LeadsPage() {
   const { user } = useAuth()
+  const { sales } = usePreferences()
   const navigate = useNavigate()
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
@@ -113,6 +116,7 @@ export default function LeadsPage() {
     amount: '',
     accountId: '',
     accountName: '',
+    stage: 'Prospecting',
   })
 
   const load = useCallback(async (q = '') => {
@@ -295,6 +299,7 @@ export default function LeadsPage() {
         opportunityName: convertForm.opportunityName,
         amount: Number(convertForm.amount) || 0,
         accountId: convertForm.accountId || undefined,
+        stage: convertForm.stage || undefined,
       })
       const d = res.data || {}
       setConvertResult({
@@ -463,11 +468,12 @@ export default function LeadsPage() {
                   className="crm-btn-primary"
                   onClick={() => {
                     setConvertForm({
-                      createOpportunity: true,
+                      createOpportunity: sales?.convertCreateOpportunity !== false,
                       opportunityName: `${form.company} — Opportunity`,
                       amount: '',
                       accountId: '',
                       accountName: '',
+                      stage: sales?.convertDefaultStage || 'Prospecting',
                     })
                     setConvertOpen(true)
                   }}
@@ -707,6 +713,17 @@ export default function LeadsPage() {
                 value={convertForm.amount}
                 onChange={(e) => setConvertForm((f) => ({ ...f, amount: e.target.value }))}
               />
+            </label>
+            <label className="crm-field">
+              <span>Stage</span>
+              <select
+                value={convertForm.stage || 'Prospecting'}
+                onChange={(e) => setConvertForm((f) => ({ ...f, stage: e.target.value }))}
+              >
+                {CONVERT_STAGES.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
             </label>
           </>
         ) : null}

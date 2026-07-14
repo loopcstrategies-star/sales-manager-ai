@@ -5,12 +5,16 @@ import {
   DEFAULT_DASHBOARD_PREFS,
   applyDashboardFilter as filterCards,
 } from '../components/dashboard/dashboardUtils'
+import { DEFAULT_SALES_PREFS, mergeSalesPrefs } from '../components/crm/salesPrefs'
 
 const PreferencesContext = createContext(null)
 
 export function PreferencesProvider({ children }) {
   const { user, loading: authLoading } = useAuth()
-  const [preferences, setPreferences] = useState({ dashboard: { ...DEFAULT_DASHBOARD_PREFS } })
+  const [preferences, setPreferences] = useState({
+    dashboard: { ...DEFAULT_DASHBOARD_PREFS },
+    sales: { ...DEFAULT_SALES_PREFS },
+  })
   const [server, setServer] = useState({ dashboardRefreshHours: 4 })
   const [providers, setProviders] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -18,7 +22,10 @@ export function PreferencesProvider({ children }) {
 
   const load = useCallback(async () => {
     if (!user) {
-      setPreferences({ dashboard: { ...DEFAULT_DASHBOARD_PREFS } })
+      setPreferences({
+        dashboard: { ...DEFAULT_DASHBOARD_PREFS },
+        sales: { ...DEFAULT_SALES_PREFS },
+      })
       setLoading(false)
       return
     }
@@ -26,7 +33,10 @@ export function PreferencesProvider({ children }) {
     setError('')
     try {
       const data = await settingsApi.get()
-      setPreferences(data.preferences || { dashboard: { ...DEFAULT_DASHBOARD_PREFS } })
+      setPreferences({
+        dashboard: { ...DEFAULT_DASHBOARD_PREFS, ...(data.preferences?.dashboard || {}) },
+        sales: mergeSalesPrefs(data.preferences?.sales),
+      })
       setServer(data.server || { dashboardRefreshHours: 4 })
       setProviders(data.providers || null)
     } catch (err) {
@@ -43,7 +53,10 @@ export function PreferencesProvider({ children }) {
 
   const updatePreferences = useCallback(async (patch) => {
     const data = await settingsApi.update(patch)
-    setPreferences(data.preferences)
+    setPreferences({
+      dashboard: { ...DEFAULT_DASHBOARD_PREFS, ...(data.preferences?.dashboard || {}) },
+      sales: mergeSalesPrefs(data.preferences?.sales),
+    })
     if (data.server) setServer(data.server)
     if (data.providers) setProviders(data.providers)
     return data
@@ -56,6 +69,7 @@ export function PreferencesProvider({ children }) {
   const value = useMemo(() => ({
     preferences,
     dashboard: preferences.dashboard || DEFAULT_DASHBOARD_PREFS,
+    sales: preferences.sales || DEFAULT_SALES_PREFS,
     server,
     providers,
     loading,

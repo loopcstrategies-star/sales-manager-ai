@@ -21,6 +21,15 @@ function getProviderStatus() {
 const router = express.Router()
 router.use(protect)
 
+const stageProbSchema = Joi.object({
+  Prospecting: Joi.number().min(0).max(100),
+  Qualification: Joi.number().min(0).max(100),
+  Proposal: Joi.number().min(0).max(100),
+  Negotiation: Joi.number().min(0).max(100),
+  'Closed Won': Joi.number().min(0).max(100),
+  'Closed Lost': Joi.number().min(0).max(100),
+}).min(1)
+
 const patchSchema = Joi.object({
   dashboard: Joi.object({
     showPriceTiles: Joi.boolean(),
@@ -38,6 +47,20 @@ const patchSchema = Joi.object({
     customTopics: Joi.array().items(Joi.string().max(40)).max(10),
     sortOrder: Joi.string().valid('headlines', 'newest'),
     pollMinutes: Joi.number().valid(1, 5, 10, 15),
+  }).min(1),
+  sales: Joi.object({
+    emailTone: Joi.string().valid('brief', 'professional', 'warm'),
+    saveEmailAsTask: Joi.boolean(),
+    findContactsAutoSave: Joi.boolean(),
+    findContactsMax: Joi.number().integer().min(3).max(8),
+    findContactsNeedsVerify: Joi.boolean(),
+    convertCreateOpportunity: Joi.boolean(),
+    convertDefaultStage: Joi.string().valid('Prospecting', 'Qualification', 'Proposal', 'Negotiation'),
+    enrichRefreshEnabled: Joi.boolean(),
+    enrichFillEmptyOnly: Joi.boolean(),
+    enrichStaleDays: Joi.number().integer().min(7).max(90),
+    autoTaskFromNextStep: Joi.boolean(),
+    stageProbabilities: stageProbSchema,
   }).min(1),
 }).min(1)
 

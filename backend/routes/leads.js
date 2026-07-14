@@ -148,10 +148,11 @@ router.patch('/:id', validateBody(bodySchema), async (req, res) => {
 })
 
 const convertSchema = Joi.object({
-  createOpportunity: Joi.boolean().default(true),
+  createOpportunity: Joi.boolean(),
   opportunityName: Joi.string().allow('').max(200),
   amount: Joi.number().min(0).default(0),
   accountId: Joi.string().allow(null, ''),
+  stage: Joi.string().valid('Prospecting', 'Qualification', 'Proposal', 'Negotiation').allow(''),
 })
 
 router.post('/:id/convert', validateBody(convertSchema), async (req, res) => {
@@ -160,12 +161,21 @@ router.post('/:id/convert', validateBody(convertSchema), async (req, res) => {
     const Contact = require('../models/Contact')
     const Opportunity = require('../models/Opportunity')
     const { toObjectId } = require('../services/crmHelpers')
+    const { getUserPreferences } = require('../services/userPreferences')
 
     const lead = await Lead.findOne({ _id: req.params.id, ...workspaceFilter(req.user) })
     if (!lead) return res.status(404).json({ success: false, message: 'Lead not found.' })
     if (lead.status === 'Converted' || lead.convertedAt) {
       return res.status(400).json({ success: false, message: 'Lead is already converted.' })
     }
+
+    const salesPrefs = (await getUserPreferences(req.user._id)).sales
+    const createOpportunity = req.body.createOpportunity !== undefined
+      ? Boolean(req.body.createOpportunity)
+      : salesPrefs.convertCreateOpportunity !== false
+    const defaultStage = req.body.stage
+      || salesPrefs.convertDefaultStage
+      || 'Prospecting'
 
     const filter = workspaceFilter(req.user)
     let account = null
@@ -218,7 +228,7 @@ router.post('/:id/convert', validateBody(convertSchema), async (req, res) => {
     }
 
     let opportunity = null
-    if (req.body.createOpportunity !== false) {
+    if (createOpportunity) {
       const oppName = String(req.body.opportunityName || '').trim()
         || `${account.name} — Opportunity`
       opportunity = await Opportunity.create({
@@ -226,7 +236,7 @@ router.post('/:id/convert', validateBody(convertSchema), async (req, res) => {
         accountId: account._id,
         contactId: contact._id,
         amount: Number(req.body.amount) || 0,
-        stage: 'Prospecting',
+        stage: defaultStage,
         description: lead.description || '',
         workspaceId: req.user.workspaceId,
         ownerId: req.user._id,

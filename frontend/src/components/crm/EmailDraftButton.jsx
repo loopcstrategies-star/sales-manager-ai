@@ -1,9 +1,10 @@
 import React, { useState } from 'react'
 import { crmApi } from '../../api/client'
 import CrmModal from './CrmModal'
+import { usePreferences } from '../../context/PreferencesContext'
 
 /**
- * Groq/OpenAI outreach draft for a Lead or Contact. Saves as a Task by default.
+ * Groq/OpenAI outreach draft for a Lead or Contact. Saves as a Task by default (Sales settings).
  */
 export default function EmailDraftButton({
   objectType,
@@ -12,11 +13,13 @@ export default function EmailDraftButton({
   className = 'crm-btn-secondary',
   label = 'Draft email',
 }) {
+  const { sales } = usePreferences()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [draft, setDraft] = useState(null)
   const [copied, setCopied] = useState(false)
+  const [savedAsTask, setSavedAsTask] = useState(false)
 
   const run = async () => {
     if (!id) return
@@ -25,13 +28,16 @@ export default function EmailDraftButton({
     setError('')
     setDraft(null)
     setCopied(false)
+    setSavedAsTask(false)
     try {
       const res = await crmApi.emailDraft({
         objectType,
         id,
-        saveAsTask: true,
+        tone: sales?.emailTone || 'professional',
+        saveAsTask: sales?.saveEmailAsTask !== false,
       })
       setDraft(res.data || {})
+      setSavedAsTask(Boolean(res.data?.taskId))
     } catch (err) {
       setError(err.message || 'Draft failed (need GROQ_API_KEY).')
     } finally {
@@ -73,7 +79,11 @@ export default function EmailDraftButton({
         {error ? <p className="crm-banner-error">{error}</p> : null}
         {draft ? (
           <>
-            <p className="crm-muted">Saved as a Task on this record. Paste into your mail client to send.</p>
+            <p className="crm-muted">
+              {savedAsTask
+                ? 'Saved as a Task on this record. Paste into your mail client to send.'
+                : 'Draft ready (not saved as a Task — enable in Sales settings). Paste into your mail client to send.'}
+            </p>
             <label className="crm-field">
               <span>To</span>
               <input readOnly value={draft.to || '(no email on record)'} />

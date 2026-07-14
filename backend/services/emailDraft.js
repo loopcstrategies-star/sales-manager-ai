@@ -105,17 +105,20 @@ const STAGE_PROBABILITY = {
   'Closed Lost': 0,
 }
 
-function probabilityForOpportunity(opp) {
+function probabilityForOpportunity(opp, stageProbabilities = STAGE_PROBABILITY) {
   if (opp == null) return 0
   if (opp.probability != null && opp.probability !== '' && !Number.isNaN(Number(opp.probability))) {
     return Math.max(0, Math.min(100, Number(opp.probability)))
   }
-  return STAGE_PROBABILITY[opp.stage] ?? 10
+  const map = stageProbabilities && typeof stageProbabilities === 'object'
+    ? { ...STAGE_PROBABILITY, ...stageProbabilities }
+    : STAGE_PROBABILITY
+  return map[opp.stage] ?? STAGE_PROBABILITY[opp.stage] ?? 10
 }
 
-function weightedAmount(opp) {
+function weightedAmount(opp, stageProbabilities) {
   const amount = Number(opp.amount) || 0
-  return Math.round(amount * (probabilityForOpportunity(opp) / 100))
+  return Math.round(amount * (probabilityForOpportunity(opp, stageProbabilities) / 100))
 }
 
 module.exports = {

@@ -4,6 +4,7 @@ const mongoose = require('mongoose')
 const createApp = require('./app')
 const { startDashboardRefreshJob } = require('./jobs/dashboardRefresh')
 const { startCrmEnrichRefreshJob } = require('./jobs/crmEnrichRefresh')
+const { startNextStepAutoTasksJob } = require('./jobs/nextStepAutoTasks')
 
 const PORT = Number(process.env.PORT) || 5100
 const mongoUri = String(process.env.MONGO_URI || '').trim()
@@ -29,6 +30,7 @@ if (mongoUri) {
       console.log('[startup] MongoDB connected')
       startDashboardRefreshJob()
       startCrmEnrichRefreshJob()
+      startNextStepAutoTasksJob()
     })
     .catch((err) => console.error('[startup] Mongo connect failed:', err.message))
 }

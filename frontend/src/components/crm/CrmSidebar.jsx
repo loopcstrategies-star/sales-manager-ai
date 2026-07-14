@@ -110,6 +110,15 @@ const ITEMS = [
       </svg>
     ),
   },
+  {
+    to: '/sales/settings',
+    label: 'Settings',
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path fill="currentColor" d="M19.1 12.9a7.5 7.5 0 0 0 .1-1.8l2-1.5-2-3.5-2.4.7a7.4 7.4 0 0 0-1.5-.9L14.8 3h-4l-.5 2.9a7.4 7.4 0 0 0-1.5.9l-2.4-.7-2 3.5 2 1.5a7.5 7.5 0 0 0 0 1.8l-2 1.5 2 3.5 2.4-.7c.5.4 1 .7 1.5.9l.5 2.9h4l.5-2.9c.5-.2 1-.5 1.5-.9l2.4.7 2-3.5-2-1.5zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z" />
+      </svg>
+    ),
+  },
 ]
 
 export default function CrmSidebar() {

@@ -820,6 +820,22 @@ a { color: var(--brand); }
   gap: 1rem;
 }
 
+.settings-section-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.sales-settings-probs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+
+.crm-page.settings-page {
+  max-width: 720px;
+}
+
 .settings-toggle-row {
   display: flex;
   justify-content: space-between;

@@ -115,6 +115,18 @@ describe('sales-manager-ai backend', () => {
     expect(merged.sections.metals).toBe(true)
   })
 
+  test('mergeSales applies defaults and clamps', () => {
+    const { mergeSales, DEFAULT_SALES } = require('../services/userPreferences')
+    const merged = mergeSales({})
+    expect(merged.emailTone).toBe(DEFAULT_SALES.emailTone)
+    expect(merged.findContactsMax).toBe(5)
+    expect(merged.stageProbabilities.Prospecting).toBe(10)
+    const clamped = mergeSales({ findContactsMax: 99, enrichStaleDays: 2, stageProbabilities: { Proposal: 200 } })
+    expect(clamped.findContactsMax).toBe(8)
+    expect(clamped.enrichStaleDays).toBe(7)
+    expect(clamped.stageProbabilities.Proposal).toBe(100)
+  })
+
   test('mergeDashboard caps custom topics', () => {
     const { mergeDashboard } = require('../services/userPreferences')
     const topics = Array.from({ length: 15 }, (_, i) => `topic${i}`)

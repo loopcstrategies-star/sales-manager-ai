@@ -16,6 +16,7 @@ const {
   weightedAmount,
 } = require('../services/emailDraft')
 const Task = require('../models/Task')
+const { getUserPreferences } = require('../services/userPreferences')
 
 const router = express.Router()
 router.use(protect)
@@ -164,6 +165,8 @@ router.get('/stats', async (req, res) => {
 router.get('/analytics', async (req, res) => {
   try {
     const filter = workspaceFilter(req.user)
+    const prefs = await getUserPreferences(req.user._id)
+    const stageProb = prefs.sales?.stageProbabilities || STAGE_PROBABILITY
     const opps = await Opportunity.find(filter)
       .select('name stage amount closeDate updatedAt ownerId accountId probability')
       .populate('accountId', 'name region billingAddress')
@@ -186,11 +189,11 @@ router.get('/analytics', async (req, res) => {
       } else if (o.stage === 'Closed Lost') {
         lostCount += 1
       } else {
-        const w = weightedAmount(o)
+        const w = weightedAmount(o, stageProb)
         pipelineAmount += Number(o.amount) || 0
         weightedPipeline += w
         byStage[o.stage].weighted += w
-        openOpps.push({ ...o, probability: probabilityForOpportunity(o), weighted: w })
+        openOpps.push({ ...o, probability: probabilityForOpportunity(o, stageProb), weighted: w })
       }
     })
     const closed = wonCount + lostCount
@@ -310,7 +313,7 @@ router.get('/analytics', async (req, res) => {
           closingThisMonthAmount,
           closingThisMonthWeighted,
         },
-        stageProbabilities: STAGE_PROBABILITY,
+        stageProbabilities: stageProb,
         forecastByMonth,
         contactQuality: {
           total: contacts,
@@ -332,7 +335,7 @@ router.get('/analytics', async (req, res) => {
             name: o.name,
             stage: o.stage,
             amount: o.amount,
-            probability: probabilityForOpportunity(o),
+            probability: probabilityForOpportunity(o, stageProb),
             updatedAt: o.updatedAt,
           })),
       },
@@ -456,10 +459,17 @@ router.post('/contacts/dedupe-emails', async (req, res) => {
 router.post('/email-draft', async (req, res) => {
   try {
     const filter = workspaceFilter(req.user)
+    const salesPrefs = (await getUserPreferences(req.user._id)).sales
     const objectType = String(req.body.objectType || '').trim().toLowerCase()
     const id = toObjectId(req.body.id)
-    const tone = String(req.body.tone || 'professional').trim()
-    const saveAsTask = req.body.saveAsTask !== false
+    const tone = String(
+      req.body.tone != null && req.body.tone !== ''
+        ? req.body.tone
+        : salesPrefs.emailTone || 'professional',
+    ).trim()
+    const saveAsTask = req.body.saveAsTask !== undefined
+      ? Boolean(req.body.saveAsTask)
+      : salesPrefs.saveEmailAsTask !== false
 
     if (!id || !['leads', 'contacts', 'lead', 'contact'].includes(objectType)) {
       return res.status(400).json({ success: false, message: 'objectType (leads|contacts) and id are required.' })

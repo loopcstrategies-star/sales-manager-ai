@@ -24,6 +24,7 @@ import CalendarPage from './pages/crm/CalendarPage'
 import SalesAnalyticsPage from './pages/crm/SalesAnalyticsPage'
 import TasksPage from './pages/crm/TasksPage'
 import QuotePrintPage from './pages/crm/QuotePrintPage'
+import SalesSettingsPage from './pages/crm/SalesSettingsPage'
 import RecordDetailPage from './components/crm/RecordDetailPage'
 
 function PrivateRoute({ children }) {
@@ -75,6 +76,7 @@ export default function App() {
           <Route path="knowledge" element={<KnowledgePage />} />
         </Route>
         <Route path="marketing" element={<MarketingPage />} />
+        <Route path="settings" element={<SalesSettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
