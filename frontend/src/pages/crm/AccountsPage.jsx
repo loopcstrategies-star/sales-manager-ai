@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { accountsApi } from '../../api/client'
+import { accountsApi, crmApi } from '../../api/client'
 import { useAuth } from '../../context/AuthContext'
+import { usePreferences } from '../../context/PreferencesContext'
 import { isCreatedThisWeek, isOwnedBy, useServiceListQuery } from '../../hooks/useServiceListQuery'
 import CrmListView from '../../components/crm/CrmListView'
 import CrmModal from '../../components/crm/CrmModal'
@@ -89,6 +90,7 @@ function AddressFields({ prefix, value, onChange }) {
 
 export default function AccountsPage() {
   const { user } = useAuth()
+  const { sales } = usePreferences()
   const [searchParams, setSearchParams] = useSearchParams()
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
@@ -108,6 +110,8 @@ export default function AccountsPage() {
   const [labelModalOpen, setLabelModalOpen] = useState(false)
   const [bulkLabel, setBulkLabel] = useState('Hot')
   const [labelBusy, setLabelBusy] = useState(false)
+  const [findBusy, setFindBusy] = useState(false)
+  const [findHint, setFindHint] = useState('')
 
   const load = useCallback(async (q = '') => {
     setLoading(true)
@@ -309,6 +313,31 @@ export default function AccountsPage() {
     }
   }
 
+  const findContactsSelected = async () => {
+    if (!selectedIds.length) return
+    setFindBusy(true)
+    setFindHint('')
+    setListError('')
+    try {
+      const res = await crmApi.findContactsBatch({
+        accountIds: selectedIds,
+        thinOnly: false,
+        cap: Math.min(selectedIds.length, sales?.batchFindCap || 25),
+        region: sales?.defaultProspectRegion || undefined,
+      })
+      const d = res.data || {}
+      setFindHint(
+        `Find contacts · processed ${d.accountsProcessed || 0} · +${d.contactsCreated || 0} contacts · skipped ${d.contactsSkipped || 0} · errors ${(d.errors || []).length}.`,
+      )
+      setSelectedIds([])
+      await load(search)
+    } catch (err) {
+      setListError(err.message || 'Find contacts failed')
+    } finally {
+      setFindBusy(false)
+    }
+  }
+
   const labelOptions = useMemo(() => {
     const set = new Set(ACCOUNT_LABELS)
     items.forEach((a) => {
@@ -321,6 +350,7 @@ export default function AccountsPage() {
   return (
     <>
       {listError ? <p className="crm-banner-error">{listError}</p> : null}
+      {findHint ? <p className="crm-muted">{findHint}</p> : null}
       <CrmListView
         title="All Accounts"
         count={rows.length}
@@ -331,6 +361,14 @@ export default function AccountsPage() {
         onSelectionChange={setSelectedIds}
         bulkActions={(
           <>
+            <button
+              type="button"
+              className="crm-btn-secondary"
+              disabled={findBusy || !selectedIds.length}
+              onClick={findContactsSelected}
+            >
+              {findBusy ? 'Finding contacts…' : 'Find contacts'}
+            </button>
             <button
               type="button"
               className="crm-btn-secondary"

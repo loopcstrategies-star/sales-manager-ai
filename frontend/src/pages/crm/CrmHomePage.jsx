@@ -2,8 +2,10 @@ import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { crmApi } from '../../api/client'
 import ProspectSearchPanel from '../../components/crm/ProspectSearchPanel'
+import { usePreferences } from '../../context/PreferencesContext'
 
 export default function CrmHomePage() {
+  const { sales } = usePreferences()
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -13,7 +15,16 @@ export default function CrmHomePage() {
   const [cleanupBusy, setCleanupBusy] = useState(false)
   const [findBusy, setFindBusy] = useState(false)
   const [geoBusy, setGeoBusy] = useState(false)
+  const [fillBusy, setFillBusy] = useState(false)
   const [region, setRegion] = useState('')
+
+  useEffect(() => {
+    if (sales?.defaultProspectRegion && !region) {
+      setRegion(sales.defaultProspectRegion)
+    }
+  }, [sales?.defaultProspectRegion, region])
+
+  const effectiveRegion = region || sales?.defaultProspectRegion || undefined
 
   const load = async () => {
     setLoading(true)
@@ -82,13 +93,23 @@ export default function CrmHomePage() {
         asAccount: true,
         asContact: false,
         asLead: false,
-        perQuery: 8,
-        region: region || undefined,
+        perQuery: sales?.perQuery || 8,
+        queryLimit: sales?.bulkQueries || 5,
+        region: effectiveRegion,
       })
       const d = res.data || {}
-      setRefreshMsg(
-        `Web import · Accounts +${d.accountsCreated || 0} (upd ${d.accountsUpdated || 0}) · enriched ${d.enriched || 0} · skipped low-quality ${d.skippedLowQuality || 0} · skipped duplicates ${d.skippedDuplicates || 0} (${d.resultsSeen || 0} seen).`,
-      )
+      let msg = `Web import · Accounts +${d.accountsCreated || 0} (upd ${d.accountsUpdated || 0}) · enriched ${d.enriched || 0} · skipped low-quality ${d.skippedLowQuality || 0} · skipped duplicates ${d.skippedDuplicates || 0} (${d.resultsSeen || 0} seen).`
+      if (sales?.fillPipelineOnImport !== false) {
+        setRefreshMsg(`${msg} Finding contacts on thin Accounts…`)
+        const findRes = await crmApi.findContactsBatch({
+          cap: sales?.batchFindCap || 25,
+          thinOnly: true,
+          region: effectiveRegion,
+        })
+        const f = findRes.data || {}
+        msg += ` → Find · accounts ${f.accountsProcessed || 0} · contacts +${f.contactsCreated || 0}.`
+      }
+      setRefreshMsg(msg)
       await load()
     } catch (err) {
       setRefreshMsg(err.message || 'Web import failed.')
@@ -122,9 +143,9 @@ export default function CrmHomePage() {
     setRefreshMsg('Finding contacts on thin Accounts (website pages + search)… may take a few minutes.')
     try {
       const res = await crmApi.findContactsBatch({
-        cap: 20,
+        cap: sales?.batchFindCap || 25,
         thinOnly: true,
-        region: region || undefined,
+        region: effectiveRegion,
       })
       const d = res.data || {}
       setRefreshMsg(
@@ -142,7 +163,7 @@ export default function CrmHomePage() {
     setGeoBusy(true)
     setRefreshMsg('Filling missing Region/Country from websites…')
     try {
-      const res = await crmApi.backfillGeo({ region: region || undefined })
+      const res = await crmApi.backfillGeo({ region: effectiveRegion })
       const d = res.data || {}
       setRefreshMsg(
         `Geo backfill · Accounts updated ${d.accountsUpdated || 0} · Contacts updated ${d.contactsUpdated || 0}.`,
@@ -155,8 +176,42 @@ export default function CrmHomePage() {
     }
   }
 
+  const runFillPipeline = async () => {
+    setFillBusy(true)
+    setRefreshMsg('Fill pipeline · 1/3 Importing Accounts from web…')
+    try {
+      const importRes = await crmApi.prospectBulk({
+        asAccount: true,
+        asContact: false,
+        asLead: false,
+        perQuery: sales?.perQuery || 8,
+        queryLimit: sales?.bulkQueries || 5,
+        region: effectiveRegion,
+      })
+      const imp = importRes.data || {}
+      setRefreshMsg(`Fill pipeline · 2/3 Geo… (Accounts +${imp.accountsCreated || 0})`)
+      const geoRes = await crmApi.backfillGeo({ region: effectiveRegion })
+      const geo = geoRes.data || {}
+      setRefreshMsg(`Fill pipeline · 3/3 Finding contacts… (geo ${geo.accountsUpdated || 0})`)
+      const findRes = await crmApi.findContactsBatch({
+        cap: sales?.batchFindCap || 25,
+        thinOnly: true,
+        region: effectiveRegion,
+      })
+      const find = findRes.data || {}
+      setRefreshMsg(
+        `Fill pipeline done · Accounts +${imp.accountsCreated || 0} · geo ${geo.accountsUpdated || 0} · find accounts ${find.accountsProcessed || 0} · contacts +${find.contactsCreated || 0} · review Needs verify.`,
+      )
+      await load()
+    } catch (err) {
+      setRefreshMsg(err.message || 'Fill pipeline failed.')
+    } finally {
+      setFillBusy(false)
+    }
+  }
+
   const counts = data?.counts || {}
-  const anyBusy = bulkBusy || cleanupBusy || findBusy || backfillBusy || geoBusy
+  const anyBusy = bulkBusy || cleanupBusy || findBusy || backfillBusy || geoBusy || fillBusy
 
   return (
     <div className="crm-home">
@@ -302,6 +357,14 @@ export default function CrmHomePage() {
               type="button"
               className="crm-btn-primary"
               disabled={anyBusy}
+              onClick={runFillPipeline}
+            >
+              {fillBusy ? 'Filling pipeline…' : 'Fill pipeline'}
+            </button>
+            <button
+              type="button"
+              className="crm-btn-primary"
+              disabled={anyBusy}
               onClick={runBulkImport}
             >
               {bulkBusy ? 'Importing from web…' : 'Import from web'}
@@ -336,6 +399,7 @@ export default function CrmHomePage() {
             <Link className="crm-btn-secondary" to="/sales/accounts">New Account</Link>
             <Link className="crm-btn-secondary" to="/sales/pipeline">View Pipeline</Link>
             <Link className="crm-btn-secondary" to="/sales/tasks">My Tasks</Link>
+            <Link className="crm-btn-secondary" to="/sales/settings">Sales settings</Link>
             <button type="button" className="crm-btn-secondary" disabled={anyBusy} onClick={runRefresh}>
               Refresh stale records
             </button>
@@ -369,12 +433,12 @@ export default function CrmHomePage() {
             <Link className="crm-btn-secondary" to="/sales/contacts?needsVerify=1">Contacts needing verify</Link>
           </div>
           <p className="crm-muted">
-            Free contacts path (no paid email APIs): <strong>Import Contacts (CSV)</strong> for lists you already have,
-            or <strong>Find contacts on thin Accounts</strong> (company website About/Contact pages + Brave/Tavily + Groq —
-            max 8 people/Account; mark needs verify before outreach).
+            <strong>Fill pipeline</strong> runs Import → Geo → Find contacts (caps in{' '}
+            <Link to="/sales/settings">Sales settings</Link>).
+            Free contacts path: <strong>Import Contacts (CSV)</strong> or{' '}
+            <strong>Find contacts on thin Accounts</strong> (site pages + search + Groq).
             Needs <code>GROQ_API_KEY</code> and <code>BRAVE_API_KEY</code> (or Tavily) on Railway.
-            Web import tags new Accounts with the Region below; <strong>Fill missing countries</strong> infers
-            Country from website TLD (.ae, .in, …). Filter Accounts/Contacts by Region or Country in their lists.
+            Web import tags Accounts with Region; enable scheduled find under Settings for ongoing growth.
           </p>
           {refreshMsg ? <p className="crm-muted">{refreshMsg}</p> : null}
 

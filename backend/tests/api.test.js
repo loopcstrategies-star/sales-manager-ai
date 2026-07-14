@@ -120,10 +120,25 @@ describe('sales-manager-ai backend', () => {
     const merged = mergeSales({})
     expect(merged.emailTone).toBe(DEFAULT_SALES.emailTone)
     expect(merged.findContactsMax).toBe(5)
+    expect(merged.batchFindCap).toBe(25)
+    expect(merged.bulkQueries).toBe(5)
+    expect(merged.perQuery).toBe(8)
+    expect(merged.scheduledFindEnabled).toBe(false)
+    expect(merged.fillPipelineOnImport).toBe(true)
     expect(merged.stageProbabilities.Prospecting).toBe(10)
-    const clamped = mergeSales({ findContactsMax: 99, enrichStaleDays: 2, stageProbabilities: { Proposal: 200 } })
-    expect(clamped.findContactsMax).toBe(8)
+    const clamped = mergeSales({
+      findContactsMax: 99,
+      enrichStaleDays: 2,
+      batchFindCap: 3,
+      bulkQueries: 20,
+      perQuery: 99,
+      stageProbabilities: { Proposal: 200 },
+    })
+    expect(clamped.findContactsMax).toBe(15)
     expect(clamped.enrichStaleDays).toBe(7)
+    expect(clamped.batchFindCap).toBe(10)
+    expect(clamped.bulkQueries).toBe(8)
+    expect(clamped.perQuery).toBe(12)
     expect(clamped.stageProbabilities.Proposal).toBe(100)
   })
 

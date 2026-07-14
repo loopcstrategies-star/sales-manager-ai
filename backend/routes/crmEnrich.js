@@ -28,6 +28,7 @@ const {
 const { findContactsForCompany, isStubContact } = require('../services/contactFind')
 const { hunterDomainSearch, isHunterConfigured } = require('../services/hunterClient')
 const { getUserPreferences } = require('../services/userPreferences')
+const { runThinAccountFind } = require('../services/thinAccountFind')
 
 const router = express.Router()
 router.use(protect)
@@ -399,14 +400,16 @@ router.post('/prospect/bulk', async (req, res) => {
       })
     }
 
-    const region = String(req.body.region || '').trim()
+    const salesPrefs = (await getUserPreferences(req.user._id)).sales
+    const region = String(req.body.region || salesPrefs.defaultProspectRegion || '').trim()
+    const queryLimit = Math.max(1, Math.min(8, Number(req.body.queryLimit) || salesPrefs.bulkQueries || 5))
     const rawQueries = Array.isArray(req.body.queries) && req.body.queries.length
       ? req.body.queries
       : DEFAULT_PROSPECT_QUERIES
     const queries = [...new Set(
       rawQueries.map((q) => withRegion(String(q || '').trim(), region)).filter(Boolean),
-    )].slice(0, 5)
-    const perQuery = Math.max(1, Math.min(Number(req.body.perQuery) || 8, 8))
+    )].slice(0, queryLimit)
+    const perQuery = Math.max(1, Math.min(12, Number(req.body.perQuery) || salesPrefs.perQuery || 8))
     const asAccount = req.body.asAccount !== false
     const asContact = Boolean(req.body.asContact)
     const asLead = Boolean(req.body.asLead)
@@ -440,8 +443,8 @@ router.post('/prospect/bulk', async (req, res) => {
 
     for (const query of queries) {
       try {
-        const search = await searchWithCache(query, { maxResults: Math.min(perQuery * 2, 12), searchDepth: 'basic' })
-        const results = (search.results || []).slice(0, Math.min(perQuery * 2, 12))
+        const search = await searchWithCache(query, { maxResults: Math.min(perQuery * 2, 20), searchDepth: 'basic' })
+        const results = (search.results || []).slice(0, Math.min(perQuery * 2, 20))
         let importedForQuery = 0
         for (const r of results) {
           if (importedForQuery >= perQuery) break
@@ -528,7 +531,7 @@ async function saveFoundContacts(req, filter, account, found, summary, options =
   const needsVerify = options.needsVerify !== undefined
     ? Boolean(options.needsVerify)
     : source !== 'csv'
-  const maxContacts = Math.max(1, Math.min(8, Number(options.maxContacts) || 8))
+  const maxContacts = Math.max(1, Math.min(15, Number(options.maxContacts) || 8))
   const people = (found.people || []).slice(0, maxContacts)
 
   for (const person of people) {
@@ -709,61 +712,30 @@ async function accountHasRealEmailedContact(filter, accountId) {
 
 router.post('/prospect/find-contacts-batch', async (req, res) => {
   try {
-    const filter = workspaceFilter(req.user)
-    const region = String(req.body.region || '').trim()
-    const cap = Math.max(1, Math.min(Number(req.body.cap) || 15, 25))
-    const thinOnly = req.body.thinOnly !== false
-
-    const accounts = await Account.find(filter).sort({ updatedAt: -1 }).limit(120)
     const salesPrefs = (await getUserPreferences(req.user._id)).sales
-    const saveOpts = {
+    const region = String(req.body.region || salesPrefs.defaultProspectRegion || '').trim()
+    const cap = Math.max(
+      1,
+      Math.min(50, Number(req.body.cap) || salesPrefs.batchFindCap || 25),
+    )
+    const accountIds = Array.isArray(req.body.accountIds) ? req.body.accountIds : null
+    const thinOnly = accountIds?.length
+      ? Boolean(req.body.thinOnly)
+      : req.body.thinOnly !== false
+
+    const summary = await runThinAccountFind({
+      workspaceId: req.user.workspaceId,
+      ownerId: req.user._id,
+      accountIds,
+      thinOnly,
+      region,
+      cap,
       maxContacts: salesPrefs.findContactsMax,
       needsVerify: salesPrefs.findContactsNeedsVerify !== false,
-    }
-    const summary = {
-      accountsProcessed: 0,
-      contactsCreated: 0,
-      contactsSkipped: 0,
-      skipped: 0,
-      errors: [],
-      region,
-      thinOnly,
-    }
+    })
 
-    for (const account of accounts) {
-      if (summary.accountsProcessed >= cap) break
-      if (!account.website && !account.name) {
-        summary.skipped += 1
-        continue
-      }
-      const hasReal = await accountHasRealEmailedContact(filter, account._id)
-      if (hasReal) {
-        summary.skipped += 1
-        continue
-      }
-      if (!thinOnly) {
-        /* same skip rule: only process accounts without real emailed contacts */
-      }
-
-      try {
-        if (region) {
-          applyAccountGeo(account, { website: account.website, region })
-          await account.save()
-        }
-        const found = await findContactsForCompany({
-          name: account.name,
-          website: account.website,
-          region: region || account.region,
-        })
-        summary.accountsProcessed += 1
-        if (!found.ok) {
-          summary.errors.push({ accountId: account._id, name: account.name, message: found.error })
-          continue
-        }
-        await saveFoundContacts(req, filter, account, found, summary, saveOpts)
-      } catch (e) {
-        summary.errors.push({ accountId: account._id, name: account.name, message: e.message || 'Failed' })
-      }
+    if (summary.skipped && summary.reason) {
+      return res.status(503).json({ success: false, message: summary.reason, data: summary })
     }
 
     res.json({ success: true, data: summary })

@@ -22,6 +22,13 @@ const DEFAULT_SALES = {
   findContactsAutoSave: true,
   findContactsMax: 5,
   findContactsNeedsVerify: true,
+  batchFindCap: 25,
+  bulkQueries: 5,
+  perQuery: 8,
+  scheduledFindEnabled: false,
+  scheduledFindHours: 24,
+  fillPipelineOnImport: true,
+  defaultProspectRegion: '',
   convertCreateOpportunity: true,
   convertDefaultStage: 'Prospecting',
   enrichRefreshEnabled: true,
@@ -51,6 +58,12 @@ function clampPct(n, fallback) {
   return Math.max(0, Math.min(100, Math.round(v)))
 }
 
+function clampInt(n, min, max, fallback) {
+  const v = Number(n)
+  if (Number.isNaN(v)) return fallback
+  return Math.max(min, Math.min(max, Math.round(v)))
+}
+
 function mergeStageProbabilities(partial = {}) {
   const out = { ...DEFAULT_SALES.stageProbabilities }
   for (const key of Object.keys(out)) {
@@ -62,22 +75,32 @@ function mergeStageProbabilities(partial = {}) {
 }
 
 function mergeSales(partial = {}) {
-  const findContactsMax = Math.max(3, Math.min(8, Number(partial.findContactsMax) || DEFAULT_SALES.findContactsMax))
-  const enrichStaleDays = Math.max(7, Math.min(90, Number(partial.enrichStaleDays) || DEFAULT_SALES.enrichStaleDays))
+  const findContactsMax = clampInt(partial.findContactsMax, 3, 15, DEFAULT_SALES.findContactsMax)
+  const batchFindCap = clampInt(partial.batchFindCap, 10, 50, DEFAULT_SALES.batchFindCap)
+  const bulkQueries = clampInt(partial.bulkQueries, 1, 8, DEFAULT_SALES.bulkQueries)
+  const perQuery = clampInt(partial.perQuery, 1, 12, DEFAULT_SALES.perQuery)
+  const enrichStaleDays = clampInt(partial.enrichStaleDays, 7, 90, DEFAULT_SALES.enrichStaleDays)
+  const scheduledFindHours = clampInt(partial.scheduledFindHours, 6, 48, DEFAULT_SALES.scheduledFindHours)
   const emailTone = ['brief', 'professional', 'warm'].includes(partial.emailTone)
     ? partial.emailTone
     : DEFAULT_SALES.emailTone
   const convertDefaultStage = ['Prospecting', 'Qualification', 'Proposal', 'Negotiation'].includes(partial.convertDefaultStage)
     ? partial.convertDefaultStage
     : DEFAULT_SALES.convertDefaultStage
+  const defaultProspectRegion = String(partial.defaultProspectRegion || '').trim().slice(0, 40)
 
   return {
     ...DEFAULT_SALES,
     ...partial,
     emailTone,
     findContactsMax,
+    batchFindCap,
+    bulkQueries,
+    perQuery,
     enrichStaleDays,
+    scheduledFindHours,
     convertDefaultStage,
+    defaultProspectRegion,
     stageProbabilities: mergeStageProbabilities(partial.stageProbabilities || {}),
   }
 }
@@ -127,13 +150,19 @@ async function updateUserPreferences(userId, patch = {}) {
  * Stale days / fill-empty: prefer the most aggressive (shortest stale) among enabled users.
  */
 async function getAggregatedSalesJobPrefs() {
-  const docs = await UserPreferences.find({}).select('sales').lean()
+  const docs = await UserPreferences.find({}).select('sales userId').lean()
   if (!docs.length) {
     return {
       enrichRefreshEnabled: DEFAULT_SALES.enrichRefreshEnabled,
       enrichFillEmptyOnly: DEFAULT_SALES.enrichFillEmptyOnly,
       enrichStaleDays: DEFAULT_SALES.enrichStaleDays,
       autoTaskFromNextStep: DEFAULT_SALES.autoTaskFromNextStep,
+      scheduledFindEnabled: DEFAULT_SALES.scheduledFindEnabled,
+      scheduledFindHours: DEFAULT_SALES.scheduledFindHours,
+      batchFindCap: DEFAULT_SALES.batchFindCap,
+      findContactsMax: DEFAULT_SALES.findContactsMax,
+      findContactsNeedsVerify: DEFAULT_SALES.findContactsNeedsVerify,
+      defaultProspectRegion: DEFAULT_SALES.defaultProspectRegion,
     }
   }
 
@@ -147,12 +176,34 @@ async function getAggregatedSalesJobPrefs() {
     ? enrichOn.every((s) => s.enrichFillEmptyOnly !== false)
     : DEFAULT_SALES.enrichFillEmptyOnly
   const anyNextStepOn = salesList.some((s) => s.autoTaskFromNextStep !== false)
+  const findOn = salesList.filter((s) => s.scheduledFindEnabled === true)
+  const anyScheduledFind = findOn.length > 0
+  const scheduledFindHours = findOn.length
+    ? Math.min(...findOn.map((s) => s.scheduledFindHours))
+    : DEFAULT_SALES.scheduledFindHours
+  const batchFindCap = findOn.length
+    ? Math.max(...findOn.map((s) => s.batchFindCap))
+    : DEFAULT_SALES.batchFindCap
+  const findContactsMax = findOn.length
+    ? Math.max(...findOn.map((s) => s.findContactsMax))
+    : DEFAULT_SALES.findContactsMax
+  const findContactsNeedsVerify = findOn.length
+    ? findOn.some((s) => s.findContactsNeedsVerify !== false)
+    : DEFAULT_SALES.findContactsNeedsVerify
+  const regionHit = findOn.find((s) => s.defaultProspectRegion)
+  const defaultProspectRegion = regionHit?.defaultProspectRegion || DEFAULT_SALES.defaultProspectRegion
 
   return {
     enrichRefreshEnabled: anyEnrichOn,
     enrichFillEmptyOnly: fillEmptyOnly,
     enrichStaleDays: staleDays,
     autoTaskFromNextStep: anyNextStepOn,
+    scheduledFindEnabled: anyScheduledFind,
+    scheduledFindHours,
+    batchFindCap,
+    findContactsMax,
+    findContactsNeedsVerify,
+    defaultProspectRegion,
   }
 }
 

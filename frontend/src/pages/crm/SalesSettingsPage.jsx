@@ -122,11 +122,11 @@ export default function SalesSettingsPage() {
           onChange={(v) => patch({ findContactsAutoSave: v })}
         />
         <label className="crm-field">
-          <span>Max contacts per find (3–8)</span>
+          <span>Max contacts per find (3–15)</span>
           <input
             type="number"
             min={3}
-            max={8}
+            max={15}
             value={draft.findContactsMax}
             onChange={(e) => patch({ findContactsMax: Number(e.target.value) || 5 })}
           />
@@ -137,6 +137,71 @@ export default function SalesSettingsPage() {
           checked={draft.findContactsNeedsVerify}
           onChange={(v) => patch({ findContactsNeedsVerify: v })}
         />
+      </div>
+
+      <div className="settings-card">
+        <h3 className="settings-section-title">Growth &amp; automation</h3>
+        <p className="settings-hint">Controls web import volume, Fill pipeline, and scheduled thin-account finding.</p>
+        <label className="crm-field">
+          <span>Batch find cap (10–50)</span>
+          <input
+            type="number"
+            min={10}
+            max={50}
+            value={draft.batchFindCap}
+            onChange={(e) => patch({ batchFindCap: Number(e.target.value) || 25 })}
+          />
+        </label>
+        <label className="crm-field">
+          <span>Web import queries (1–8)</span>
+          <input
+            type="number"
+            min={1}
+            max={8}
+            value={draft.bulkQueries}
+            onChange={(e) => patch({ bulkQueries: Number(e.target.value) || 5 })}
+          />
+        </label>
+        <label className="crm-field">
+          <span>Accounts per query (1–12)</span>
+          <input
+            type="number"
+            min={1}
+            max={12}
+            value={draft.perQuery}
+            onChange={(e) => patch({ perQuery: Number(e.target.value) || 8 })}
+          />
+        </label>
+        <label className="crm-field">
+          <span>Default prospect region</span>
+          <input
+            value={draft.defaultProspectRegion || ''}
+            placeholder="e.g. UAE, Middle East"
+            onChange={(e) => patch({ defaultProspectRegion: e.target.value })}
+          />
+        </label>
+        <ToggleRow
+          label="After web import, also find contacts"
+          hint="When using Import from web, automatically run find contacts on thin Accounts."
+          checked={draft.fillPipelineOnImport}
+          onChange={(v) => patch({ fillPipelineOnImport: v })}
+        />
+        <ToggleRow
+          label="Scheduled thin-account find"
+          hint="Periodically find contacts for Accounts that still lack a real email. Off by default."
+          checked={draft.scheduledFindEnabled}
+          onChange={(v) => patch({ scheduledFindEnabled: v })}
+        />
+        <label className="crm-field">
+          <span>Scheduled find interval (hours, 6–48)</span>
+          <input
+            type="number"
+            min={6}
+            max={48}
+            value={draft.scheduledFindHours}
+            onChange={(e) => patch({ scheduledFindHours: Number(e.target.value) || 24 })}
+          />
+        </label>
       </div>
 
       <div className="settings-card">
