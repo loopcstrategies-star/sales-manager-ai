@@ -38,10 +38,51 @@ const NOISE_HOSTS = new Set([
   'google.com',
   'maps.google.com',
   'goo.gl',
+  'gulfnews.com',
+  'gulftoday.ae',
+  'khaleejtimes.com',
+  'thenationalnews.com',
+  'arabianbusiness.com',
+  '2gis.ae',
+  '2gis.com',
+  'yellowpages.com',
+  'yelp.ae',
+  'glassdoor.com',
+  'indeed.com',
+  'crunchbase.com',
+  'ycombinator.com',
+  'producthunt.com',
+  'stackoverflow.com',
+  'github.com',
+  'wordpress.com',
+  'blogspot.com',
+  'wixsite.com',
+  'lbma.org.uk',
+  'investopedia.com',
+  'wikihow.com',
 ])
 
-const LISTICLE_RE = /\b(top\s+\d+|best\s+\d+|checklist|how\s+to|awards?|list\s+of|importing\s+.+\s+from|things\s+to\s+know|ultimate\s+guide|buyer'?s?\s+guide|guide\s+to)\b/i
-const ARTICLE_NOISE_RE = /\b(blog|news|article|magazine|editorial|opinion)\b/i
+const LISTICLE_RE = /\b(top\s+\d+|best\s+\d+|checklist|how\s+to|awards?|list\s+of|importing\s+.+\s+from|things\s+to\s+know|ultimate\s+guide|buyer'?s?\s+guide|guide\s+to|tips?\s*&\s*insights|tips\s+and\s+insights|chapter\s+\d+)\b/i
+const ARTICLE_NOISE_RE = /\b(blog|news|article|magazine|editorial|opinion|insights)\b/i
+const QUESTION_RE = /\?$|^(who|what|where|when|why|how|any|are there|is there)\b/i
+
+const DEFAULT_PROSPECT_QUERIES = [
+  'jewelry manufacturers',
+  'gold wholesale suppliers',
+  'diamond trading companies',
+  'precious metals bullion dealers',
+  'jewellery exporters',
+]
+
+const REGION_PRESETS = [
+  { value: '', label: 'Worldwide' },
+  { value: 'Middle East', label: 'Middle East' },
+  { value: 'Europe', label: 'Europe' },
+  { value: 'India', label: 'India' },
+  { value: 'Asia Pacific', label: 'Asia Pacific' },
+  { value: 'Americas', label: 'Americas' },
+  { value: 'Africa', label: 'Africa' },
+]
 
 function hostnameOf(url) {
   try {
@@ -68,6 +109,7 @@ function isNoiseHost(url) {
 function looksLikeListicle(title) {
   const t = String(title || '').trim()
   if (!t) return true
+  if (QUESTION_RE.test(t)) return true
   if (LISTICLE_RE.test(t)) return true
   if (ARTICLE_NOISE_RE.test(t) && (t.includes('|') || t.includes(' - ') || t.length > 70)) return true
   if (t.length > 90 && /\d{4}/.test(t)) return true
@@ -89,7 +131,6 @@ function brandFromHostname(url) {
   const host = hostnameOf(url)
   if (!host) return ''
   const labels = host.split('.').filter(Boolean)
-  // drop common public suffixes (naive 2-label: example.com / example.co.uk approx)
   let brand = labels[0] || ''
   if (labels.length >= 3 && ['co', 'com', 'org', 'net', 'gov', 'ac'].includes(labels[labels.length - 2])) {
     brand = labels[labels.length - 3] || brand
@@ -122,9 +163,28 @@ function companyName(title, url) {
   return cleaned || 'Prospect'
 }
 
+/** Prefer company homepage over deep article/search paths. */
+function companyWebsiteUrl(url) {
+  try {
+    const u = new URL(String(url || '').trim())
+    if (!u.hostname) return String(url || '').trim().slice(0, 300)
+    return `${u.protocol}//${u.hostname}/`.slice(0, 300)
+  } catch {
+    return String(url || '').trim().slice(0, 300)
+  }
+}
+
+function withRegion(query, region) {
+  const q = String(query || '').trim()
+  const r = String(region || '').trim()
+  if (!q) return ''
+  if (!r || /^worldwide$/i.test(r)) return q
+  if (new RegExp(`\\b${r.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(q)) return q
+  return `${q} ${r}`
+}
+
 /**
  * @param {{ title?: string, url?: string, snippet?: string }} hit
- * @returns {{ ok: boolean, reason: string|null, companyName: string, score: number, host: string }}
  */
 function assessProspect(hit) {
   const title = String(hit?.title || '').trim()
@@ -146,6 +206,10 @@ function assessProspect(hit) {
   if (host) score += 20
   if (!isWeakCompanyName(cleanTitle(title))) score += 20
   if (title.length < 60) score += 10
+  try {
+    const path = new URL(url).pathname || '/'
+    if (path === '/' || path === '') score += 15
+  } catch { /* ignore */ }
   return { ok: true, reason: null, companyName: name, score, host }
 }
 
@@ -155,11 +219,15 @@ function isImportableProspect(hit) {
 
 module.exports = {
   NOISE_HOSTS,
+  DEFAULT_PROSPECT_QUERIES,
+  REGION_PRESETS,
   hostnameOf,
   isNoiseHost,
   looksLikeListicle,
   companyName,
   brandFromHostname,
+  companyWebsiteUrl,
+  withRegion,
   assessProspect,
   isImportableProspect,
 }

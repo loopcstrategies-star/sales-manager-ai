@@ -15,21 +15,18 @@ const { runCrmEnrichRefresh } = require('../jobs/crmEnrichRefresh')
 const {
   assessProspect,
   companyName: deriveCompanyName,
+  companyWebsiteUrl,
   hostnameOf,
   isNoiseHost,
   looksLikeListicle,
+  withRegion,
+  DEFAULT_PROSPECT_QUERIES,
+  REGION_PRESETS,
 } = require('../services/prospectQuality')
+const { findContactsForCompany } = require('../services/contactFind')
 
 const router = express.Router()
 router.use(protect)
-
-const DEFAULT_PROSPECT_QUERIES = [
-  'jewelry manufacturers Dubai',
-  'gold wholesale Dubai',
-  'diamond traders UAE',
-  'precious metals suppliers Middle East',
-  'jewelry exporters India Dubai',
-]
 
 function normalizeNameKey(name) {
   return String(name || '')
@@ -41,15 +38,6 @@ function normalizeNameKey(name) {
 
 function normalizeHostKey(url) {
   return hostnameOf(url)
-}
-
-function normalizeUrlKey(url) {
-  try {
-    const u = new URL(String(url || '').trim())
-    return `${u.hostname.replace(/^www\./i, '')}${u.pathname.replace(/\/$/, '')}`.toLowerCase()
-  } catch {
-    return String(url || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/$/, '')
-  }
 }
 
 function mapSearchHit(r, i) {
@@ -119,7 +107,8 @@ async function importProspectItem(req, filter, item, flags, summary) {
     return
   }
 
-  const blob = `${company}\n${title}\n${snippet}\n${url}`
+  const siteUrl = companyWebsiteUrl(url) || url
+  const blob = `${company}\n${title}\n${snippet}\n${siteUrl}`
   const { asAccount, asLead, asContact } = flags
   let account = null
   let createdAccount = false
@@ -129,8 +118,8 @@ async function importProspectItem(req, filter, item, flags, summary) {
   if (needAccount) {
     const nameRe = new RegExp(`^${company.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
     account = await Account.findOne({ ...filter, name: nameRe })
-    if (!account && url) {
-      const host = hostnameOf(url)
+    if (!account && siteUrl) {
+      const host = hostnameOf(siteUrl)
       if (host) {
         account = await Account.findOne({
           ...filter,
@@ -140,7 +129,7 @@ async function importProspectItem(req, filter, item, flags, summary) {
     }
     if (account) {
       if (asAccount) {
-        if (url && !account.website) account.website = url.slice(0, 300)
+        if (siteUrl && !account.website) account.website = siteUrl.slice(0, 300)
         if (snippet && !account.description) account.description = snippet.slice(0, 2000)
         await account.save()
         summary.accountsUpdated += 1
@@ -148,7 +137,7 @@ async function importProspectItem(req, filter, item, flags, summary) {
     } else {
       account = await Account.create({
         name: company.slice(0, 200),
-        website: url.slice(0, 300),
+        website: siteUrl.slice(0, 300),
         description: snippet.slice(0, 2000),
         type: 'Prospect',
         workspaceId: req.user.workspaceId,
@@ -163,7 +152,7 @@ async function importProspectItem(req, filter, item, flags, summary) {
     createdLead = await Lead.create({
       lastName: 'Prospect',
       company: company.slice(0, 200),
-      website: url.slice(0, 300),
+      website: siteUrl.slice(0, 300),
       description: snippet.slice(0, 2000),
       leadSource: 'Web Search',
       status: 'Open',
@@ -190,10 +179,10 @@ async function importProspectItem(req, filter, item, flags, summary) {
   }
 
   if (createdAccount && account) {
-    await maybeEnrichAccount(account, company, url, summary)
+    await maybeEnrichAccount(account, company, siteUrl, summary)
   }
   if (createdLead) {
-    await maybeEnrichLead(createdLead, company, url, summary)
+    await maybeEnrichLead(createdLead, company, siteUrl, summary)
   }
 }
 
@@ -291,7 +280,9 @@ router.post('/prospect/search', async (req, res) => {
         message: 'Web search is not configured. Set TAVILY_API_KEY or BRAVE_API_KEY.',
       })
     }
-    const query = String(req.body.query || '').trim()
+    const queryRaw = String(req.body.query || '').trim()
+    const region = String(req.body.region || '').trim()
+    const query = withRegion(queryRaw, region)
     if (!query) {
       return res.status(400).json({ success: false, message: 'query is required.' })
     }
@@ -306,6 +297,7 @@ router.post('/prospect/search', async (req, res) => {
       success: true,
       data: {
         query,
+        region: region || null,
         answer: search.answer || null,
         results,
         provider: search.provider || null,
@@ -369,11 +361,12 @@ router.post('/prospect/bulk', async (req, res) => {
       })
     }
 
+    const region = String(req.body.region || '').trim()
     const rawQueries = Array.isArray(req.body.queries) && req.body.queries.length
       ? req.body.queries
       : DEFAULT_PROSPECT_QUERIES
     const queries = [...new Set(
-      rawQueries.map((q) => String(q || '').trim()).filter(Boolean),
+      rawQueries.map((q) => withRegion(String(q || '').trim(), region)).filter(Boolean),
     )].slice(0, 5)
     const perQuery = Math.max(1, Math.min(Number(req.body.perQuery) || 8, 8))
     const asAccount = req.body.asAccount !== false
@@ -467,7 +460,175 @@ router.post('/prospect/bulk', async (req, res) => {
 })
 
 router.get('/prospect/default-queries', (_req, res) => {
-  res.json({ success: true, data: { queries: DEFAULT_PROSPECT_QUERIES } })
+  res.json({
+    success: true,
+    data: {
+      queries: DEFAULT_PROSPECT_QUERIES,
+      regions: REGION_PRESETS,
+    },
+  })
+})
+
+async function saveFoundContacts(req, filter, account, found, summary) {
+  const note = 'Found via web+LLM from public snippets. Verify before outreach.'
+  let created = 0
+  let skipped = 0
+
+  if (found.companyPhone && !account.phone) {
+    account.phone = String(found.companyPhone).slice(0, 60)
+    await account.save()
+  }
+
+  for (const person of found.people || []) {
+    const email = String(person.email || '').trim().toLowerCase()
+    const lastName = String(person.lastName || 'Contact').trim()
+    const firstName = String(person.firstName || '').trim()
+    if (email) {
+      const existingEmail = await Contact.findOne({ ...filter, accountId: account._id, email })
+      if (existingEmail) {
+        skipped += 1
+        continue
+      }
+    } else {
+      const existingName = await Contact.findOne({
+        ...filter,
+        accountId: account._id,
+        lastName,
+        firstName,
+      })
+      if (existingName) {
+        skipped += 1
+        continue
+      }
+    }
+
+    await Contact.create({
+      firstName: firstName.slice(0, 100),
+      lastName: lastName.slice(0, 100),
+      email: email.slice(0, 200),
+      phone: String(person.phone || '').slice(0, 60),
+      title: String(person.title || '').slice(0, 120),
+      accountId: account._id,
+      description: note,
+      workspaceId: req.user.workspaceId,
+      ownerId: req.user._id,
+      lastEnrichedAt: new Date(),
+    })
+    created += 1
+  }
+
+  summary.contactsCreated = (summary.contactsCreated || 0) + created
+  summary.contactsSkipped = (summary.contactsSkipped || 0) + skipped
+  return { created, skipped }
+}
+
+router.post('/prospect/find-contacts', async (req, res) => {
+  try {
+    const filter = workspaceFilter(req.user)
+    const accountId = req.body.accountId ? String(req.body.accountId) : null
+    const region = String(req.body.region || '').trim()
+    const save = req.body.save !== false
+
+    if (!accountId) {
+      return res.status(400).json({ success: false, message: 'accountId is required.' })
+    }
+
+    const account = await Account.findOne({ ...filter, _id: accountId })
+    if (!account) {
+      return res.status(404).json({ success: false, message: 'Account not found.' })
+    }
+
+    const found = await findContactsForCompany({
+      name: account.name,
+      website: account.website,
+      region,
+    })
+    if (!found.ok) {
+      return res.status(502).json({
+        success: false,
+        message: found.error || 'Find contacts failed.',
+        data: { people: found.people || [], sources: found.sources || [] },
+      })
+    }
+
+    const summary = { contactsCreated: 0, contactsSkipped: 0 }
+    let saveResult = { created: 0, skipped: 0 }
+    if (save) {
+      saveResult = await saveFoundContacts(req, filter, account, found, summary)
+    }
+
+    res.json({
+      success: true,
+      data: {
+        people: found.people,
+        phones: found.phones,
+        emails: found.emails,
+        sources: found.sources,
+        query: found.query,
+        provider: found.provider,
+        saved: save,
+        contactsCreated: saveResult.created,
+        contactsSkipped: saveResult.skipped,
+      },
+    })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Find contacts failed.' })
+  }
+})
+
+router.post('/prospect/find-contacts-batch', async (req, res) => {
+  try {
+    const filter = workspaceFilter(req.user)
+    const region = String(req.body.region || '').trim()
+    const cap = Math.max(1, Math.min(Number(req.body.cap) || 15, 25))
+
+    const accounts = await Account.find(filter).sort({ updatedAt: -1 }).limit(80)
+    const summary = {
+      accountsProcessed: 0,
+      contactsCreated: 0,
+      contactsSkipped: 0,
+      skipped: 0,
+      errors: [],
+    }
+
+    for (const account of accounts) {
+      if (summary.accountsProcessed >= cap) break
+      if (!account.website && !account.name) {
+        summary.skipped += 1
+        continue
+      }
+      // Prefer accounts that do not already have an emailed contact
+      const withEmail = await Contact.countDocuments({
+        ...filter,
+        accountId: account._id,
+        email: { $nin: [null, ''] },
+      })
+      if (withEmail > 0) {
+        summary.skipped += 1
+        continue
+      }
+
+      try {
+        const found = await findContactsForCompany({
+          name: account.name,
+          website: account.website,
+          region,
+        })
+        summary.accountsProcessed += 1
+        if (!found.ok) {
+          summary.errors.push({ accountId: account._id, name: account.name, message: found.error })
+          continue
+        }
+        await saveFoundContacts(req, filter, account, found, summary)
+      } catch (e) {
+        summary.errors.push({ accountId: account._id, name: account.name, message: e.message || 'Failed' })
+      }
+    }
+
+    res.json({ success: true, data: summary })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Batch find contacts failed.' })
+  }
 })
 
 router.post('/prospect/cleanup-noise', async (req, res) => {

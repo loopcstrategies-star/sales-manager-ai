@@ -234,9 +234,9 @@ export const crmApi = {
     URL.revokeObjectURL(url)
   },
   enrich: (body) => api('/api/crm/enrich', { method: 'POST', body: JSON.stringify(body) }),
-  prospectSearch: (query) => api('/api/crm/prospect/search', {
+  prospectSearch: (query, region = '') => api('/api/crm/prospect/search', {
     method: 'POST',
-    body: JSON.stringify({ query }),
+    body: JSON.stringify({ query, region: region || undefined }),
   }),
   prospectImport: (body) => api('/api/crm/prospect/import', {
     method: 'POST',
@@ -257,6 +257,14 @@ export const crmApi = {
   prospectCleanupNoise: () => api('/api/crm/prospect/cleanup-noise', {
     method: 'POST',
     body: JSON.stringify({}),
+  }),
+  findContacts: (body) => api('/api/crm/prospect/find-contacts', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  }),
+  findContactsBatch: (body = {}) => api('/api/crm/prospect/find-contacts-batch', {
+    method: 'POST',
+    body: JSON.stringify(body),
   }),
 }
 

@@ -8,6 +8,7 @@ import {
   casesApi,
 } from '../../api/client'
 import ActivityTimeline from './ActivityTimeline'
+import FindContactsButton from './FindContactsButton'
 
 const CONFIG = {
   leads: {
@@ -94,6 +95,19 @@ export default function RecordDetailPage({ objectType }) {
           <h2>{cfg.title(data)}</h2>
         </div>
         <div className="crm-record-actions">
+          {objectType === 'accounts' ? (
+            <FindContactsButton
+              accountId={data._id}
+              onFound={async () => {
+                const [cRes] = await Promise.all([contactsApi.list('')])
+                const aid = String(data._id)
+                setRelated((prev) => ({
+                  ...prev,
+                  contacts: (cRes.data || []).filter((c) => String(c.accountId) === aid).slice(0, 20),
+                }))
+              }}
+            />
+          ) : null}
           <Link className="crm-btn-secondary" to={cfg.listPath}>Back to list</Link>
           <button type="button" className="crm-btn-secondary" onClick={() => navigate(cfg.listPath)}>
             Close

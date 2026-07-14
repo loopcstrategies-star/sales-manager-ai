@@ -2561,6 +2561,22 @@ a { color: var(--brand); }
   margin: 1.25rem 0;
 }
 
+.crm-prospect-region {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0 0.75rem;
+  font-size: 0.85rem;
+}
+
+.crm-prospect-region select {
+  min-width: 10rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--crm-border, #ddd);
+  border-radius: 4px;
+  background: var(--surface, #fff);
+}
+
 .crm-prospect-form {
   display: flex;
   gap: 0.5rem;

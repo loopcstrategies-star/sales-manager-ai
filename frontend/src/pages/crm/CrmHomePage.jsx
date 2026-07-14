@@ -11,6 +11,8 @@ export default function CrmHomePage() {
   const [backfillBusy, setBackfillBusy] = useState(false)
   const [bulkBusy, setBulkBusy] = useState(false)
   const [cleanupBusy, setCleanupBusy] = useState(false)
+  const [findBusy, setFindBusy] = useState(false)
+  const [region, setRegion] = useState('')
 
   const load = async () => {
     setLoading(true)
@@ -62,7 +64,7 @@ export default function CrmHomePage() {
     try {
       const res = await crmApi.contactsFromAccounts(50)
       const d = res.data || {}
-      setRefreshMsg(`Contacts from Accounts · created ${d.created || 0}, skipped ${d.skipped || 0}.`)
+      setRefreshMsg(`Stub contacts from Accounts · created ${d.created || 0}, skipped ${d.skipped || 0}.`)
       await load()
     } catch (err) {
       setRefreshMsg(err.message || 'Contact backfill failed.')
@@ -80,6 +82,7 @@ export default function CrmHomePage() {
         asContact: false,
         asLead: false,
         perQuery: 8,
+        region: region || undefined,
       })
       const d = res.data || {}
       setRefreshMsg(
@@ -113,13 +116,34 @@ export default function CrmHomePage() {
     }
   }
 
+  const runFindContactsBatch = async () => {
+    setFindBusy(true)
+    setRefreshMsg('Finding public contacts for Accounts… may take a few minutes.')
+    try {
+      const res = await crmApi.findContactsBatch({
+        cap: 15,
+        region: region || undefined,
+      })
+      const d = res.data || {}
+      setRefreshMsg(
+        `Find contacts · accounts ${d.accountsProcessed || 0} · contacts +${d.contactsCreated || 0} · skipped ${d.contactsSkipped || 0} · errors ${(d.errors || []).length}. Verify before outreach.`,
+      )
+      await load()
+    } catch (err) {
+      setRefreshMsg(err.message || 'Find contacts failed.')
+    } finally {
+      setFindBusy(false)
+    }
+  }
+
   const counts = data?.counts || {}
+  const anyBusy = bulkBusy || cleanupBusy || findBusy || backfillBusy
 
   return (
     <div className="crm-home">
       <header className="crm-home-header">
         <h2>Home</h2>
-        <p>Your CRM snapshot — contacts, accounts, deals, and service.</p>
+        <p>Worldwide CRM snapshot — companies, people contacts, deals, and service.</p>
       </header>
 
       {error ? <p className="crm-banner-error">{error}</p> : null}
@@ -154,42 +178,56 @@ export default function CrmHomePage() {
             <button
               type="button"
               className="crm-btn-primary"
-              disabled={bulkBusy || cleanupBusy}
+              disabled={anyBusy}
               onClick={runBulkImport}
             >
               {bulkBusy ? 'Importing from web…' : 'Import from web'}
             </button>
             <button
               type="button"
+              className="crm-btn-primary"
+              disabled={anyBusy}
+              onClick={runFindContactsBatch}
+            >
+              {findBusy ? 'Finding contacts…' : 'Find contacts on Accounts'}
+            </button>
+            <button
+              type="button"
               className="crm-btn-secondary"
-              disabled={cleanupBusy || bulkBusy}
+              disabled={anyBusy}
               onClick={runCleanupNoise}
             >
               {cleanupBusy ? 'Cleaning…' : 'Clean up noise prospects'}
             </button>
+            <Link className="crm-btn-secondary" to="/sales/contacts">Import Contacts (CSV)</Link>
             <Link className="crm-btn-secondary" to="/sales/leads">New Lead</Link>
             <Link className="crm-btn-secondary" to="/sales/contacts">New Contact</Link>
             <Link className="crm-btn-secondary" to="/sales/accounts">New Account</Link>
             <Link className="crm-btn-secondary" to="/sales/pipeline">View Pipeline</Link>
-            <button type="button" className="crm-btn-secondary" onClick={runRefresh}>
+            <button type="button" className="crm-btn-secondary" disabled={anyBusy} onClick={runRefresh}>
               Refresh stale records
             </button>
             <button
               type="button"
               className="crm-btn-secondary"
-              disabled={backfillBusy}
+              disabled={anyBusy}
               onClick={runContactsFromAccounts}
             >
-              {backfillBusy ? 'Creating…' : 'Create contacts from Accounts'}
+              {backfillBusy ? 'Creating…' : 'Create stub contacts'}
             </button>
           </div>
           <p className="crm-muted">
-            Import from web adds company-like Accounts only (skips news/social/listicles), then enriches them.
-            Use Clean up noise prospects to remove earlier article-style imports.
+            For real people worldwide: use <strong>Import Contacts (CSV)</strong> for lists you already have,
+            or <strong>Find contacts on Accounts</strong> (search + AI from public web — verify emails before outreach).
+            Web import adds companies only. Region below applies to Find companies / Import from web / Find contacts.
           </p>
           {refreshMsg ? <p className="crm-muted">{refreshMsg}</p> : null}
 
-          <ProspectSearchPanel onImported={() => load()} />
+          <ProspectSearchPanel
+            region={region}
+            onRegionChange={setRegion}
+            onImported={() => load()}
+          />
 
           <div className="crm-home-columns">
             <section className="crm-home-panel">

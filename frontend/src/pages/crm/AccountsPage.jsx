@@ -7,6 +7,7 @@ import CrmListView from '../../components/crm/CrmListView'
 import CrmModal from '../../components/crm/CrmModal'
 import CrmImportModal from '../../components/crm/CrmImportModal'
 import CrmEnrichButton from '../../components/crm/CrmEnrichButton'
+import FindContactsButton from '../../components/crm/FindContactsButton'
 import CustomFieldsEditor from '../../components/crm/CustomFieldsEditor'
 import LookupField from '../../components/crm/LookupField'
 
@@ -282,6 +283,12 @@ export default function AccountsPage() {
                 draft={form}
                 onEnriched={applyEnrichment}
               />
+              {editingId ? (
+                <FindContactsButton
+                  accountId={editingId}
+                  onFound={() => setEnrichedHint('Contacts saved — open the Account to review.')}
+                />
+              ) : null}
               {enrichedHint ? <span className="crm-enrich-hint">{enrichedHint}</span> : null}
               {editingId ? (
                 <button

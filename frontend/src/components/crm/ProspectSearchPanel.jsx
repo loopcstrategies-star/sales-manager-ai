@@ -2,11 +2,21 @@ import React, { useState } from 'react'
 import { crmApi } from '../../api/client'
 
 export const DEFAULT_PROSPECT_QUERIES = [
-  'jewelry manufacturers Dubai',
-  'gold wholesale Dubai',
-  'diamond traders UAE',
-  'precious metals suppliers Middle East',
-  'jewelry exporters India Dubai',
+  'jewelry manufacturers',
+  'gold wholesale suppliers',
+  'diamond trading companies',
+  'precious metals bullion dealers',
+  'jewellery exporters',
+]
+
+export const REGION_PRESETS = [
+  { value: '', label: 'Worldwide' },
+  { value: 'Middle East', label: 'Middle East' },
+  { value: 'Europe', label: 'Europe' },
+  { value: 'India', label: 'India' },
+  { value: 'Asia Pacific', label: 'Asia Pacific' },
+  { value: 'Americas', label: 'Americas' },
+  { value: 'Africa', label: 'Africa' },
 ]
 
 function skipLabel(reason) {
@@ -16,7 +26,7 @@ function skipLabel(reason) {
   return reason ? 'Skipped' : null
 }
 
-export default function ProspectSearchPanel({ onImported }) {
+export default function ProspectSearchPanel({ onImported, region = '', onRegionChange }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])
   const [selected, setSelected] = useState({})
@@ -37,7 +47,7 @@ export default function ProspectSearchPanel({ onImported }) {
     setError('')
     setMessage('')
     try {
-      const res = await crmApi.prospectSearch(q)
+      const res = await crmApi.prospectSearch(q, region)
       const next = res.data?.results || []
       setResults(next)
       const defaults = {}
@@ -45,7 +55,7 @@ export default function ProspectSearchPanel({ onImported }) {
         if (r.importable !== false) defaults[r.id] = true
       })
       setSelected(defaults)
-      if (!next.length) setMessage('No results. Try a different query.')
+      if (!next.length) setMessage('No results. Try a different query or region.')
       else {
         const skipped = next.filter((r) => r.importable === false).length
         if (skipped) {
@@ -97,8 +107,20 @@ export default function ProspectSearchPanel({ onImported }) {
     <section className="crm-home-panel crm-prospect-panel">
       <h3>Find companies</h3>
       <p className="crm-muted">
-        Search the web, then add company-like results as Accounts. News, social, and listicle pages are filtered out by default.
+        Search worldwide (or pick a region), then add company-like results as Accounts. News, social, and listicle pages are filtered out by default.
       </p>
+      <label className="crm-prospect-region">
+        <span>Region</span>
+        <select
+          value={region}
+          onChange={(e) => onRegionChange?.(e.target.value)}
+          aria-label="Prospect region"
+        >
+          {REGION_PRESETS.map((r) => (
+            <option key={r.label} value={r.value}>{r.label}</option>
+          ))}
+        </select>
+      </label>
       <div className="crm-prospect-chips" role="list">
         {DEFAULT_PROSPECT_QUERIES.map((chip) => (
           <button
@@ -116,7 +138,7 @@ export default function ProspectSearchPanel({ onImported }) {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="e.g. jewelry manufacturers Dubai"
+          placeholder="e.g. jewelry manufacturers Italy"
           aria-label="Prospect search"
         />
         <button type="submit" className="crm-btn-primary" disabled={busy}>
