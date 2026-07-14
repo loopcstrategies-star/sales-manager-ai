@@ -55,6 +55,8 @@ Open http://localhost:5173
 - Chat + Brave or Tavily web research (with MongoDB response cache)
 - Groq (free), OpenAI, Ollama, or template fallback synthesis
 - Region focus, constraints, deep research, session history, chat export
+- CRM: Import from web, Find contacts (free: search + Groq), CSV contact import — verify before outreach
+- Optional Hunter.io emails only if `HUNTER_API_KEY` is set (button hidden otherwise)
 
 ## Minimize API costs
 
@@ -67,4 +69,5 @@ OPENAI_BASE_URL=https://api.groq.com/openai/v1
 SEARCH_PROVIDER=brave
 BRAVE_API_KEY=...
 SALES_AI_MAX_TAVILY_SEARCHES=2
+# Optional paid: HUNTER_API_KEY=...
 ```

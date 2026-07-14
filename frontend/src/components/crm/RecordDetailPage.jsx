@@ -8,6 +8,7 @@ import {
   casesApi,
   crmApi,
 } from '../../api/client'
+import { usePreferences } from '../../context/PreferencesContext'
 import ActivityTimeline from './ActivityTimeline'
 import FindContactsButton from './FindContactsButton'
 
@@ -45,6 +46,8 @@ const CONFIG = {
 export default function RecordDetailPage({ objectType }) {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { providers } = usePreferences()
+  const hunterConfigured = Boolean(providers?.hunter)
   const cfg = CONFIG[objectType]
   const [data, setData] = useState(null)
   const [related, setRelated] = useState({ contacts: [], opportunities: [], cases: [] })
@@ -148,6 +151,7 @@ export default function RecordDetailPage({ objectType }) {
             <>
               <FindContactsButton
                 accountId={data._id}
+                className="crm-btn-primary"
                 onFound={async () => {
                   const [cRes] = await Promise.all([contactsApi.list('')])
                   const aid = String(data._id)
@@ -157,10 +161,12 @@ export default function RecordDetailPage({ objectType }) {
                   }))
                 }}
               />
-              <button type="button" className="crm-btn-secondary" disabled={actionBusy} onClick={runHunter}>
-                {actionBusy ? 'Working…' : 'Hunter emails'}
-              </button>
-              <button type="button" className="crm-btn-primary" disabled={actionBusy} onClick={createOpportunity}>
+              {hunterConfigured ? (
+                <button type="button" className="crm-btn-secondary" disabled={actionBusy} onClick={runHunter}>
+                  {actionBusy ? 'Working…' : 'Hunter emails'}
+                </button>
+              ) : null}
+              <button type="button" className="crm-btn-secondary" disabled={actionBusy} onClick={createOpportunity}>
                 New Opportunity
               </button>
             </>

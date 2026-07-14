@@ -39,10 +39,10 @@ flowchart TB
 
 - Workspace-scoped objects (Account, Contact, Lead, Opportunity, …)  
 - **Import from web** — company-quality filter + Region tagging + TLD country  
-- **Find contacts** — search + Groq; optional **Hunter** (`HUNTER_API_KEY`)  
+- **Find contacts** — free: Brave/Tavily + Groq; optional **Hunter** only if `HUNTER_API_KEY` (button hidden otherwise)
 - Contact `source` (`manual` / `csv` / `web_llm` / `hunter`) + `needsVerify`  
 - Home / Analytics: Accounts by **Region** and **Country**  
-- Account detail: **Find contacts**, **Hunter emails**, **New Opportunity**  
+- Account detail: **Find contacts** (primary), **New Opportunity**; Hunter only if configured
 
 ---
 

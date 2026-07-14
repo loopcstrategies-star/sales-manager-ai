@@ -312,8 +312,9 @@ export default function CrmHomePage() {
             <Link className="crm-btn-secondary" to="/sales/contacts?needsVerify=1">Contacts needing verify</Link>
           </div>
           <p className="crm-muted">
-            For real people worldwide: use <strong>Import Contacts (CSV)</strong> for lists you already have,
-            or <strong>Find contacts on Accounts</strong> (search + AI — verify emails before outreach).
+            Free contacts path (no paid email APIs): <strong>Import Contacts (CSV)</strong> for lists you already have,
+            or <strong>Find contacts on Accounts</strong> (Brave/Tavily search + Groq — mark needs verify before outreach).
+            Needs <code>GROQ_API_KEY</code> and <code>BRAVE_API_KEY</code> (or Tavily) on Railway.
             Web import tags new Accounts with the Region below; <strong>Fill missing countries</strong> infers
             Country from website TLD (.ae, .in, …). Filter Accounts/Contacts by Region or Country in their lists.
           </p>

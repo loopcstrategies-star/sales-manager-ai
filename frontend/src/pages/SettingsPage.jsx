@@ -269,6 +269,7 @@ export default function SettingsPage() {
               <div className="provider-status-grid">
                 {[
                   { key: 'groq', label: 'Groq' },
+                  { key: 'brave', label: 'Brave' },
                   { key: 'tavily', label: 'Tavily' },
                   { key: 'newsApi', label: 'NewsAPI' },
                   { key: 'goldApi', label: 'GoldAPI' },

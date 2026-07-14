@@ -95,6 +95,7 @@ function getSalesAiConfig() {
   const llmProvider = getLlmProviderLabel()
   const synthesisMode = getSynthesisMode()
   const effectiveSynthesisMode = getEffectiveSynthesisMode()
+  const hunterReady = Boolean(String(process.env.HUNTER_API_KEY || '').trim())
   return {
     enabled: true,
     providers: {
@@ -104,6 +105,7 @@ function getSalesAiConfig() {
       search: { configured: searchReady, provider: searchProvider },
       tavily: { configured: Boolean(String(process.env.TAVILY_API_KEY || '').trim()) },
       brave: { configured: Boolean(String(process.env.BRAVE_API_KEY || '').trim()) },
+      hunter: { configured: hunterReady },
     },
     synthesisMode,
     effectiveSynthesisMode,
