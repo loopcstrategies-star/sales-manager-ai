@@ -14,6 +14,8 @@ const emptyForm = () => ({
   amount: '',
   stage: 'Prospecting',
   closeDate: '',
+  nextStep: '',
+  nextStepDue: '',
   description: '',
   products: [],
 })
@@ -71,6 +73,8 @@ export default function PipelinePage() {
       amount: item.amount != null ? String(item.amount) : '',
       stage: item.stage || 'Prospecting',
       closeDate: item.closeDate ? String(item.closeDate).slice(0, 10) : '',
+      nextStep: item.nextStep || '',
+      nextStepDue: item.nextStepDue ? String(item.nextStepDue).slice(0, 10) : '',
       description: item.description || '',
       products: Array.isArray(item.products) ? item.products.map((p) => ({
         productId: p.productId || '',
@@ -99,6 +103,8 @@ export default function PipelinePage() {
         amount: Number(form.amount) || 0,
         stage: form.stage,
         closeDate: form.closeDate || null,
+        nextStep: form.nextStep || '',
+        nextStepDue: form.nextStepDue || null,
         description: form.description,
         products,
       }
@@ -161,6 +167,7 @@ export default function PipelinePage() {
     accountName: o.accountName || '—',
     amount: o.amount != null ? `$${Number(o.amount).toLocaleString()}` : '—',
     stage: o.stage,
+    nextStep: o.nextStep || '—',
     closeDate: o.closeDate ? String(o.closeDate).slice(0, 10) : '—',
     ownerAlias: o.ownerAlias || '—',
   }))
@@ -213,6 +220,19 @@ export default function PipelinePage() {
                     <Link to={`/sales/pipeline/${o._id}`}>{o.name}</Link>
                     <p>{o.accountName || 'No account'}</p>
                     <strong>${Number(o.amount || 0).toLocaleString()}</strong>
+                    {o.nextStep ? (
+                      <span
+                        className={`crm-kanban-next${
+                          o.nextStepDue && new Date(o.nextStepDue) < new Date()
+                          && !['Closed Won', 'Closed Lost'].includes(o.stage)
+                            ? ' is-overdue'
+                            : ''
+                        }`}
+                      >
+                        Next: {o.nextStep}
+                        {o.nextStepDue ? ` · ${String(o.nextStepDue).slice(0, 10)}` : ''}
+                      </span>
+                    ) : null}
                   </article>
                 ))}
               </div>
@@ -237,6 +257,7 @@ export default function PipelinePage() {
             { key: 'accountName', label: 'Account' },
             { key: 'amount', label: 'Amount' },
             { key: 'stage', label: 'Stage' },
+            { key: 'nextStep', label: 'Next Step' },
             { key: 'closeDate', label: 'Close Date' },
             { key: 'ownerAlias', label: 'Owner' },
           ]}
@@ -313,6 +334,18 @@ export default function PipelinePage() {
         <label className="crm-field">
           <span>Close Date</span>
           <input type="date" value={form.closeDate} onChange={(e) => setField('closeDate', e.target.value)} />
+        </label>
+        <label className="crm-field">
+          <span>Next Step</span>
+          <input
+            value={form.nextStep}
+            onChange={(e) => setField('nextStep', e.target.value)}
+            placeholder="e.g. Call buyer, send quote…"
+          />
+        </label>
+        <label className="crm-field">
+          <span>Next Step Due</span>
+          <input type="date" value={form.nextStepDue} onChange={(e) => setField('nextStepDue', e.target.value)} />
         </label>
         <label className="crm-field">
           <span>Description</span>

@@ -22,6 +22,7 @@ import ProductsPage from './pages/crm/ProductsPage'
 import PriceBooksPage from './pages/crm/PriceBooksPage'
 import CalendarPage from './pages/crm/CalendarPage'
 import SalesAnalyticsPage from './pages/crm/SalesAnalyticsPage'
+import TasksPage from './pages/crm/TasksPage'
 import RecordDetailPage from './components/crm/RecordDetailPage'
 
 function PrivateRoute({ children }) {
@@ -60,6 +61,7 @@ export default function App() {
         <Route path="products" element={<ProductsPage />} />
         <Route path="price-books" element={<PriceBooksPage />} />
         <Route path="calendar" element={<CalendarPage />} />
+        <Route path="tasks" element={<TasksPage />} />
         <Route path="analytics" element={<SalesAnalyticsPage />} />
         <Route path="service" element={<ServiceLayout />}>
           <Route index element={<Navigate to="cases" replace />} />

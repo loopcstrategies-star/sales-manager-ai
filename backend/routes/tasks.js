@@ -39,9 +39,20 @@ router.get('/', async (req, res) => {
     const relatedType = String(req.query.relatedType || '').trim()
     const relatedId = toObjectId(req.query.relatedId)
     const q = String(req.query.q || '').trim()
+    const mine = String(req.query.mine || '').trim()
+    const status = String(req.query.status || '').trim().toLowerCase()
+    const overdue = String(req.query.overdue || '').trim()
+
     if (relatedType) filter.relatedType = relatedType
     if (relatedId) filter.relatedId = relatedId
     if (q) filter.subject = { $regex: escapeRegex(q), $options: 'i' }
+    if (mine === '1' || mine === 'true') filter.ownerId = req.user._id
+    if (status === 'open') filter.status = { $ne: 'Completed' }
+    else if (status === 'completed') filter.status = 'Completed'
+    if (overdue === '1' || overdue === 'true') {
+      filter.status = { $ne: 'Completed' }
+      filter.dueDate = { $lt: new Date(), $ne: null }
+    }
 
     const items = await Task.find(filter)
       .populate('ownerId', 'name')

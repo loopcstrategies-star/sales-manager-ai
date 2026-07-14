@@ -11,6 +11,8 @@ import {
 import { usePreferences } from '../../context/PreferencesContext'
 import ActivityTimeline from './ActivityTimeline'
 import FindContactsButton from './FindContactsButton'
+import CrmModal from './CrmModal'
+import LookupField from './LookupField'
 
 const CONFIG = {
   leads: {
@@ -55,6 +57,15 @@ export default function RecordDetailPage({ objectType }) {
   const [loading, setLoading] = useState(true)
   const [actionMsg, setActionMsg] = useState('')
   const [actionBusy, setActionBusy] = useState(false)
+  const [convertOpen, setConvertOpen] = useState(false)
+  const [convertForm, setConvertForm] = useState({
+    createOpportunity: true,
+    opportunityName: '',
+    amount: '',
+    accountId: '',
+    accountName: '',
+  })
+  const [nextStepDraft, setNextStepDraft] = useState({ nextStep: '', nextStepDue: '' })
 
   useEffect(() => {
     let cancelled = false
@@ -65,6 +76,12 @@ export default function RecordDetailPage({ objectType }) {
         if (cancelled) return
         setData(res.data)
         setError('')
+        if (objectType === 'opportunities' && res.data) {
+          setNextStepDraft({
+            nextStep: res.data.nextStep || '',
+            nextStepDue: res.data.nextStepDue ? String(res.data.nextStepDue).slice(0, 10) : '',
+          })
+        }
 
         if (objectType === 'accounts' && res.data?._id) {
           const [cRes, oRes, caseRes] = await Promise.all([
@@ -138,6 +155,54 @@ export default function RecordDetailPage({ objectType }) {
     }
   }
 
+  const saveNextStep = async () => {
+    if (objectType !== 'opportunities') return
+    setActionBusy(true)
+    setActionMsg('')
+    try {
+      const res = await opportunitiesApi.update(data._id, {
+        nextStep: nextStepDraft.nextStep || '',
+        nextStepDue: nextStepDraft.nextStepDue || null,
+      })
+      setData(res.data)
+      setActionMsg('Next step saved.')
+    } catch (err) {
+      setActionMsg(err.message || 'Could not save next step.')
+    } finally {
+      setActionBusy(false)
+    }
+  }
+
+  const runConvert = async () => {
+    if (objectType !== 'leads') return
+    setActionBusy(true)
+    setActionMsg('')
+    try {
+      const res = await leadsApi.convert(data._id, {
+        createOpportunity: convertForm.createOpportunity,
+        opportunityName: convertForm.opportunityName,
+        amount: Number(convertForm.amount) || 0,
+        accountId: convertForm.accountId || undefined,
+      })
+      const d = res.data || {}
+      setConvertOpen(false)
+      if (d.opportunity?._id) navigate(`/sales/pipeline/${d.opportunity._id}`)
+      else if (d.account?._id) navigate(`/sales/accounts/${d.account._id}`)
+      else setActionMsg('Lead converted.')
+    } catch (err) {
+      setActionMsg(err.message || 'Convert failed.')
+    } finally {
+      setActionBusy(false)
+    }
+  }
+
+  const searchAccounts = async (q) => {
+    const res = await accountsApi.list(q)
+    return (res.data || []).map((a) => ({ id: a._id, label: a.name }))
+  }
+
+  const alreadyConverted = objectType === 'leads' && (data.status === 'Converted' || data.convertedAt)
+
   return (
     <div className="crm-record-detail">
       <header className="crm-record-header">
@@ -147,6 +212,25 @@ export default function RecordDetailPage({ objectType }) {
           {actionMsg ? <p className="crm-muted">{actionMsg}</p> : null}
         </div>
         <div className="crm-record-actions">
+          {objectType === 'leads' && !alreadyConverted ? (
+            <button
+              type="button"
+              className="crm-btn-primary"
+              disabled={actionBusy}
+              onClick={() => {
+                setConvertForm({
+                  createOpportunity: true,
+                  opportunityName: data.company ? `${data.company} — Opportunity` : '',
+                  amount: '',
+                  accountId: '',
+                  accountName: '',
+                })
+                setConvertOpen(true)
+              }}
+            >
+              Convert Lead
+            </button>
+          ) : null}
           {objectType === 'accounts' ? (
             <>
               <FindContactsButton
@@ -218,10 +302,37 @@ export default function RecordDetailPage({ objectType }) {
                 <div><dt>Amount</dt><dd>${Number(data.amount || 0).toLocaleString()}</dd></div>
                 <div><dt>Stage</dt><dd>{data.stage || '—'}</dd></div>
                 <div><dt>Close Date</dt><dd>{data.closeDate ? String(data.closeDate).slice(0, 10) : '—'}</dd></div>
+                <div><dt>Next Step</dt><dd>{data.nextStep || '—'}</dd></div>
+                <div><dt>Next Step Due</dt><dd>{data.nextStepDue ? String(data.nextStepDue).slice(0, 10) : '—'}</dd></div>
               </>
             ) : null}
             <div><dt>Description</dt><dd>{data.description || '—'}</dd></div>
           </dl>
+
+          {objectType === 'opportunities' ? (
+            <div style={{ marginTop: '1rem' }}>
+              <h4>Update next step</h4>
+              <label className="crm-field">
+                <span>Next Step</span>
+                <input
+                  value={nextStepDraft.nextStep}
+                  onChange={(e) => setNextStepDraft((d) => ({ ...d, nextStep: e.target.value }))}
+                  placeholder="e.g. Call buyer Friday"
+                />
+              </label>
+              <label className="crm-field">
+                <span>Due</span>
+                <input
+                  type="date"
+                  value={nextStepDraft.nextStepDue}
+                  onChange={(e) => setNextStepDraft((d) => ({ ...d, nextStepDue: e.target.value }))}
+                />
+              </label>
+              <button type="button" className="crm-btn-primary" disabled={actionBusy} onClick={saveNextStep}>
+                Save next step
+              </button>
+            </div>
+          ) : null}
 
           {objectType === 'opportunities' && (data.products || []).length ? (
             <>
@@ -250,7 +361,7 @@ export default function RecordDetailPage({ objectType }) {
                 {related.contacts.map((c) => (
                   <li key={c._id}>
                     <Link to={`/sales/contacts/${c._id}`}>{c.fullName || c.lastName}</Link>
-                    <span>{c.email || c.title || '—'}</span>
+                    <span>{c.email || c.phone || ''}</span>
                   </li>
                 ))}
               </ul>
@@ -271,6 +382,60 @@ export default function RecordDetailPage({ objectType }) {
           </section>
         </div>
       ) : null}
+
+      <CrmModal
+        title="Convert Lead"
+        open={convertOpen}
+        onClose={() => setConvertOpen(false)}
+        requiredLegend={false}
+        footer={(
+          <>
+            <button type="button" className="crm-btn-secondary" onClick={() => setConvertOpen(false)}>Cancel</button>
+            <button type="button" className="crm-btn-primary" disabled={actionBusy} onClick={runConvert}>
+              {actionBusy ? 'Converting…' : 'Convert'}
+            </button>
+          </>
+        )}
+      >
+        <p className="crm-muted">Creates Account + Contact{convertForm.createOpportunity ? ' + Opportunity' : ''}.</p>
+        <LookupField
+          label="Existing Account (optional)"
+          valueId={convertForm.accountId}
+          valueLabel={convertForm.accountName}
+          placeholder="Leave empty to create from company…"
+          onSearch={searchAccounts}
+          onSelect={(opt) => setConvertForm((f) => ({ ...f, accountId: opt.id, accountName: opt.label }))}
+          onClear={() => setConvertForm((f) => ({ ...f, accountId: '', accountName: '' }))}
+        />
+        <label className="crm-checkbox">
+          <input
+            type="checkbox"
+            checked={convertForm.createOpportunity}
+            onChange={(e) => setConvertForm((f) => ({ ...f, createOpportunity: e.target.checked }))}
+          />
+          Create Opportunity
+        </label>
+        {convertForm.createOpportunity ? (
+          <>
+            <label className="crm-field">
+              <span>Opportunity Name</span>
+              <input
+                value={convertForm.opportunityName}
+                onChange={(e) => setConvertForm((f) => ({ ...f, opportunityName: e.target.value }))}
+              />
+            </label>
+            <label className="crm-field">
+              <span>Amount</span>
+              <input
+                type="number"
+                min="0"
+                value={convertForm.amount}
+                onChange={(e) => setConvertForm((f) => ({ ...f, amount: e.target.value }))}
+              />
+            </label>
+          </>
+        ) : null}
+      </CrmModal>
     </div>
   )
 }

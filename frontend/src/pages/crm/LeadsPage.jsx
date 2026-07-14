@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { leadsApi } from '../../api/client'
+import { Link, useNavigate } from 'react-router-dom'
+import { accountsApi, leadsApi } from '../../api/client'
 import { useAuth } from '../../context/AuthContext'
 import CrmListView from '../../components/crm/CrmListView'
 import CrmModal from '../../components/crm/CrmModal'
 import CrmImportModal from '../../components/crm/CrmImportModal'
 import CrmEnrichButton from '../../components/crm/CrmEnrichButton'
+import LookupField from '../../components/crm/LookupField'
 
 const STATUSES = ['Open', 'Working', 'Qualified', 'Unqualified']
 const SALUTATIONS = ['--None--', 'Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Prof.']
@@ -85,6 +86,7 @@ function formatDate(value) {
 
 export default function LeadsPage() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -99,7 +101,14 @@ export default function LeadsPage() {
   const [selectedIds, setSelectedIds] = useState([])
   const [convertOpen, setConvertOpen] = useState(false)
   const [converting, setConverting] = useState(false)
-  const [convertForm, setConvertForm] = useState({ createOpportunity: true, opportunityName: '', amount: '' })
+  const [convertResult, setConvertResult] = useState(null)
+  const [convertForm, setConvertForm] = useState({
+    createOpportunity: true,
+    opportunityName: '',
+    amount: '',
+    accountId: '',
+    accountName: '',
+  })
 
   const load = useCallback(async (q = '') => {
     setLoading(true)
@@ -276,10 +285,17 @@ export default function LeadsPage() {
     if (!editingId) return
     setConverting(true)
     try {
-      await leadsApi.convert(editingId, {
+      const res = await leadsApi.convert(editingId, {
         createOpportunity: convertForm.createOpportunity,
         opportunityName: convertForm.opportunityName,
         amount: Number(convertForm.amount) || 0,
+        accountId: convertForm.accountId || undefined,
+      })
+      const d = res.data || {}
+      setConvertResult({
+        accountId: d.account?._id || d.account?.id,
+        contactId: d.contact?._id || d.contact?.id,
+        opportunityId: d.opportunity?._id || d.opportunity?.id,
       })
       setConvertOpen(false)
       setModalOpen(false)
@@ -291,9 +307,48 @@ export default function LeadsPage() {
     }
   }
 
+  const searchAccounts = useCallback(async (q) => {
+    const res = await accountsApi.list(q)
+    return (res.data || []).map((a) => ({ id: a._id, label: a.name }))
+  }, [])
+
   return (
     <>
       {listError ? <p className="crm-banner-error">{listError}</p> : null}
+      {convertResult ? (
+        <p className="crm-banner-warn">
+          Lead converted.{' '}
+          {convertResult.accountId ? (
+            <Link to={`/sales/accounts/${convertResult.accountId}`}>Account</Link>
+          ) : null}
+          {convertResult.contactId ? (
+            <>
+              {' · '}
+              <Link to={`/sales/contacts/${convertResult.contactId}`}>Contact</Link>
+            </>
+          ) : null}
+          {convertResult.opportunityId ? (
+            <>
+              {' · '}
+              <Link to={`/sales/pipeline/${convertResult.opportunityId}`}>Opportunity</Link>
+            </>
+          ) : null}
+          {' · '}
+          <button type="button" className="crm-btn-secondary" onClick={() => setConvertResult(null)}>Dismiss</button>
+          {convertResult.opportunityId ? (
+            <>
+              {' '}
+              <button
+                type="button"
+                className="crm-btn-primary"
+                onClick={() => navigate(`/sales/pipeline/${convertResult.opportunityId}`)}
+              >
+                Open Opportunity
+              </button>
+            </>
+          ) : null}
+        </p>
+      ) : null}
       <CrmListView
         title="All Open Leads"
         count={rows.length}
@@ -355,6 +410,8 @@ export default function LeadsPage() {
                       createOpportunity: true,
                       opportunityName: `${form.company} — Opportunity`,
                       amount: '',
+                      accountId: '',
+                      accountName: '',
                     })
                     setConvertOpen(true)
                   }}
@@ -560,6 +617,15 @@ export default function LeadsPage() {
         )}
       >
         <p className="crm-muted">Creates Account + Contact{convertForm.createOpportunity ? ' + Opportunity' : ''} from this lead.</p>
+        <LookupField
+          label="Existing Account (optional)"
+          valueId={convertForm.accountId}
+          valueLabel={convertForm.accountName}
+          placeholder="Leave empty to create from company name…"
+          onSearch={searchAccounts}
+          onSelect={(opt) => setConvertForm((f) => ({ ...f, accountId: opt.id, accountName: opt.label }))}
+          onClear={() => setConvertForm((f) => ({ ...f, accountId: '', accountName: '' }))}
+        />
         <label className="crm-checkbox">
           <input
             type="checkbox"

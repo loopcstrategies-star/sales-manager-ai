@@ -20,6 +20,8 @@ const opportunitySchema = new mongoose.Schema({
     default: 'Prospecting',
   },
   closeDate: { type: Date, default: null },
+  nextStep: { type: String, trim: true, default: '', maxlength: 300 },
+  nextStepDue: { type: Date, default: null },
   description: { type: String, trim: true, default: '', maxlength: 5000 },
   products: { type: [opportunityLineSchema], default: [] },
 }, { timestamps: true })

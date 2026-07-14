@@ -174,11 +174,14 @@ export const priceBooksApi = {
 }
 
 export const tasksApi = {
-  list: ({ q = '', relatedType = '', relatedId = '' } = {}) => {
+  list: ({ q = '', relatedType = '', relatedId = '', mine = false, status = '', overdue = false } = {}) => {
     const params = new URLSearchParams()
     if (q) params.set('q', q)
     if (relatedType) params.set('relatedType', relatedType)
     if (relatedId) params.set('relatedId', relatedId)
+    if (mine) params.set('mine', '1')
+    if (status) params.set('status', status)
+    if (overdue) params.set('overdue', '1')
     const qs = params.toString()
     return api(`/api/tasks${qs ? `?${qs}` : ''}`)
   },

@@ -335,6 +335,7 @@ export default function CrmHomePage() {
             <Link className="crm-btn-secondary" to="/sales/contacts">New Contact</Link>
             <Link className="crm-btn-secondary" to="/sales/accounts">New Account</Link>
             <Link className="crm-btn-secondary" to="/sales/pipeline">View Pipeline</Link>
+            <Link className="crm-btn-secondary" to="/sales/tasks">My Tasks</Link>
             <button type="button" className="crm-btn-secondary" disabled={anyBusy} onClick={runRefresh}>
               Refresh stale records
             </button>

@@ -2889,6 +2889,20 @@ a { color: var(--brand); }
   border-radius: 6px;
 }
 
+.crm-activity-form-row {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.crm-activity-form-row input[type="date"],
+.crm-activity-form-row select {
+  flex: 0 0 auto;
+  min-width: 8rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--crm-border, #ccc);
+  border-radius: 6px;
+}
+
 .crm-activity-list {
   list-style: none;
   margin: 0;
@@ -2911,11 +2925,28 @@ a { color: var(--brand); }
   opacity: 0.7;
 }
 
+.crm-activity-list li.is-overdue em {
+  color: #b42318;
+  font-weight: 600;
+}
+
 .crm-activity-list em {
   display: block;
   font-style: normal;
   font-size: 0.75rem;
   color: var(--text-muted, #666);
+}
+
+.crm-kanban-next {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+
+.crm-kanban-next.is-overdue {
+  color: #b42318;
+  font-weight: 600;
 }
 
 .crm-analytics-bars {

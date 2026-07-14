@@ -27,6 +27,8 @@ const bodySchema = Joi.object({
     'Closed Lost'
   ),
   closeDate: Joi.date().allow(null, ''),
+  nextStep: Joi.string().allow('').max(300),
+  nextStepDue: Joi.date().allow(null, ''),
   description: Joi.string().allow('').max(5000),
   products: Joi.array().items(Joi.object({
     productId: Joi.string().allow(null, ''),
@@ -128,6 +130,8 @@ router.post('/', validateBody(createSchema), async (req, res) => {
       products,
       amount,
       closeDate: req.body.closeDate || null,
+      nextStep: String(req.body.nextStep || '').slice(0, 300),
+      nextStepDue: req.body.nextStepDue || null,
       workspaceId: req.user.workspaceId,
       ownerId: req.user._id,
     })
@@ -161,6 +165,7 @@ router.patch('/:id', validateBody(bodySchema), async (req, res) => {
       patch.amount = amountFromProducts(patch.products)
     }
     if (req.body.closeDate !== undefined) patch.closeDate = req.body.closeDate || null
+    if (req.body.nextStepDue !== undefined) patch.nextStepDue = req.body.nextStepDue || null
 
     Object.assign(existing, patch)
     await existing.save()
