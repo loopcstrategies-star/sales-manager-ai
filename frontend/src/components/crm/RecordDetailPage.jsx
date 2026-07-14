@@ -6,6 +6,7 @@ import {
   leadsApi,
   opportunitiesApi,
   casesApi,
+  crmApi,
 } from '../../api/client'
 import ActivityTimeline from './ActivityTimeline'
 import FindContactsButton from './FindContactsButton'
@@ -49,6 +50,8 @@ export default function RecordDetailPage({ objectType }) {
   const [related, setRelated] = useState({ contacts: [], opportunities: [], cases: [] })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [actionMsg, setActionMsg] = useState('')
+  const [actionBusy, setActionBusy] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -87,26 +90,80 @@ export default function RecordDetailPage({ objectType }) {
   if (error) return <p className="crm-banner-error">{error}</p>
   if (!data) return null
 
+  const createOpportunity = async () => {
+    if (objectType !== 'accounts') return
+    setActionBusy(true)
+    setActionMsg('')
+    try {
+      const close = new Date()
+      close.setDate(close.getDate() + 30)
+      const res = await opportunitiesApi.create({
+        name: `${data.name} — Opportunity`,
+        accountId: data._id,
+        amount: 0,
+        stage: 'Prospecting',
+        closeDate: close.toISOString().slice(0, 10),
+        description: 'Created from Account.',
+      })
+      setActionMsg('Opportunity created.')
+      navigate(`/sales/pipeline/${res.data._id}`)
+    } catch (err) {
+      setActionMsg(err.message || 'Could not create opportunity.')
+    } finally {
+      setActionBusy(false)
+    }
+  }
+
+  const runHunter = async () => {
+    if (objectType !== 'accounts') return
+    setActionBusy(true)
+    setActionMsg('')
+    try {
+      const res = await crmApi.hunterContacts({ accountId: data._id })
+      const d = res.data || {}
+      setActionMsg(`Hunter · contacts +${d.contactsCreated || 0} (skipped ${d.contactsSkipped || 0}).`)
+      const cRes = await contactsApi.list('')
+      const aid = String(data._id)
+      setRelated((prev) => ({
+        ...prev,
+        contacts: (cRes.data || []).filter((c) => String(c.accountId) === aid).slice(0, 20),
+      }))
+    } catch (err) {
+      setActionMsg(err.message || 'Hunter failed (set HUNTER_API_KEY on Railway).')
+    } finally {
+      setActionBusy(false)
+    }
+  }
+
   return (
     <div className="crm-record-detail">
       <header className="crm-record-header">
         <div>
           <p className="crm-muted">{cfg.label}</p>
           <h2>{cfg.title(data)}</h2>
+          {actionMsg ? <p className="crm-muted">{actionMsg}</p> : null}
         </div>
         <div className="crm-record-actions">
           {objectType === 'accounts' ? (
-            <FindContactsButton
-              accountId={data._id}
-              onFound={async () => {
-                const [cRes] = await Promise.all([contactsApi.list('')])
-                const aid = String(data._id)
-                setRelated((prev) => ({
-                  ...prev,
-                  contacts: (cRes.data || []).filter((c) => String(c.accountId) === aid).slice(0, 20),
-                }))
-              }}
-            />
+            <>
+              <FindContactsButton
+                accountId={data._id}
+                onFound={async () => {
+                  const [cRes] = await Promise.all([contactsApi.list('')])
+                  const aid = String(data._id)
+                  setRelated((prev) => ({
+                    ...prev,
+                    contacts: (cRes.data || []).filter((c) => String(c.accountId) === aid).slice(0, 20),
+                  }))
+                }}
+              />
+              <button type="button" className="crm-btn-secondary" disabled={actionBusy} onClick={runHunter}>
+                {actionBusy ? 'Working…' : 'Hunter emails'}
+              </button>
+              <button type="button" className="crm-btn-primary" disabled={actionBusy} onClick={createOpportunity}>
+                New Opportunity
+              </button>
+            </>
           ) : null}
           <Link className="crm-btn-secondary" to={cfg.listPath}>Back to list</Link>
           <button type="button" className="crm-btn-secondary" onClick={() => navigate(cfg.listPath)}>

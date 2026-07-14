@@ -2577,6 +2577,32 @@ a { color: var(--brand); }
   background: var(--surface, #fff);
 }
 
+.crm-banner-warn {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid #d4b896;
+  background: #faf6f0;
+  color: #5c4a32;
+  font-size: 0.9rem;
+}
+
+.crm-source-badge {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.35rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  border: 1px solid var(--crm-border, #ddd);
+  border-radius: 3px;
+  color: var(--crm-muted, #6b635b);
+  vertical-align: middle;
+}
+
+.crm-source-badge.verify {
+  border-color: #c9a227;
+  color: #8a6d00;
+}
+
 .crm-inline-filter {
   display: inline-flex;
   align-items: center;

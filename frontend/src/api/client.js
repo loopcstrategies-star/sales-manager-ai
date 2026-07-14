@@ -12,7 +12,12 @@ export function setToken(token) {
 export function assetUrl(path) {
   if (!path) return ''
   if (/^https?:\/\//i.test(path) || String(path).startsWith('blob:')) return path
-  return `${API_BASE}${path}`
+  const base = `${API_BASE}${path}`
+  if (!String(path).startsWith('/uploads')) return base
+  const token = getToken()
+  if (!token) return base
+  const join = base.includes('?') ? '&' : '?'
+  return `${base}${join}token=${encodeURIComponent(token)}`
 }
 
 async function api(path, options = {}) {
@@ -81,7 +86,14 @@ export const accountsApi = {
 }
 
 export const contactsApi = {
-  list: (q = '') => api(`/api/contacts${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  list: (q = '', opts = {}) => {
+    const params = new URLSearchParams()
+    if (q) params.set('q', q)
+    if (opts.needsVerify) params.set('needsVerify', '1')
+    if (opts.source) params.set('source', opts.source)
+    const qs = params.toString()
+    return api(`/api/contacts${qs ? `?${qs}` : ''}`)
+  },
   get: (id) => api(`/api/contacts/${id}`),
   create: (body) => api('/api/contacts', { method: 'POST', body: JSON.stringify(body) }),
   update: (id, body) => api(`/api/contacts/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
@@ -269,6 +281,14 @@ export const crmApi = {
   backfillGeo: (body = {}) => api('/api/crm/prospect/backfill-geo', {
     method: 'POST',
     body: JSON.stringify(body),
+  }),
+  hunterContacts: (body) => api('/api/crm/prospect/hunter-contacts', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  }),
+  dedupeEmails: (del = false) => api('/api/crm/contacts/dedupe-emails', {
+    method: 'POST',
+    body: JSON.stringify({ delete: Boolean(del) }),
   }),
 }
 

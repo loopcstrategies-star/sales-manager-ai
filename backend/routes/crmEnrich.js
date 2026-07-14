@@ -26,6 +26,7 @@ const {
   normalizeRegionLabel,
 } = require('../services/prospectQuality')
 const { findContactsForCompany } = require('../services/contactFind')
+const { hunterDomainSearch, isHunterConfigured } = require('../services/hunterClient')
 
 const router = express.Router()
 router.use(protect)
@@ -202,6 +203,8 @@ async function importProspectItem(req, filter, item, flags, summary) {
       email: emailMatch ? emailMatch[0].toLowerCase().slice(0, 200) : '',
       title: '',
       mailingAddress: acctCountry ? { country: acctCountry } : {},
+      source: 'web_llm',
+      needsVerify: true,
       workspaceId: req.user.workspaceId,
       ownerId: req.user._id,
     })
@@ -504,7 +507,9 @@ router.get('/prospect/default-queries', (_req, res) => {
 })
 
 async function saveFoundContacts(req, filter, account, found, summary) {
-  const note = 'Found via web+LLM from public snippets. Verify before outreach.'
+  const note = summary.source === 'hunter'
+    ? 'Found via Hunter.io domain search. Confirm before outreach.'
+    : 'Found via web+LLM from public snippets. Verify before outreach.'
   let created = 0
   let skipped = 0
 
@@ -518,6 +523,8 @@ async function saveFoundContacts(req, filter, account, found, summary) {
   await account.save()
 
   const acctCountry = String(account.billingAddress?.country || '').trim()
+  const source = summary.source || 'web_llm'
+  const needsVerify = source !== 'csv'
 
   for (const person of found.people || []) {
     const email = String(person.email || '').trim().toLowerCase()
@@ -551,6 +558,8 @@ async function saveFoundContacts(req, filter, account, found, summary) {
       accountId: account._id,
       description: note,
       mailingAddress: acctCountry ? { country: acctCountry } : {},
+      source,
+      needsVerify,
       workspaceId: req.user.workspaceId,
       ownerId: req.user._id,
       lastEnrichedAt: new Date(),
@@ -619,6 +628,54 @@ router.post('/prospect/find-contacts', async (req, res) => {
     })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message || 'Find contacts failed.' })
+  }
+})
+
+router.post('/prospect/hunter-contacts', async (req, res) => {
+  try {
+    if (!isHunterConfigured()) {
+      return res.status(503).json({
+        success: false,
+        message: 'Hunter is not configured. Set HUNTER_API_KEY on the API service.',
+      })
+    }
+    const filter = workspaceFilter(req.user)
+    const accountId = req.body.accountId ? String(req.body.accountId) : null
+    if (!accountId) {
+      return res.status(400).json({ success: false, message: 'accountId is required.' })
+    }
+    const account = await Account.findOne({ ...filter, _id: accountId })
+    if (!account) {
+      return res.status(404).json({ success: false, message: 'Account not found.' })
+    }
+    if (!account.website) {
+      return res.status(400).json({ success: false, message: 'Account needs a website/domain for Hunter.' })
+    }
+
+    const found = await hunterDomainSearch(account.website, { limit: Number(req.body.limit) || 10 })
+    if (!found.ok) {
+      return res.status(502).json({ success: false, message: found.error || 'Hunter search failed.' })
+    }
+
+    const summary = { contactsCreated: 0, contactsSkipped: 0, source: 'hunter' }
+    const saveResult = await saveFoundContacts(req, filter, account, {
+      people: found.people,
+      companyPhone: '',
+    }, summary)
+
+    res.json({
+      success: true,
+      data: {
+        domain: found.domain,
+        organization: found.organization,
+        people: found.people,
+        contactsCreated: saveResult.created,
+        contactsSkipped: saveResult.skipped,
+        provider: 'hunter',
+      },
+    })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Hunter contacts failed.' })
   }
 })
 
@@ -805,6 +862,11 @@ router.post('/contacts/from-accounts', async (req, res) => {
         description: String(account.description || '').slice(0, 2000),
         phone: String(account.phone || '').slice(0, 60),
         email: '',
+        source: 'manual',
+        needsVerify: true,
+        mailingAddress: account.billingAddress?.country
+          ? { country: account.billingAddress.country }
+          : {},
         workspaceId: req.user.workspaceId,
         ownerId: req.user._id,
       })

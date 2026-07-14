@@ -11,6 +11,17 @@ const { workspaceFilter } = require('../services/crmHelpers')
 const router = express.Router()
 router.use(protect)
 
+function countByKey(docs, getKey) {
+  const map = {}
+  docs.forEach((doc) => {
+    const key = String(getKey(doc) || '').trim() || 'Unknown'
+    map[key] = (map[key] || 0) + 1
+  })
+  return Object.entries(map)
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
+}
+
 router.get('/stats', async (req, res) => {
   try {
     const filter = workspaceFilter(req.user)
@@ -23,6 +34,10 @@ router.get('/stats', async (req, res) => {
       campaigns,
       recentAccounts,
       recentContacts,
+      accountGeo,
+      contactGeo,
+      needsVerify,
+      missingEmail,
     ] = await Promise.all([
       Account.countDocuments(filter),
       Contact.countDocuments(filter),
@@ -37,19 +52,42 @@ router.get('/stats', async (req, res) => {
       }),
       Case.countDocuments({ ...filter, status: { $ne: 'Closed' } }),
       Campaign.countDocuments(filter),
-      Account.find(filter).sort({ updatedAt: -1 }).limit(5).select('name phone website updatedAt').lean(),
+      Account.find(filter)
+        .sort({ updatedAt: -1 })
+        .limit(5)
+        .select('name phone website region billingAddress updatedAt')
+        .lean(),
       Contact.find(filter)
         .sort({ updatedAt: -1 })
         .limit(5)
         .populate('accountId', 'name')
-        .select('firstName lastName email title accountId updatedAt')
+        .select('firstName lastName email title accountId source needsVerify mailingAddress updatedAt')
         .lean(),
+      Account.find(filter).select('region billingAddress.country').lean(),
+      Contact.find(filter).select('mailingAddress.country').lean(),
+      Contact.countDocuments({ ...filter, needsVerify: true }),
+      Contact.countDocuments({
+        ...filter,
+        $or: [{ email: '' }, { email: null }, { email: { $exists: false } }],
+      }),
     ])
 
     res.json({
       success: true,
       data: {
-        counts: { accounts, contacts, openLeads, openDeals, openCases, campaigns },
+        counts: {
+          accounts,
+          contacts,
+          openLeads,
+          openDeals,
+          openCases,
+          campaigns,
+          needsVerify,
+          missingEmail,
+        },
+        byRegion: countByKey(accountGeo, (a) => a.region),
+        byCountry: countByKey(accountGeo, (a) => a.billingAddress?.country),
+        contactsByCountry: countByKey(contactGeo, (c) => c.mailingAddress?.country),
         recentAccounts,
         recentContacts: recentContacts.map((c) => ({
           ...c,
@@ -95,6 +133,7 @@ router.get('/analytics', async (req, res) => {
     })
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
     const leadsThisWeek = await Lead.countDocuments({ ...filter, createdAt: { $gte: weekAgo } })
+    const accountGeo = await Account.find(filter).select('region billingAddress.country').lean()
 
     res.json({
       success: true,
@@ -108,6 +147,8 @@ router.get('/analytics', async (req, res) => {
           openLeads,
           leadsThisWeek,
         },
+        byRegion: countByKey(accountGeo, (a) => a.region),
+        byCountry: countByKey(accountGeo, (a) => a.billingAddress?.country),
         recentOpportunities: opps
           .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
           .slice(0, 8)
@@ -122,6 +163,45 @@ router.get('/analytics', async (req, res) => {
     })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message || 'Failed to load analytics.' })
+  }
+})
+
+router.post('/contacts/dedupe-emails', async (req, res) => {
+  try {
+    const filter = workspaceFilter(req.user)
+    const contacts = await Contact.find({
+      ...filter,
+      email: { $nin: [null, ''] },
+    })
+      .sort({ updatedAt: -1 })
+      .select('_id email firstName lastName createdAt')
+      .lean()
+
+    const seen = new Map()
+    const duplicateIds = []
+    for (const c of contacts) {
+      const key = String(c.email || '').trim().toLowerCase()
+      if (!key) continue
+      if (seen.has(key)) duplicateIds.push(c._id)
+      else seen.set(key, c._id)
+    }
+
+    let deleted = 0
+    if (req.body.delete === true && duplicateIds.length) {
+      const result = await Contact.deleteMany({ ...filter, _id: { $in: duplicateIds } })
+      deleted = result.deletedCount || 0
+    }
+
+    res.json({
+      success: true,
+      data: {
+        duplicateCount: duplicateIds.length,
+        deleted,
+        dryRun: req.body.delete !== true,
+      },
+    })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Dedupe failed.' })
   }
 })
 

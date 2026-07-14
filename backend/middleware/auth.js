@@ -4,7 +4,8 @@ const User = require('../models/User')
 async function protect(req, res, next) {
   try {
     const header = String(req.headers.authorization || '')
-    const token = header.startsWith('Bearer ') ? header.slice(7).trim() : ''
+    const queryToken = String(req.query.token || req.query.access_token || '').trim()
+    const token = header.startsWith('Bearer ') ? header.slice(7).trim() : queryToken
     if (!token) {
       return res.status(401).json({ success: false, message: 'Please log in.' })
     }

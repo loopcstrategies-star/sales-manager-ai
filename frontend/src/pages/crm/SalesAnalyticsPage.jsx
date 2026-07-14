@@ -127,6 +127,43 @@ export default function SalesAnalyticsPage() {
               </div>
             </section>
 
+            <div className="crm-home-columns" style={{ marginTop: '1rem' }}>
+              <section className="crm-home-panel">
+                <h3>Accounts by Region</h3>
+                {(data.byRegion || []).length === 0 ? (
+                  <p className="crm-muted">No region data.</p>
+                ) : (
+                  <ul className="crm-recent-list">
+                    {data.byRegion.map((r) => (
+                      <li key={r.label}>
+                        <Link to={`/sales/accounts?region=${encodeURIComponent(r.label === 'Unknown' ? '' : r.label)}`}>
+                          {r.label}
+                        </Link>
+                        <span>{r.count}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+              <section className="crm-home-panel">
+                <h3>Accounts by Country</h3>
+                {(data.byCountry || []).length === 0 ? (
+                  <p className="crm-muted">No country data.</p>
+                ) : (
+                  <ul className="crm-recent-list">
+                    {data.byCountry.map((r) => (
+                      <li key={r.label}>
+                        <Link to={`/sales/accounts?country=${encodeURIComponent(r.label === 'Unknown' ? '' : r.label)}`}>
+                          {r.label}
+                        </Link>
+                        <span>{r.count}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            </div>
+
             <section className="crm-home-panel" style={{ marginTop: '1rem' }}>
               <h3>Recently Updated Opportunities</h3>
               {(data.recentOpportunities || []).length === 0 ? (

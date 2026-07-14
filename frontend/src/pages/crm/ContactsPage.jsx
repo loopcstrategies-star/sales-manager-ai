@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { accountsApi, contactsApi } from '../../api/client'
 import { useAuth } from '../../context/AuthContext'
 import { isCreatedThisWeek, isOwnedBy, useServiceListQuery } from '../../hooks/useServiceListQuery'
@@ -35,6 +35,8 @@ const emptyForm = () => ({
   emailOptOut: false,
   photoUrl: '',
   customFields: [],
+  needsVerify: false,
+  source: 'manual',
 })
 
 const SALUTATIONS = ['--None--', 'Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Prof.']
@@ -42,6 +44,7 @@ const COUNTRIES = ['--None--', 'United Arab Emirates', 'United States', 'United 
 
 export default function ContactsPage() {
   const { user } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -55,12 +58,13 @@ export default function ContactsPage() {
   const [enrichedHint, setEnrichedHint] = useState('')
   const [selectedIds, setSelectedIds] = useState([])
   const [countryFilter, setCountryFilter] = useState('')
+  const [needsVerifyOnly, setNeedsVerifyOnly] = useState(searchParams.get('needsVerify') === '1')
 
   const load = useCallback(async (q = '') => {
     setLoading(true)
     setListError('')
     try {
-      const res = await contactsApi.list(q)
+      const res = await contactsApi.list(q, { needsVerify: needsVerifyOnly })
       setItems(res.data || [])
     } catch (err) {
       setListError(err.message || 'Failed to load contacts')
@@ -68,12 +72,18 @@ export default function ContactsPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [needsVerifyOnly])
 
   useEffect(() => {
     const t = setTimeout(() => load(search), 250)
     return () => clearTimeout(t)
   }, [search, load])
+
+  useEffect(() => {
+    const next = {}
+    if (needsVerifyOnly) next.needsVerify = '1'
+    setSearchParams(next, { replace: true })
+  }, [needsVerifyOnly, setSearchParams])
 
   const openNew = useCallback(() => {
     setEditingId(null)
@@ -105,6 +115,8 @@ export default function ContactsPage() {
       emailOptOut: Boolean(item.emailOptOut),
       photoUrl: item.photoUrl || '',
       customFields: Array.isArray(item.customFields) ? item.customFields : [],
+      needsVerify: Boolean(item.needsVerify),
+      source: item.source || 'manual',
     })
     setEnrichedHint(item.lastEnrichedAt
       ? `Updated from web · ${new Date(item.lastEnrichedAt).toLocaleString()}`
@@ -221,6 +233,10 @@ export default function ContactsPage() {
     name: (
       <Link to={`/sales/contacts/${c._id}`} onClick={(e) => e.stopPropagation()}>
         {c.fullName || [c.firstName, c.lastName].filter(Boolean).join(' ') || '—'}
+        {c.source && c.source !== 'manual' ? (
+          <span className="crm-source-badge">{c.source === 'web_llm' ? 'AI' : c.source}</span>
+        ) : null}
+        {c.needsVerify ? <span className="crm-source-badge verify">verify</span> : null}
       </Link>
     ),
     accountName: c.accountName || '—',
@@ -264,6 +280,14 @@ export default function ContactsPage() {
                 ))}
               </select>
             </label>
+            <label className="crm-inline-filter">
+              <input
+                type="checkbox"
+                checked={needsVerifyOnly}
+                onChange={(e) => setNeedsVerifyOnly(e.target.checked)}
+              />
+              Needs verify
+            </label>
             <button type="button" className="crm-btn-secondary" onClick={() => setImportOpen(true)}>Import</button>
             <button type="button" className="crm-btn-primary" onClick={openNew}>New</button>
           </>
@@ -299,6 +323,20 @@ export default function ContactsPage() {
                 draft={form}
                 onEnriched={applyEnrichment}
               />
+              {editingId && form.needsVerify === true ? (
+                <button
+                  type="button"
+                  className="crm-btn-secondary"
+                  onClick={async () => {
+                    await contactsApi.update(editingId, { ...buildPayload(), needsVerify: false })
+                    setEnrichedHint('Marked verified.')
+                    await load(search)
+                    setForm((f) => ({ ...f, needsVerify: false }))
+                  }}
+                >
+                  Mark verified
+                </button>
+              ) : null}
               {enrichedHint ? <span className="crm-enrich-hint">{enrichedHint}</span> : null}
               {editingId ? (
                 <button

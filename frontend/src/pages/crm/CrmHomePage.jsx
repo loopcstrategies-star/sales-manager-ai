@@ -190,6 +190,55 @@ export default function CrmHomePage() {
               <span className="crm-stat-label">Open Cases</span>
               <strong className="crm-stat-value">{counts.openCases ?? 0}</strong>
             </div>
+            <div className="crm-stat-card">
+              <span className="crm-stat-label">Needs verify</span>
+              <strong className="crm-stat-value">{counts.needsVerify ?? 0}</strong>
+            </div>
+          </div>
+
+          {(counts.openDeals === 0 && (counts.accounts || 0) > 0) ? (
+            <p className="crm-banner-warn">
+              You have {counts.accounts} Accounts but no open deals.
+              Open an Account and click <strong>New Opportunity</strong>, or go to{' '}
+              <Link to="/sales/pipeline">Pipeline</Link>.
+            </p>
+          ) : null}
+
+          <div className="crm-home-columns" style={{ marginBottom: '1rem' }}>
+            <section className="crm-home-panel">
+              <h3>Accounts by Region</h3>
+              {(data?.byRegion || []).length === 0 ? (
+                <p className="crm-muted">No region data yet — Fill missing countries or import with a Region.</p>
+              ) : (
+                <ul className="crm-recent-list">
+                  {data.byRegion.slice(0, 8).map((r) => (
+                    <li key={r.label}>
+                      <Link to={`/sales/accounts?region=${encodeURIComponent(r.label === 'Unknown' ? '' : r.label)}`}>
+                        {r.label}
+                      </Link>
+                      <span>{r.count}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+            <section className="crm-home-panel">
+              <h3>Accounts by Country</h3>
+              {(data?.byCountry || []).length === 0 ? (
+                <p className="crm-muted">No country data yet.</p>
+              ) : (
+                <ul className="crm-recent-list">
+                  {data.byCountry.slice(0, 8).map((r) => (
+                    <li key={r.label}>
+                      <Link to={`/sales/accounts?country=${encodeURIComponent(r.label === 'Unknown' ? '' : r.label)}`}>
+                        {r.label}
+                      </Link>
+                      <span>{r.count}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
           </div>
 
           <div className="crm-home-actions">
@@ -241,6 +290,26 @@ export default function CrmHomePage() {
             >
               {backfillBusy ? 'Creating…' : 'Create stub contacts'}
             </button>
+            <button
+              type="button"
+              className="crm-btn-secondary"
+              disabled={anyBusy}
+              onClick={async () => {
+                if (!window.confirm('Delete duplicate contacts that share the same email (keeps newest)?')) return
+                setRefreshMsg('Deduping emails…')
+                try {
+                  const res = await crmApi.dedupeEmails(true)
+                  const d = res.data || {}
+                  setRefreshMsg(`Dedupe · removed ${d.deleted || 0} duplicates (${d.duplicateCount || 0} found).`)
+                  await load()
+                } catch (err) {
+                  setRefreshMsg(err.message || 'Dedupe failed.')
+                }
+              }}
+            >
+              Dedupe contact emails
+            </button>
+            <Link className="crm-btn-secondary" to="/sales/contacts?needsVerify=1">Contacts needing verify</Link>
           </div>
           <p className="crm-muted">
             For real people worldwide: use <strong>Import Contacts (CSV)</strong> for lists you already have,

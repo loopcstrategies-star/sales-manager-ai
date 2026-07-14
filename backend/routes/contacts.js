@@ -29,6 +29,8 @@ const contactBodySchema = Joi.object({
   emailOptOut: Joi.boolean(),
   photoUrl: Joi.string().allow('').max(500),
   customFields: customFieldsJoi(Joi),
+  source: Joi.string().valid('manual', 'csv', 'web_llm', 'hunter').optional(),
+  needsVerify: Joi.boolean().optional(),
 })
 
 function serializeContact(doc) {
@@ -56,7 +58,11 @@ function serializeContact(doc) {
 router.get('/', async (req, res) => {
   try {
     const q = String(req.query.q || '').trim()
+    const needsVerify = String(req.query.needsVerify || '').trim()
+    const source = String(req.query.source || '').trim()
     const filter = { ...workspaceFilter(req.user) }
+    if (needsVerify === '1' || needsVerify === 'true') filter.needsVerify = true
+    if (source) filter.source = source
     if (q) {
       filter.$or = [
         { firstName: { $regex: escapeRegex(q), $options: 'i' } },
@@ -120,6 +126,7 @@ router.post('/', validateBody(contactBodySchema), async (req, res) => {
       ...req.body,
       accountId,
       reportsToId,
+      source: req.body.source || 'manual',
       workspaceId: req.user.workspaceId,
       ownerId: req.user._id,
     })

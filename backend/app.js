@@ -41,7 +41,10 @@ function createApp() {
     credentials: true,
   }))
   app.use(express.json({ limit: '1mb' }))
-  app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
+
+  // Serve uploads only to authenticated users (Bearer JWT)
+  const { protect: protectUploads } = require('./middleware/auth')
+  app.use('/uploads', protectUploads, express.static(path.join(__dirname, 'uploads')))
 
   app.get('/api/health', (_req, res) => {
     const mongoose = require('mongoose')

@@ -232,6 +232,8 @@ router.post('/import/:object', (req, res) => {
             } else {
               await Contact.create({
                 ...payload,
+                source: 'csv',
+                needsVerify: false,
                 workspaceId: req.user.workspaceId,
                 ownerId: req.user._id,
               })

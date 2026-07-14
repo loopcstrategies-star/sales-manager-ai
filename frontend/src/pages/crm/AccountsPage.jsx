@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { accountsApi } from '../../api/client'
 import { useAuth } from '../../context/AuthContext'
 import { isCreatedThisWeek, isOwnedBy, useServiceListQuery } from '../../hooks/useServiceListQuery'
@@ -87,6 +87,7 @@ function AddressFields({ prefix, value, onChange }) {
 
 export default function AccountsPage() {
   const { user } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -99,8 +100,8 @@ export default function AccountsPage() {
   const [importOpen, setImportOpen] = useState(false)
   const [enrichedHint, setEnrichedHint] = useState('')
   const [selectedIds, setSelectedIds] = useState([])
-  const [regionFilter, setRegionFilter] = useState('')
-  const [countryFilter, setCountryFilter] = useState('')
+  const [regionFilter, setRegionFilter] = useState(searchParams.get('region') || '')
+  const [countryFilter, setCountryFilter] = useState(searchParams.get('country') || '')
 
   const load = useCallback(async (q = '') => {
     setLoading(true)
@@ -120,6 +121,13 @@ export default function AccountsPage() {
     const t = setTimeout(() => load(search), 250)
     return () => clearTimeout(t)
   }, [search, load])
+
+  useEffect(() => {
+    const next = {}
+    if (regionFilter) next.region = regionFilter
+    if (countryFilter) next.country = countryFilter
+    setSearchParams(next, { replace: true })
+  }, [regionFilter, countryFilter, setSearchParams])
 
   const openNew = useCallback(() => {
     setEditingId(null)

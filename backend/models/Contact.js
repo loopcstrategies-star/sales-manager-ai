@@ -30,9 +30,21 @@ const contactSchema = new mongoose.Schema({
   photoUrl: { type: String, trim: true, default: '', maxlength: 500 },
   customFields: { type: [customFieldSchema], default: [] },
   lastEnrichedAt: { type: Date, default: null },
+  /** How this contact entered CRM: manual | csv | web_llm | hunter */
+  source: {
+    type: String,
+    trim: true,
+    enum: ['manual', 'csv', 'web_llm', 'hunter'],
+    default: 'manual',
+    maxlength: 20,
+  },
+  /** User should verify email/phone before outreach */
+  needsVerify: { type: Boolean, default: false },
 }, { timestamps: true })
 
 contactSchema.index({ workspaceId: 1, lastName: 1, firstName: 1 })
+contactSchema.index({ workspaceId: 1, email: 1 })
+contactSchema.index({ workspaceId: 1, needsVerify: 1 })
 contactSchema.virtual('fullName').get(function fullName() {
   return [this.firstName, this.lastName].filter(Boolean).join(' ').trim()
 })
