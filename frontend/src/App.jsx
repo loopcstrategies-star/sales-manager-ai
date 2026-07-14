@@ -23,6 +23,7 @@ import PriceBooksPage from './pages/crm/PriceBooksPage'
 import CalendarPage from './pages/crm/CalendarPage'
 import SalesAnalyticsPage from './pages/crm/SalesAnalyticsPage'
 import TasksPage from './pages/crm/TasksPage'
+import QuotePrintPage from './pages/crm/QuotePrintPage'
 import RecordDetailPage from './components/crm/RecordDetailPage'
 
 function PrivateRoute({ children }) {
@@ -57,6 +58,7 @@ export default function App() {
         <Route path="leads" element={<LeadsPage />} />
         <Route path="leads/:id" element={<RecordDetailPage objectType="leads" />} />
         <Route path="pipeline" element={<PipelinePage />} />
+        <Route path="pipeline/:id/quote" element={<QuotePrintPage />} />
         <Route path="pipeline/:id" element={<RecordDetailPage objectType="opportunities" />} />
         <Route path="products" element={<ProductsPage />} />
         <Route path="price-books" element={<PriceBooksPage />} />

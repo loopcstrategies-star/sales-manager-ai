@@ -92,6 +92,10 @@ export default function SalesAnalyticsPage() {
                 <strong className="crm-stat-value">${Number(totals.pipelineAmount || 0).toLocaleString()}</strong>
               </div>
               <div className="crm-stat-card">
+                <span className="crm-stat-label">Weighted forecast</span>
+                <strong className="crm-stat-value">${Number(totals.weightedPipeline || 0).toLocaleString()}</strong>
+              </div>
+              <div className="crm-stat-card">
                 <span className="crm-stat-label">Avg deal size</span>
                 <strong className="crm-stat-value">${Number(totals.avgDealSize || 0).toLocaleString()}</strong>
               </div>
@@ -108,8 +112,8 @@ export default function SalesAnalyticsPage() {
                 <strong className="crm-stat-value">{totals.overdue ?? 0}</strong>
               </div>
               <div className="crm-stat-card">
-                <span className="crm-stat-label">Closing this month</span>
-                <strong className="crm-stat-value">{totals.closingThisMonth ?? 0}</strong>
+                <span className="crm-stat-label">Closing this month (weighted)</span>
+                <strong className="crm-stat-value">${Number(totals.closingThisMonthWeighted || 0).toLocaleString()}</strong>
               </div>
               <div className="crm-stat-card">
                 <span className="crm-stat-label">Needs verify</span>
@@ -137,10 +141,34 @@ export default function SalesAnalyticsPage() {
                         style={{ width: `${Math.round(((s.amount || 0) / maxStageAmount) * 100)}%` }}
                       />
                     </div>
-                    <em>{s.count} · ${Number(s.amount || 0).toLocaleString()}</em>
+                    <em>
+                      {s.count} · ${Number(s.amount || 0).toLocaleString()}
+                      {s.weighted != null ? ` · w $${Number(s.weighted || 0).toLocaleString()}` : ''}
+                    </em>
                   </div>
                 ))}
               </div>
+              <p className="crm-muted" style={{ marginTop: '0.5rem' }}>
+                Stage defaults: Prospecting 10%, Qualification 25%, Proposal 50%, Negotiation 75%.
+              </p>
+            </section>
+
+            <section className="crm-home-panel" style={{ marginTop: '1rem' }}>
+              <h3>Forecast by close month (weighted)</h3>
+              {(data.forecastByMonth || []).length === 0 ? (
+                <p className="crm-muted">Set close dates on open Opportunities to see monthly forecast.</p>
+              ) : (
+                <ul className="crm-recent-list">
+                  {data.forecastByMonth.map((m) => (
+                    <li key={m.month}>
+                      <span>{m.month}</span>
+                      <span>
+                        {m.count} deals · ${Number(m.amount || 0).toLocaleString()} · weighted ${Number(m.weighted || 0).toLocaleString()}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </section>
 
             <div className="crm-home-columns" style={{ marginTop: '1rem' }}>

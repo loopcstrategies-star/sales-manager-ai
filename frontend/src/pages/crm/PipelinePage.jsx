@@ -6,6 +6,14 @@ import CrmModal from '../../components/crm/CrmModal'
 import LookupField from '../../components/crm/LookupField'
 
 const STAGES = ['Prospecting', 'Qualification', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost']
+const STAGE_DEFAULT_PROB = {
+  Prospecting: 10,
+  Qualification: 25,
+  Proposal: 50,
+  Negotiation: 75,
+  'Closed Won': 100,
+  'Closed Lost': 0,
+}
 
 const emptyForm = () => ({
   name: '',
@@ -16,6 +24,7 @@ const emptyForm = () => ({
   closeDate: '',
   nextStep: '',
   nextStepDue: '',
+  probability: '',
   description: '',
   products: [],
 })
@@ -75,6 +84,7 @@ export default function PipelinePage() {
       closeDate: item.closeDate ? String(item.closeDate).slice(0, 10) : '',
       nextStep: item.nextStep || '',
       nextStepDue: item.nextStepDue ? String(item.nextStepDue).slice(0, 10) : '',
+      probability: item.probability != null ? String(item.probability) : '',
       description: item.description || '',
       products: Array.isArray(item.products) ? item.products.map((p) => ({
         productId: p.productId || '',
@@ -105,6 +115,9 @@ export default function PipelinePage() {
         closeDate: form.closeDate || null,
         nextStep: form.nextStep || '',
         nextStepDue: form.nextStepDue || null,
+        probability: form.probability === '' || form.probability == null
+          ? null
+          : Number(form.probability),
         description: form.description,
         products,
       }
@@ -220,6 +233,16 @@ export default function PipelinePage() {
                     <Link to={`/sales/pipeline/${o._id}`}>{o.name}</Link>
                     <p>{o.accountName || 'No account'}</p>
                     <strong>${Number(o.amount || 0).toLocaleString()}</strong>
+                    <span className="crm-kanban-next">
+                      {o.probability != null
+                        ? `${o.probability}%`
+                        : `${STAGE_DEFAULT_PROB[o.stage] ?? 10}%`}
+                      {' · w $'}
+                      {Math.round(
+                        (Number(o.amount) || 0)
+                        * ((o.probability != null ? Number(o.probability) : (STAGE_DEFAULT_PROB[o.stage] ?? 10)) / 100),
+                      ).toLocaleString()}
+                    </span>
                     {o.nextStep ? (
                       <span
                         className={`crm-kanban-next${
@@ -346,6 +369,17 @@ export default function PipelinePage() {
         <label className="crm-field">
           <span>Next Step Due</span>
           <input type="date" value={form.nextStepDue} onChange={(e) => setField('nextStepDue', e.target.value)} />
+        </label>
+        <label className="crm-field">
+          <span>Win probability % (blank = stage default {STAGE_DEFAULT_PROB[form.stage] ?? 10}%)</span>
+          <input
+            type="number"
+            min="0"
+            max="100"
+            value={form.probability}
+            onChange={(e) => setField('probability', e.target.value)}
+            placeholder={String(STAGE_DEFAULT_PROB[form.stage] ?? 10)}
+          />
         </label>
         <label className="crm-field">
           <span>Description</span>

@@ -11,6 +11,7 @@ import {
 import { usePreferences } from '../../context/PreferencesContext'
 import ActivityTimeline from './ActivityTimeline'
 import FindContactsButton from './FindContactsButton'
+import EmailDraftButton from './EmailDraftButton'
 import CrmModal from './CrmModal'
 import LookupField from './LookupField'
 
@@ -213,23 +214,34 @@ export default function RecordDetailPage({ objectType }) {
         </div>
         <div className="crm-record-actions">
           {objectType === 'leads' && !alreadyConverted ? (
-            <button
-              type="button"
-              className="crm-btn-primary"
-              disabled={actionBusy}
-              onClick={() => {
-                setConvertForm({
-                  createOpportunity: true,
-                  opportunityName: data.company ? `${data.company} — Opportunity` : '',
-                  amount: '',
-                  accountId: '',
-                  accountName: '',
-                })
-                setConvertOpen(true)
-              }}
-            >
-              Convert Lead
-            </button>
+            <>
+              <button
+                type="button"
+                className="crm-btn-primary"
+                disabled={actionBusy}
+                onClick={() => {
+                  setConvertForm({
+                    createOpportunity: true,
+                    opportunityName: data.company ? `${data.company} — Opportunity` : '',
+                    amount: '',
+                    accountId: '',
+                    accountName: '',
+                  })
+                  setConvertOpen(true)
+                }}
+              >
+                Convert Lead
+              </button>
+              <EmailDraftButton objectType="leads" id={data._id} hasEmail={Boolean(data.email)} />
+            </>
+          ) : null}
+          {objectType === 'contacts' ? (
+            <EmailDraftButton objectType="contacts" id={data._id} hasEmail={Boolean(data.email)} className="crm-btn-primary" />
+          ) : null}
+          {objectType === 'opportunities' ? (
+            <Link className="crm-btn-primary" to={`/sales/pipeline/${data._id}/quote`}>
+              Print quote
+            </Link>
           ) : null}
           {objectType === 'accounts' ? (
             <>
@@ -304,6 +316,10 @@ export default function RecordDetailPage({ objectType }) {
                 <div><dt>Close Date</dt><dd>{data.closeDate ? String(data.closeDate).slice(0, 10) : '—'}</dd></div>
                 <div><dt>Next Step</dt><dd>{data.nextStep || '—'}</dd></div>
                 <div><dt>Next Step Due</dt><dd>{data.nextStepDue ? String(data.nextStepDue).slice(0, 10) : '—'}</dd></div>
+                <div>
+                  <dt>Probability</dt>
+                  <dd>{data.probability != null ? `${data.probability}%` : 'Stage default'}</dd>
+                </div>
               </>
             ) : null}
             <div><dt>Description</dt><dd>{data.description || '—'}</dd></div>

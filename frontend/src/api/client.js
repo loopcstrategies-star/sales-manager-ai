@@ -313,5 +313,9 @@ export const crmApi = {
     method: 'POST',
     body: JSON.stringify(ids?.length ? { ids } : {}),
   }),
+  emailDraft: (body) => api('/api/crm/email-draft', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  }),
 }
 

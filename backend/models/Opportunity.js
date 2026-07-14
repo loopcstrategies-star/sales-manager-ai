@@ -22,6 +22,9 @@ const opportunitySchema = new mongoose.Schema({
   closeDate: { type: Date, default: null },
   nextStep: { type: String, trim: true, default: '', maxlength: 300 },
   nextStepDue: { type: Date, default: null },
+  /** Override win probability 0–100; null = use stage default */
+  probability: { type: Number, default: null, min: 0, max: 100 },
+  lostReason: { type: String, trim: true, default: '', maxlength: 300 },
   description: { type: String, trim: true, default: '', maxlength: 5000 },
   products: { type: [opportunityLineSchema], default: [] },
 }, { timestamps: true })

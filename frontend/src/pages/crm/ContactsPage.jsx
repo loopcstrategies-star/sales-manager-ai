@@ -10,6 +10,7 @@ import CrmEnrichButton from '../../components/crm/CrmEnrichButton'
 import CustomFieldsEditor from '../../components/crm/CustomFieldsEditor'
 import LookupField from '../../components/crm/LookupField'
 import PhotoUpload from '../../components/crm/PhotoUpload'
+import EmailDraftButton from '../../components/crm/EmailDraftButton'
 
 const emptyAddress = () => ({
   country: '',
@@ -371,6 +372,9 @@ export default function ContactsPage() {
                 draft={form}
                 onEnriched={applyEnrichment}
               />
+              {editingId ? (
+                <EmailDraftButton objectType="contacts" id={editingId} hasEmail={Boolean(form.email)} />
+              ) : null}
               {editingId && form.needsVerify === true ? (
                 <button
                   type="button"

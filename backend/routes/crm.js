@@ -7,8 +7,15 @@ const Case = require('../models/Case')
 const Campaign = require('../models/Campaign')
 const Lead = require('../models/Lead')
 const User = require('../models/User')
-const { workspaceFilter } = require('../services/crmHelpers')
+const { workspaceFilter, toObjectId } = require('../services/crmHelpers')
 const { isStubContact } = require('../services/contactFind')
+const {
+  draftOutreachEmail,
+  STAGE_PROBABILITY,
+  probabilityForOpportunity,
+  weightedAmount,
+} = require('../services/emailDraft')
+const Task = require('../models/Task')
 
 const router = express.Router()
 router.use(protect)
@@ -158,18 +165,19 @@ router.get('/analytics', async (req, res) => {
   try {
     const filter = workspaceFilter(req.user)
     const opps = await Opportunity.find(filter)
-      .select('name stage amount closeDate updatedAt ownerId accountId')
+      .select('name stage amount closeDate updatedAt ownerId accountId probability')
       .populate('accountId', 'name region billingAddress')
       .lean()
 
     const byStage = {}
     let pipelineAmount = 0
+    let weightedPipeline = 0
     let wonAmount = 0
     let lostCount = 0
     let wonCount = 0
     const openOpps = []
     opps.forEach((o) => {
-      byStage[o.stage] = byStage[o.stage] || { count: 0, amount: 0 }
+      byStage[o.stage] = byStage[o.stage] || { count: 0, amount: 0, weighted: 0 }
       byStage[o.stage].count += 1
       byStage[o.stage].amount += Number(o.amount) || 0
       if (o.stage === 'Closed Won') {
@@ -178,8 +186,11 @@ router.get('/analytics', async (req, res) => {
       } else if (o.stage === 'Closed Lost') {
         lostCount += 1
       } else {
+        const w = weightedAmount(o)
         pipelineAmount += Number(o.amount) || 0
-        openOpps.push(o)
+        weightedPipeline += w
+        byStage[o.stage].weighted += w
+        openOpps.push({ ...o, probability: probabilityForOpportunity(o), weighted: w })
       }
     })
     const closed = wonCount + lostCount
@@ -195,6 +206,8 @@ router.get('/analytics', async (req, res) => {
     let overdueAmount = 0
     let closingThisMonth = 0
     let closingThisMonthAmount = 0
+    let closingThisMonthWeighted = 0
+    const forecastByMonthMap = {}
     openOpps.forEach((o) => {
       if (!o.closeDate) return
       const cd = new Date(o.closeDate)
@@ -204,8 +217,19 @@ router.get('/analytics', async (req, res) => {
       } else if (cd >= monthStart && cd <= monthEnd) {
         closingThisMonth += 1
         closingThisMonthAmount += Number(o.amount) || 0
+        closingThisMonthWeighted += o.weighted || 0
       }
+      const key = `${cd.getFullYear()}-${String(cd.getMonth() + 1).padStart(2, '0')}`
+      if (!forecastByMonthMap[key]) {
+        forecastByMonthMap[key] = { month: key, count: 0, amount: 0, weighted: 0 }
+      }
+      forecastByMonthMap[key].count += 1
+      forecastByMonthMap[key].amount += Number(o.amount) || 0
+      forecastByMonthMap[key].weighted += o.weighted || 0
     })
+    const forecastByMonth = Object.values(forecastByMonthMap)
+      .sort((a, b) => a.month.localeCompare(b.month))
+      .slice(0, 12)
 
     const pipelineByCountry = sumByKey(
       openOpps,
@@ -274,6 +298,7 @@ router.get('/analytics', async (req, res) => {
         totals: {
           openOpportunities: openOpps.length,
           pipelineAmount,
+          weightedPipeline,
           wonAmount,
           winRate,
           openLeads,
@@ -283,7 +308,10 @@ router.get('/analytics', async (req, res) => {
           overdueAmount,
           closingThisMonth,
           closingThisMonthAmount,
+          closingThisMonthWeighted,
         },
+        stageProbabilities: STAGE_PROBABILITY,
+        forecastByMonth,
         contactQuality: {
           total: contacts,
           needsVerify,
@@ -304,6 +332,7 @@ router.get('/analytics', async (req, res) => {
             name: o.name,
             stage: o.stage,
             amount: o.amount,
+            probability: probabilityForOpportunity(o),
             updatedAt: o.updatedAt,
           })),
       },
@@ -421,6 +450,79 @@ router.post('/contacts/dedupe-emails', async (req, res) => {
     })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message || 'Dedupe failed.' })
+  }
+})
+
+router.post('/email-draft', async (req, res) => {
+  try {
+    const filter = workspaceFilter(req.user)
+    const objectType = String(req.body.objectType || '').trim().toLowerCase()
+    const id = toObjectId(req.body.id)
+    const tone = String(req.body.tone || 'professional').trim()
+    const saveAsTask = req.body.saveAsTask !== false
+
+    if (!id || !['leads', 'contacts', 'lead', 'contact'].includes(objectType)) {
+      return res.status(400).json({ success: false, message: 'objectType (leads|contacts) and id are required.' })
+    }
+
+    let person = {}
+    let company = ''
+    let context = ''
+    let relatedType = 'Contact'
+    let relatedId = id
+
+    if (objectType === 'leads' || objectType === 'lead') {
+      const lead = await Lead.findOne({ ...filter, _id: id }).lean()
+      if (!lead) return res.status(404).json({ success: false, message: 'Lead not found.' })
+      person = lead
+      company = lead.company || ''
+      context = [lead.industry, lead.leadSource, lead.description].filter(Boolean).join(' · ')
+      relatedType = 'Lead'
+    } else {
+      const contact = await Contact.findOne({ ...filter, _id: id }).populate('accountId', 'name').lean()
+      if (!contact) return res.status(404).json({ success: false, message: 'Contact not found.' })
+      person = contact
+      company = contact.accountId?.name || ''
+      context = [contact.title, contact.description].filter(Boolean).join(' · ')
+      relatedType = 'Contact'
+    }
+
+    const draft = await draftOutreachEmail({
+      kind: relatedType.toLowerCase(),
+      person,
+      company,
+      context,
+      tone,
+    })
+    if (!draft.ok) {
+      return res.status(502).json({ success: false, message: draft.error || 'Draft failed.', data: draft })
+    }
+
+    let task = null
+    if (saveAsTask) {
+      task = await Task.create({
+        subject: `Email draft: ${draft.subject || 'Outreach'}`.slice(0, 200),
+        status: 'Not Started',
+        priority: 'Normal',
+        description: `To: ${draft.to || '(no email)'}\nSubject: ${draft.subject}\n\n${draft.body}`.slice(0, 5000),
+        relatedType,
+        relatedId,
+        workspaceId: req.user.workspaceId,
+        ownerId: req.user._id,
+      })
+    }
+
+    res.json({
+      success: true,
+      data: {
+        to: draft.to,
+        subject: draft.subject,
+        body: draft.body,
+        taskId: task?._id || null,
+      },
+    })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Email draft failed.' })
   }
 })
 

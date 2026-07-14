@@ -7,6 +7,7 @@ import CrmModal from '../../components/crm/CrmModal'
 import CrmImportModal from '../../components/crm/CrmImportModal'
 import CrmEnrichButton from '../../components/crm/CrmEnrichButton'
 import LookupField from '../../components/crm/LookupField'
+import EmailDraftButton from '../../components/crm/EmailDraftButton'
 
 const STATUSES = ['Open', 'Working', 'Qualified', 'Unqualified']
 const SALUTATIONS = ['--None--', 'Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Prof.']
@@ -453,6 +454,9 @@ export default function LeadsPage() {
                 onEnriched={applyEnrichment}
               />
               {enrichedHint ? <span className="crm-enrich-hint">{enrichedHint}</span> : null}
+              {editingId ? (
+                <EmailDraftButton objectType="leads" id={editingId} hasEmail={Boolean(form.email)} />
+              ) : null}
               {editingId ? (
                 <button
                   type="button"

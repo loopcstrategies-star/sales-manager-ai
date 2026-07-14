@@ -29,6 +29,8 @@ const bodySchema = Joi.object({
   closeDate: Joi.date().allow(null, ''),
   nextStep: Joi.string().allow('').max(300),
   nextStepDue: Joi.date().allow(null, ''),
+  probability: Joi.number().min(0).max(100).allow(null),
+  lostReason: Joi.string().allow('').max(300),
   description: Joi.string().allow('').max(5000),
   products: Joi.array().items(Joi.object({
     productId: Joi.string().allow(null, ''),
@@ -132,6 +134,10 @@ router.post('/', validateBody(createSchema), async (req, res) => {
       closeDate: req.body.closeDate || null,
       nextStep: String(req.body.nextStep || '').slice(0, 300),
       nextStepDue: req.body.nextStepDue || null,
+      probability: req.body.probability != null && req.body.probability !== ''
+        ? Number(req.body.probability)
+        : null,
+      lostReason: String(req.body.lostReason || '').slice(0, 300),
       workspaceId: req.user.workspaceId,
       ownerId: req.user._id,
     })
@@ -166,6 +172,11 @@ router.patch('/:id', validateBody(bodySchema), async (req, res) => {
     }
     if (req.body.closeDate !== undefined) patch.closeDate = req.body.closeDate || null
     if (req.body.nextStepDue !== undefined) patch.nextStepDue = req.body.nextStepDue || null
+    if (req.body.probability !== undefined) {
+      patch.probability = req.body.probability === null || req.body.probability === ''
+        ? null
+        : Number(req.body.probability)
+    }
 
     Object.assign(existing, patch)
     await existing.save()
