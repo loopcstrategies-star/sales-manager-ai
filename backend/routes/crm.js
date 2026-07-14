@@ -313,6 +313,78 @@ router.get('/analytics', async (req, res) => {
   }
 })
 
+router.get('/service-analytics', async (req, res) => {
+  try {
+    const filter = workspaceFilter(req.user)
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    const cases = await Case.find(filter)
+      .select('subject status priority caseNumber ownerId createdAt updatedAt')
+      .populate('ownerId', 'name')
+      .lean()
+
+    const byStatus = {}
+    const byPriority = {}
+    const ownerMap = {}
+    let openCount = 0
+    let closedCount = 0
+    let openedThisWeek = 0
+    let escalated = 0
+
+    cases.forEach((c) => {
+      byStatus[c.status] = (byStatus[c.status] || 0) + 1
+      byPriority[c.priority || 'Medium'] = (byPriority[c.priority || 'Medium'] || 0) + 1
+      if (c.status === 'Closed') closedCount += 1
+      else openCount += 1
+      if (c.status === 'Escalated') escalated += 1
+      if (c.createdAt && new Date(c.createdAt) >= weekAgo) openedThisWeek += 1
+
+      const oid = String(c.ownerId?._id || c.ownerId || 'unknown')
+      if (!ownerMap[oid]) {
+        ownerMap[oid] = {
+          ownerId: oid,
+          ownerName: c.ownerId?.name || 'Unknown',
+          open: 0,
+          closed: 0,
+        }
+      }
+      if (c.status === 'Closed') ownerMap[oid].closed += 1
+      else ownerMap[oid].open += 1
+    })
+
+    const recentOpen = cases
+      .filter((c) => c.status !== 'Closed')
+      .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
+      .slice(0, 10)
+      .map((c) => ({
+        id: c._id,
+        subject: c.subject,
+        caseNumber: c.caseNumber || '',
+        status: c.status,
+        priority: c.priority,
+        updatedAt: c.updatedAt,
+      }))
+
+    res.json({
+      success: true,
+      data: {
+        totals: {
+          total: cases.length,
+          open: openCount,
+          closed: closedCount,
+          escalated,
+          openedThisWeek,
+        },
+        byStatus: Object.entries(byStatus).map(([status, count]) => ({ status, count })),
+        byPriority: Object.entries(byPriority).map(([priority, count]) => ({ priority, count })),
+        ownerLeaderboard: Object.values(ownerMap).sort((a, b) => b.open - a.open),
+        recentOpen,
+      },
+    })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Failed to load service analytics.' })
+  }
+})
+
 router.post('/contacts/dedupe-emails', async (req, res) => {
   try {
     const filter = workspaceFilter(req.user)

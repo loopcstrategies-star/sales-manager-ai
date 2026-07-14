@@ -102,6 +102,7 @@ export default function MarketingPage() {
     name: c.name,
     type: c.type,
     status: c.status,
+    members: c.memberCount ?? 0,
     startDate: c.startDate ? String(c.startDate).slice(0, 10) : '—',
     endDate: c.endDate ? String(c.endDate).slice(0, 10) : '—',
     ownerAlias: c.ownerAlias || '—',
@@ -120,6 +121,7 @@ export default function MarketingPage() {
           { key: 'name', label: 'Campaign Name' },
           { key: 'type', label: 'Type' },
           { key: 'status', label: 'Status' },
+          { key: 'members', label: 'Leads' },
           { key: 'startDate', label: 'Start Date' },
           { key: 'endDate', label: 'End Date' },
           { key: 'ownerAlias', label: 'Owner' },
@@ -128,7 +130,7 @@ export default function MarketingPage() {
         loading={loading}
         onRowClick={openEdit}
         emptyTitle="Plan and run marketing campaigns."
-        emptyDescription="Create campaigns to organize outreach by type and status."
+        emptyDescription="Create campaigns, then add Leads from the Leads list (Add to Campaign)."
         emptyActionLabel="Add a Campaign"
         onEmptyAction={openNew}
       />

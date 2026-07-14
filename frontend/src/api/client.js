@@ -78,11 +78,21 @@ async function apiForm(path, formData) {
 }
 
 export const accountsApi = {
-  list: (q = '') => api(`/api/accounts${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  list: (q = '', opts = {}) => {
+    const params = new URLSearchParams()
+    if (q) params.set('q', q)
+    if (opts.label) params.set('label', opts.label)
+    const qs = params.toString()
+    return api(`/api/accounts${qs ? `?${qs}` : ''}`)
+  },
   get: (id) => api(`/api/accounts/${id}`),
   create: (body) => api('/api/accounts', { method: 'POST', body: JSON.stringify(body) }),
   update: (id, body) => api(`/api/accounts/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   remove: (id) => api(`/api/accounts/${id}`, { method: 'DELETE' }),
+  bulkLabel: (ids, label) => api('/api/accounts/bulk-label', {
+    method: 'POST',
+    body: JSON.stringify({ ids, label }),
+  }),
 }
 
 export const contactsApi = {
@@ -209,6 +219,11 @@ export const campaignsApi = {
   create: (body) => api('/api/campaigns', { method: 'POST', body: JSON.stringify(body) }),
   update: (id, body) => api(`/api/campaigns/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   remove: (id) => api(`/api/campaigns/${id}`, { method: 'DELETE' }),
+  addMembers: (id, leadIds) => api(`/api/campaigns/${id}/members`, {
+    method: 'POST',
+    body: JSON.stringify({ leadIds }),
+  }),
+  listMembers: (id) => api(`/api/campaigns/${id}/members`),
 }
 
 export const uploadsApi = {
@@ -222,6 +237,7 @@ export const uploadsApi = {
 export const crmApi = {
   stats: () => api('/api/crm/stats'),
   analytics: () => api('/api/crm/analytics'),
+  serviceAnalytics: () => api('/api/crm/service-analytics'),
   importCsv: (objectType, file, { mapping, preview } = {}) => {
     const form = new FormData()
     form.append('file', file)

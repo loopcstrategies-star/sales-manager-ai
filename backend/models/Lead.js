@@ -38,10 +38,13 @@ const leadSchema = new mongoose.Schema({
   convertedAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Account', default: null },
   convertedContactId: { type: mongoose.Schema.Types.ObjectId, ref: 'Contact', default: null },
   convertedOpportunityId: { type: mongoose.Schema.Types.ObjectId, ref: 'Opportunity', default: null },
+  /** Campaigns this lead belongs to */
+  campaignIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Campaign', default: undefined }],
 }, { timestamps: true })
 
 leadSchema.index({ workspaceId: 1, company: 1 })
 leadSchema.index({ workspaceId: 1, status: 1 })
+leadSchema.index({ workspaceId: 1, campaignIds: 1 })
 leadSchema.virtual('fullName').get(function fullName() {
   return [this.firstName, this.lastName].filter(Boolean).join(' ').trim()
 })

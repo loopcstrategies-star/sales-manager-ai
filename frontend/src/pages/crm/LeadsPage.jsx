@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { accountsApi, leadsApi } from '../../api/client'
+import { accountsApi, campaignsApi, leadsApi } from '../../api/client'
 import { useAuth } from '../../context/AuthContext'
 import CrmListView from '../../components/crm/CrmListView'
 import CrmModal from '../../components/crm/CrmModal'
@@ -102,6 +102,10 @@ export default function LeadsPage() {
   const [convertOpen, setConvertOpen] = useState(false)
   const [converting, setConverting] = useState(false)
   const [convertResult, setConvertResult] = useState(null)
+  const [campaignModalOpen, setCampaignModalOpen] = useState(false)
+  const [campaigns, setCampaigns] = useState([])
+  const [campaignId, setCampaignId] = useState('')
+  const [campaignBusy, setCampaignBusy] = useState(false)
   const [convertForm, setConvertForm] = useState({
     createOpportunity: true,
     opportunityName: '',
@@ -312,6 +316,43 @@ export default function LeadsPage() {
     return (res.data || []).map((a) => ({ id: a._id, label: a.name }))
   }, [])
 
+  const openCampaignModal = async () => {
+    if (!selectedIds.length) {
+      setListError('Select one or more leads first.')
+      return
+    }
+    setListError('')
+    setCampaignBusy(true)
+    try {
+      const res = await campaignsApi.list('')
+      setCampaigns(res.data || [])
+      setCampaignId((res.data || [])[0]?._id || '')
+      setCampaignModalOpen(true)
+    } catch (err) {
+      setListError(err.message || 'Failed to load campaigns')
+    } finally {
+      setCampaignBusy(false)
+    }
+  }
+
+  const addToCampaign = async () => {
+    if (!campaignId || !selectedIds.length) return
+    setCampaignBusy(true)
+    try {
+      const res = await campaignsApi.addMembers(campaignId, selectedIds)
+      const d = res.data || {}
+      setCampaignModalOpen(false)
+      setSelectedIds([])
+      setListError('')
+      setConvertResult(null)
+      window.alert(`Added to campaign · ${d.modified || 0} leads updated (${d.memberCount || 0} members total).`)
+    } catch (err) {
+      setListError(err.message || 'Add to campaign failed')
+    } finally {
+      setCampaignBusy(false)
+    }
+  }
+
   return (
     <>
       {listError ? <p className="crm-banner-error">{listError}</p> : null}
@@ -358,14 +399,25 @@ export default function LeadsPage() {
         selectedIds={selectedIds}
         onSelectionChange={setSelectedIds}
         bulkActions={(
-          <button type="button" className="crm-btn-secondary" onClick={deleteSelected}>Delete</button>
+          <>
+            <button type="button" className="crm-btn-secondary" onClick={openCampaignModal}>
+              Add to Campaign
+            </button>
+            <button type="button" className="crm-btn-secondary" onClick={deleteSelected}>Delete</button>
+          </>
         )}
         actions={(
           <>
             <button type="button" className="crm-btn-primary" onClick={openNew}>New</button>
             <button type="button" className="crm-btn-secondary" onClick={() => setImportOpen(true)}>Import</button>
-            <button type="button" className="crm-btn-secondary" disabled title="Coming soon">Add to Campaign</button>
-            <button type="button" className="crm-btn-secondary" disabled title="Coming soon">Send Email</button>
+            <button
+              type="button"
+              className="crm-btn-secondary"
+              disabled={campaignBusy}
+              onClick={openCampaignModal}
+            >
+              Add to Campaign
+            </button>
           </>
         )}
         columns={[
@@ -654,6 +706,44 @@ export default function LeadsPage() {
             </label>
           </>
         ) : null}
+      </CrmModal>
+
+      <CrmModal
+        title="Add to Campaign"
+        open={campaignModalOpen}
+        onClose={() => setCampaignModalOpen(false)}
+        requiredLegend={false}
+        footer={(
+          <>
+            <button type="button" className="crm-btn-secondary" onClick={() => setCampaignModalOpen(false)}>Cancel</button>
+            <button
+              type="button"
+              className="crm-btn-primary"
+              disabled={campaignBusy || !campaignId || !selectedIds.length}
+              onClick={addToCampaign}
+            >
+              {campaignBusy ? 'Adding…' : `Add ${selectedIds.length} lead(s)`}
+            </button>
+          </>
+        )}
+      >
+        <p className="crm-muted">Select a campaign for the selected leads.</p>
+        {!campaigns.length ? (
+          <p className="crm-banner-warn">
+            No campaigns yet. Create one under <Link to="/sales/marketing">Marketing</Link>.
+          </p>
+        ) : (
+          <label className="crm-field">
+            <span>Campaign</span>
+            <select value={campaignId} onChange={(e) => setCampaignId(e.target.value)}>
+              {campaigns.map((c) => (
+                <option key={c._id} value={c._id}>
+                  {c.name} ({c.memberCount || 0} members)
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </CrmModal>
     </>
   )

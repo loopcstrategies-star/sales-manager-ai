@@ -27,6 +27,7 @@ const emptyForm = () => ({
   parentAccountId: '',
   parentAccountName: '',
   phone: '',
+  label: '',
   region: '',
   billingAddress: emptyAddress(),
   shippingAddress: emptyAddress(),
@@ -34,6 +35,7 @@ const emptyForm = () => ({
 })
 
 const ACCOUNT_TYPES = ['--None--', 'Customer', 'Partner', 'Prospect', 'Other']
+const ACCOUNT_LABELS = ['Hot', 'Warm', 'Cold', 'VIP', 'Partner', 'Prospect']
 const REGIONS = ['', 'Middle East', 'Europe', 'India', 'Asia Pacific', 'Americas', 'Africa']
 const COUNTRIES = [
   '--None--',
@@ -102,6 +104,10 @@ export default function AccountsPage() {
   const [selectedIds, setSelectedIds] = useState([])
   const [regionFilter, setRegionFilter] = useState(searchParams.get('region') || '')
   const [countryFilter, setCountryFilter] = useState(searchParams.get('country') || '')
+  const [labelFilter, setLabelFilter] = useState(searchParams.get('label') || '')
+  const [labelModalOpen, setLabelModalOpen] = useState(false)
+  const [bulkLabel, setBulkLabel] = useState('Hot')
+  const [labelBusy, setLabelBusy] = useState(false)
 
   const load = useCallback(async (q = '') => {
     setLoading(true)
@@ -126,8 +132,9 @@ export default function AccountsPage() {
     const next = {}
     if (regionFilter) next.region = regionFilter
     if (countryFilter) next.country = countryFilter
+    if (labelFilter) next.label = labelFilter
     setSearchParams(next, { replace: true })
-  }, [regionFilter, countryFilter, setSearchParams])
+  }, [regionFilter, countryFilter, labelFilter, setSearchParams])
 
   const openNew = useCallback(() => {
     setEditingId(null)
@@ -151,6 +158,7 @@ export default function AccountsPage() {
       parentAccountId: item.parentAccountId || '',
       parentAccountName: item.parentAccountName || '',
       phone: item.phone || '',
+      label: item.label || '',
       region: item.region || '',
       billingAddress: { ...emptyAddress(), ...(item.billingAddress || {}) },
       shippingAddress: { ...emptyAddress(), ...(item.shippingAddress || {}) },
@@ -200,6 +208,7 @@ export default function AccountsPage() {
     description: form.description,
     parentAccountId: form.parentAccountId || '',
     phone: form.phone,
+    label: form.label || '',
     region: form.region || '',
     billingAddress: form.billingAddress,
     shippingAddress: form.shippingAddress,
@@ -245,8 +254,11 @@ export default function AccountsPage() {
     if (countryFilter) {
       list = list.filter((a) => String(a.billingAddress?.country || '') === countryFilter)
     }
+    if (labelFilter) {
+      list = list.filter((a) => String(a.label || '') === labelFilter)
+    }
     return list
-  }, [items, listFilter, user, regionFilter, countryFilter])
+  }, [items, listFilter, user, regionFilter, countryFilter, labelFilter])
 
   const countryOptions = useMemo(() => {
     const set = new Set(
@@ -260,8 +272,12 @@ export default function AccountsPage() {
     id: a._id,
     raw: a,
     name: (
-      <Link to={`/sales/accounts/${a._id}`} onClick={(e) => e.stopPropagation()}>{a.name}</Link>
+      <Link to={`/sales/accounts/${a._id}`} onClick={(e) => e.stopPropagation()}>
+        {a.name}
+        {a.label ? <span className="crm-source-badge">{a.label}</span> : null}
+      </Link>
     ),
+    label: a.label || '—',
     region: a.region || '—',
     country: a.billingAddress?.country || '—',
     phone: a.phone || '—',
@@ -278,6 +294,30 @@ export default function AccountsPage() {
     await load(search)
   }
 
+  const assignLabels = async () => {
+    if (!selectedIds.length) return
+    setLabelBusy(true)
+    try {
+      await accountsApi.bulkLabel(selectedIds, bulkLabel)
+      setLabelModalOpen(false)
+      setSelectedIds([])
+      await load(search)
+    } catch (err) {
+      setListError(err.message || 'Label assign failed')
+    } finally {
+      setLabelBusy(false)
+    }
+  }
+
+  const labelOptions = useMemo(() => {
+    const set = new Set(ACCOUNT_LABELS)
+    items.forEach((a) => {
+      const l = String(a.label || '').trim()
+      if (l) set.add(l)
+    })
+    return [...set].sort((a, b) => a.localeCompare(b))
+  }, [items])
+
   return (
     <>
       {listError ? <p className="crm-banner-error">{listError}</p> : null}
@@ -290,10 +330,31 @@ export default function AccountsPage() {
         selectedIds={selectedIds}
         onSelectionChange={setSelectedIds}
         bulkActions={(
-          <button type="button" className="crm-btn-secondary" onClick={deleteSelected}>Delete</button>
+          <>
+            <button
+              type="button"
+              className="crm-btn-secondary"
+              onClick={() => {
+                setBulkLabel('Hot')
+                setLabelModalOpen(true)
+              }}
+            >
+              Assign Label
+            </button>
+            <button type="button" className="crm-btn-secondary" onClick={deleteSelected}>Delete</button>
+          </>
         )}
         actions={(
           <>
+            <label className="crm-inline-filter">
+              <span>Label</span>
+              <select value={labelFilter} onChange={(e) => setLabelFilter(e.target.value)}>
+                <option value="">All</option>
+                {labelOptions.map((l) => (
+                  <option key={l} value={l}>{l}</option>
+                ))}
+              </select>
+            </label>
             <label className="crm-inline-filter">
               <span>Region</span>
               <select value={regionFilter} onChange={(e) => setRegionFilter(e.target.value)}>
@@ -314,11 +375,11 @@ export default function AccountsPage() {
             </label>
             <button type="button" className="crm-btn-primary" onClick={openNew}>New</button>
             <button type="button" className="crm-btn-secondary" onClick={() => setImportOpen(true)}>Import</button>
-            <button type="button" className="crm-btn-secondary" disabled title="Coming soon">Assign Label</button>
           </>
         )}
         columns={[
           { key: 'name', label: 'Account Name' },
+          { key: 'label', label: 'Label' },
           { key: 'region', label: 'Region' },
           { key: 'country', label: 'Country' },
           { key: 'phone', label: 'Phone' },
@@ -400,6 +461,18 @@ export default function AccountsPage() {
           </select>
         </label>
         <label className="crm-field">
+          <span>Label</span>
+          <input
+            list="account-label-options"
+            value={form.label}
+            onChange={(e) => setField('label', e.target.value)}
+            placeholder="Hot, VIP, Partner…"
+          />
+          <datalist id="account-label-options">
+            {ACCOUNT_LABELS.map((l) => <option key={l} value={l} />)}
+          </datalist>
+        </label>
+        <label className="crm-field">
           <span>Region</span>
           <select
             value={form.region || ''}
@@ -468,6 +541,35 @@ export default function AccountsPage() {
         onClose={() => setImportOpen(false)}
         onImported={() => load(search)}
       />
+
+      <CrmModal
+        title="Assign Label"
+        open={labelModalOpen}
+        onClose={() => setLabelModalOpen(false)}
+        requiredLegend={false}
+        footer={(
+          <>
+            <button type="button" className="crm-btn-secondary" onClick={() => setLabelModalOpen(false)}>Cancel</button>
+            <button type="button" className="crm-btn-primary" disabled={labelBusy || !selectedIds.length} onClick={assignLabels}>
+              {labelBusy ? 'Saving…' : `Apply to ${selectedIds.length}`}
+            </button>
+          </>
+        )}
+      >
+        <p className="crm-muted">Set a segment label on {selectedIds.length} selected account(s).</p>
+        <label className="crm-field">
+          <span>Label</span>
+          <input
+            list="bulk-account-label-options"
+            value={bulkLabel}
+            onChange={(e) => setBulkLabel(e.target.value)}
+            placeholder="Hot, VIP…"
+          />
+          <datalist id="bulk-account-label-options">
+            {ACCOUNT_LABELS.map((l) => <option key={l} value={l} />)}
+          </datalist>
+        </label>
+      </CrmModal>
     </>
   )
 }

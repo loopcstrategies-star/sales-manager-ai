@@ -1,182 +1,156 @@
 import React, { useEffect, useState } from 'react'
-import { casesApi } from '../../api/client'
-
-const NAV_ITEMS = [
-  { id: 'home', label: 'Home' },
-  { id: 'browse', label: 'Browse' },
-  { id: 'favorites', label: 'Favorites' },
-]
-
-const COLLECTIONS = [
-  { id: 'sales', label: 'Sales', color: '#1b96ff' },
-  { id: 'service', label: 'Service', color: '#e5677a' },
-]
-
-const DEMO_RECENTS = [
-  { title: 'Open Cases by Priority', lastViewed: 'Today', modifiedBy: 'You', modifiedOn: 'Today' },
-  { title: 'Cases Opened This Week', lastViewed: 'Today', modifiedBy: 'You', modifiedOn: 'Yesterday' },
-  { title: 'Service Response Overview', lastViewed: 'Last 7 days', modifiedBy: 'You', modifiedOn: 'Last 7 days' },
-]
+import { Link } from 'react-router-dom'
+import { crmApi } from '../../api/client'
 
 export default function ServiceAnalyticsPage() {
-  const [nav, setNav] = useState('home')
-  const [listTab, setListTab] = useState('recents')
-  const [search, setSearch] = useState('')
-  const [recentCases, setRecentCases] = useState([])
+  const [data, setData] = useState(null)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let cancelled = false
-    casesApi.list('', 'open')
-      .then((res) => {
-        if (!cancelled) setRecentCases((res.data || []).slice(0, 5))
-      })
-      .catch(() => {
-        if (!cancelled) setRecentCases([])
-      })
+    ;(async () => {
+      setLoading(true)
+      try {
+        const res = await crmApi.serviceAnalytics()
+        if (!cancelled) {
+          setData(res.data)
+          setError('')
+        }
+      } catch (err) {
+        if (!cancelled) setError(err.message || 'Failed to load service analytics')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
     return () => { cancelled = true }
   }, [])
 
-  const filteredDemo = DEMO_RECENTS.filter((row) => {
-    if (!search.trim()) return true
-    return row.title.toLowerCase().includes(search.trim().toLowerCase())
-  })
+  const totals = data?.totals || {}
+  const byStatus = data?.byStatus || []
+  const byPriority = data?.byPriority || []
+  const maxStatus = Math.max(1, ...byStatus.map((s) => s.count || 0))
+  const maxPriority = Math.max(1, ...byPriority.map((s) => s.count || 0))
 
   return (
     <div className="crm-analytics-layout">
-      <aside className="crm-analytics-sidebar" aria-label="Analytics navigation">
-        <h2 className="crm-analytics-sidebar-title">Analytics</h2>
+      <aside className="crm-analytics-sidebar" aria-label="Service analytics">
+        <h2 className="crm-analytics-sidebar-title">Service</h2>
         <nav className="crm-analytics-nav">
-          {NAV_ITEMS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`crm-analytics-nav-item${nav === item.id ? ' active' : ''}`}
-              onClick={() => setNav(item.id)}
-            >
-              {item.label}
-            </button>
-          ))}
+          <button type="button" className="crm-analytics-nav-item active">Home</button>
         </nav>
-        <div className="crm-analytics-collections">
-          <div className="crm-analytics-collections-head">
-            <span>Collections</span>
-          </div>
-          {COLLECTIONS.map((c) => (
-            <button key={c.id} type="button" className="crm-analytics-collection">
-              <span className="crm-analytics-dot" style={{ background: c.color }} />
-              {c.label}
-            </button>
-          ))}
-        </div>
+        <p className="crm-muted" style={{ padding: '0.75rem 1rem', fontSize: '0.85rem' }}>
+          Live case metrics for this workspace.
+        </p>
       </aside>
 
       <div className="crm-analytics-main">
         <header className="crm-analytics-header">
-          <h1>{nav === 'home' ? 'Analytics' : nav === 'browse' ? 'Browse' : 'Favorites'}</h1>
-          <button type="button" className="crm-btn-primary" disabled title="Coming soon">Create</button>
+          <h1>Service Analytics</h1>
+          <Link className="crm-btn-secondary" to="/sales/service/cases">Open Cases</Link>
         </header>
 
-        <label className="crm-analytics-search">
-          <span className="sr-only">Search analytics</span>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search reports and dashboards..."
-          />
-        </label>
+        {error ? <p className="crm-banner-error">{error}</p> : null}
+        {loading ? <p className="crm-muted">Loading…</p> : null}
 
-        {nav === 'home' ? (
+        {!loading && data ? (
           <>
-            <section className="crm-analytics-for-you" aria-label="For You">
-              <h2>For You</h2>
-              <div className="crm-analytics-cards">
-                <div className="crm-analytics-card">
-                  <h3>Recently Updated</h3>
-                  <ul>
-                    {recentCases.length ? recentCases.map((c) => (
-                      <li key={c._id}>
-                        <span className="crm-analytics-card-icon" aria-hidden="true" />
-                        {c.caseNumber ? `${c.caseNumber} · ` : ''}{c.subject || 'Open case'}
+            <div className="crm-stat-grid">
+              <div className="crm-stat-card">
+                <span className="crm-stat-label">Open cases</span>
+                <strong className="crm-stat-value">{totals.open ?? 0}</strong>
+              </div>
+              <div className="crm-stat-card">
+                <span className="crm-stat-label">Closed</span>
+                <strong className="crm-stat-value">{totals.closed ?? 0}</strong>
+              </div>
+              <div className="crm-stat-card">
+                <span className="crm-stat-label">Escalated</span>
+                <strong className="crm-stat-value">{totals.escalated ?? 0}</strong>
+              </div>
+              <div className="crm-stat-card">
+                <span className="crm-stat-label">Opened this week</span>
+                <strong className="crm-stat-value">{totals.openedThisWeek ?? 0}</strong>
+              </div>
+              <div className="crm-stat-card">
+                <span className="crm-stat-label">Total cases</span>
+                <strong className="crm-stat-value">{totals.total ?? 0}</strong>
+              </div>
+            </div>
+
+            <div className="crm-home-columns" style={{ marginTop: '1rem' }}>
+              <section className="crm-home-panel">
+                <h3>Cases by status</h3>
+                <div className="crm-analytics-bars">
+                  {byStatus.length === 0 ? <p className="crm-muted">No cases yet.</p> : byStatus.map((s) => (
+                    <div key={s.status} className="crm-analytics-bar-row">
+                      <span>{s.status}</span>
+                      <div className="crm-analytics-bar-track">
+                        <div
+                          className="crm-analytics-bar-fill"
+                          style={{ width: `${Math.round(((s.count || 0) / maxStatus) * 100)}%` }}
+                        />
+                      </div>
+                      <em>{s.count}</em>
+                    </div>
+                  ))}
+                </div>
+              </section>
+              <section className="crm-home-panel">
+                <h3>Cases by priority</h3>
+                <div className="crm-analytics-bars">
+                  {byPriority.length === 0 ? <p className="crm-muted">No cases yet.</p> : byPriority.map((s) => (
+                    <div key={s.priority} className="crm-analytics-bar-row">
+                      <span>{s.priority}</span>
+                      <div className="crm-analytics-bar-track">
+                        <div
+                          className="crm-analytics-bar-fill"
+                          style={{ width: `${Math.round(((s.count || 0) / maxPriority) * 100)}%` }}
+                        />
+                      </div>
+                      <em>{s.count}</em>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </div>
+
+            <div className="crm-home-columns" style={{ marginTop: '1rem' }}>
+              <section className="crm-home-panel">
+                <h3>Owner workload</h3>
+                {(data.ownerLeaderboard || []).length === 0 ? (
+                  <p className="crm-muted">No owners yet.</p>
+                ) : (
+                  <ul className="crm-recent-list">
+                    {data.ownerLeaderboard.map((r) => (
+                      <li key={r.ownerId}>
+                        <span>{r.ownerName}</span>
+                        <span>open {r.open} · closed {r.closed}</span>
                       </li>
-                    )) : (
-                      <li className="crm-analytics-muted">No recent open cases</li>
-                    )}
+                    ))}
                   </ul>
-                </div>
-                <div className="crm-analytics-card">
-                  <h3>Shared With Me</h3>
-                  <p className="crm-analytics-muted">Nothing shared yet.</p>
-                  <button type="button" className="crm-link-btn" disabled>View All</button>
-                </div>
-                <div className="crm-analytics-card">
-                  <h3>Created By Me</h3>
-                  <p className="crm-analytics-muted">Create dashboards and reports to see them here.</p>
-                  <button type="button" className="crm-link-btn" disabled>View All</button>
-                </div>
-              </div>
-            </section>
-
-            <section className="crm-analytics-my" aria-label="My Analytics">
-              <div className="crm-analytics-my-tabs">
-                <button
-                  type="button"
-                  className={`crm-analytics-my-tab${listTab === 'recents' ? ' active' : ''}`}
-                  onClick={() => setListTab('recents')}
-                >
-                  Recents
-                </button>
-                <button
-                  type="button"
-                  className={`crm-analytics-my-tab${listTab === 'favorites' ? ' active' : ''}`}
-                  onClick={() => setListTab('favorites')}
-                >
-                  Favorites
-                </button>
-              </div>
-
-              {listTab === 'favorites' ? (
-                <p className="crm-analytics-muted crm-analytics-empty-fav">No favorites yet.</p>
-              ) : (
-                <div className="crm-analytics-table-wrap">
-                  <table className="crm-analytics-table">
-                    <thead>
-                      <tr>
-                        <th>Title</th>
-                        <th>Last Viewed</th>
-                        <th>Last Modified By</th>
-                        <th>Last Modified On</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredDemo.map((row) => (
-                        <tr key={row.title}>
-                          <td>
-                            <span className="crm-analytics-row-icon" aria-hidden="true" />
-                            <button type="button" className="crm-link-btn">{row.title}</button>
-                          </td>
-                          <td>{row.lastViewed}</td>
-                          <td>{row.modifiedBy}</td>
-                          <td>{row.modifiedOn}</td>
-                        </tr>
-                      ))}
-                      {!filteredDemo.length ? (
-                        <tr>
-                          <td colSpan={4} className="crm-analytics-muted">No matching items</td>
-                        </tr>
-                      ) : null}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
+                )}
+              </section>
+              <section className="crm-home-panel">
+                <h3>Recently updated open cases</h3>
+                {(data.recentOpen || []).length === 0 ? (
+                  <p className="crm-muted">No open cases.</p>
+                ) : (
+                  <ul className="crm-recent-list">
+                    {data.recentOpen.map((c) => (
+                      <li key={c.id}>
+                        <Link to="/sales/service/cases">
+                          {c.caseNumber ? `${c.caseNumber} · ` : ''}{c.subject}
+                        </Link>
+                        <span>{c.status} · {c.priority}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            </div>
           </>
-        ) : (
-          <p className="crm-analytics-muted">
-            {nav === 'browse'
-              ? 'Browse all reports and dashboards in your workspace. Create content from the Home tab.'
-              : 'Star reports and dashboards to find them quickly in Favorites.'}
-          </p>
-        )}
+        ) : null}
       </div>
     </div>
   )

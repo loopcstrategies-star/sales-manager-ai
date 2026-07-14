@@ -22,6 +22,8 @@ const accountSchema = new mongoose.Schema({
   description: { type: String, trim: true, default: '', maxlength: 5000 },
   parentAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Account', default: null },
   phone: { type: String, trim: true, default: '', maxlength: 60 },
+  /** Simple segment tag e.g. Hot, VIP, Partner */
+  label: { type: String, trim: true, default: '', maxlength: 80 },
   /** Prospect import region filter e.g. Europe, Middle East (empty = Worldwide / unknown) */
   region: { type: String, trim: true, default: '', maxlength: 80 },
   billingAddress: { type: addressSchema, default: () => ({}) },

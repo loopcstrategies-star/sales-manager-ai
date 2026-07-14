@@ -21,10 +21,16 @@ const accountBodySchema = Joi.object({
   description: Joi.string().allow('').max(5000),
   parentAccountId: Joi.string().allow(null, ''),
   phone: Joi.string().allow('').max(60),
+  label: Joi.string().allow('').max(80),
   region: Joi.string().allow('').max(80),
   billingAddress: addressJoi(Joi),
   shippingAddress: addressJoi(Joi),
   customFields: customFieldsJoi(Joi),
+})
+
+const bulkLabelSchema = Joi.object({
+  ids: Joi.array().items(Joi.string().trim().min(1)).min(1).max(200).required(),
+  label: Joi.string().allow('').max(80).required(),
 })
 
 function serializeAccount(doc) {
@@ -44,8 +50,10 @@ function serializeAccount(doc) {
 router.get('/', async (req, res) => {
   try {
     const q = String(req.query.q || '').trim()
+    const label = String(req.query.label || '').trim()
     const filter = { ...workspaceFilter(req.user) }
     if (q) filter.name = { $regex: escapeRegex(q), $options: 'i' }
+    if (label) filter.label = label
 
     const items = await Account.find(filter)
       .populate('ownerId', 'name')
@@ -89,6 +97,23 @@ router.post('/', validateBody(accountBodySchema), async (req, res) => {
     res.status(201).json({ success: true, data: serializeAccount(created) })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message || 'Failed to create account.' })
+  }
+})
+
+router.post('/bulk-label', validateBody(bulkLabelSchema), async (req, res) => {
+  try {
+    const ids = (req.body.ids || []).map((id) => toObjectId(id)).filter(Boolean)
+    const label = String(req.body.label || '').trim().slice(0, 80)
+    const result = await Account.updateMany(
+      { ...workspaceFilter(req.user), _id: { $in: ids } },
+      { $set: { label } },
+    )
+    res.json({
+      success: true,
+      data: { matched: result.matchedCount || 0, modified: result.modifiedCount || 0, label },
+    })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Failed to assign labels.' })
   }
 })
 
