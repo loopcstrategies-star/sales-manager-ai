@@ -294,11 +294,12 @@ export default function LeadsPage() {
 
   const scoreSelected = async () => {
     setListError('')
+    const useLlm = sales?.useLlmScoring === true
     try {
       if (selectedIds.length === 1) {
-        await crmApi.scoreLeads({ id: selectedIds[0], useLlm: false })
+        await crmApi.scoreLeads({ id: selectedIds[0], useLlm })
       } else {
-        await crmApi.scoreLeads({ cap: 40, useLlm: false })
+        await crmApi.scoreLeads({ cap: 40, useLlm })
       }
       await load(search)
     } catch (err) {

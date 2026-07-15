@@ -66,6 +66,79 @@ export const chatApi = {
     body: JSON.stringify(body),
     timeoutMs: opts.timeoutMs ?? 45000,
   }),
+  /**
+   * SSE chat stream. onEvent({ type, data }) for status|delta|done|error.
+   * Returns final done payload.
+   */
+  stream: async (body, { onEvent, timeoutMs = 60000 } = {}) => {
+    const headers = {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+    }
+    const token = getToken()
+    if (token) headers.Authorization = `Bearer ${token}`
+
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs)
+
+    try {
+      const res = await fetch(`${API_BASE}/api/chat/stream`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.message || `Request failed (${res.status})`)
+      }
+      if (!res.body) throw new Error('No stream body')
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let finalPayload = null
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const parts = buffer.split('\n\n')
+        buffer = parts.pop() || ''
+        for (const part of parts) {
+          const lines = part.split('\n')
+          let event = 'message'
+          let dataLine = ''
+          for (const line of lines) {
+            if (line.startsWith('event:')) event = line.slice(6).trim()
+            else if (line.startsWith('data:')) dataLine += line.slice(5).trim()
+          }
+          if (!dataLine) continue
+          let data
+          try {
+            data = JSON.parse(dataLine)
+          } catch {
+            continue
+          }
+          onEvent?.({ type: event, data })
+          if (event === 'done') finalPayload = data
+          if (event === 'error') {
+            throw new Error(data.message || 'Stream failed')
+          }
+        }
+      }
+
+      if (!finalPayload) throw new Error('Stream ended without result')
+      return finalPayload
+    } catch (err) {
+      if (err?.name === 'AbortError') {
+        throw new Error('Request timed out. Try again or use a shorter question.')
+      }
+      throw err
+    } finally {
+      clearTimeout(timer)
+    }
+  },
   sessions: () => api('/api/chat/sessions'),
   session: (id) => api(`/api/chat/sessions/${id}`),
 }
@@ -348,6 +421,14 @@ export const crmApi = {
     body: JSON.stringify(body),
   }),
   aiCreateTask: (body) => api('/api/crm/ai/summarize/create-task', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  }),
+  replyAssist: (body) => api('/api/crm/ai/reply-assist', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  }),
+  sequenceLite: (body) => api('/api/crm/ai/sequence-lite', {
     method: 'POST',
     body: JSON.stringify(body),
   }),

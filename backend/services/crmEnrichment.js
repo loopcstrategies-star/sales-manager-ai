@@ -1,4 +1,6 @@
 const { searchWithCache } = require('./webSearch')
+const { createChatCompletion, isOpenAiConfigured } = require('./openAiClient')
+const { extractJsonObject } = require('./emailDraft')
 
 function fillIfEmpty(target, key, value, overwrite) {
   if (value == null || String(value).trim() === '') return
@@ -40,7 +42,49 @@ function extractFromText(blob) {
   return out
 }
 
-async function enrichFromQuery(query) {
+async function extractWithLlm(blob, query) {
+  if (!isOpenAiConfigured()) return null
+  const text = String(blob || '').slice(0, 6000)
+  if (!text.trim()) return null
+
+  try {
+    const raw = await createChatCompletion(
+      [
+        {
+          role: 'system',
+          content: [
+            'Extract company/lead enrichment fields from web snippets.',
+            'Return ONLY JSON with optional keys:',
+            'website, phone, industry, description, numberOfEmployees, annualRevenue, city, country, title',
+            'Use null/omit when unknown. Do not invent facts.',
+          ].join(' '),
+        },
+        {
+          role: 'user',
+          content: `Search query: ${query}\n\nSnippets:\n${text}`,
+        },
+      ],
+      { temperature: 0.1, maxTokens: 500, retryOnRateLimit: true, timeoutMs: 15000 },
+    )
+    const parsed = extractJsonObject(raw)
+    if (!parsed || typeof parsed !== 'object') return null
+    const out = {}
+    for (const key of [
+      'website', 'phone', 'industry', 'description', 'numberOfEmployees',
+      'annualRevenue', 'city', 'country', 'title',
+    ]) {
+      if (parsed[key] != null && String(parsed[key]).trim()) {
+        out[key] = String(parsed[key]).trim().slice(0, key === 'description' ? 2000 : 200)
+      }
+    }
+    return Object.keys(out).length ? out : null
+  } catch (err) {
+    console.warn('[crmEnrichment] LLM extract failed:', err.message)
+    return null
+  }
+}
+
+async function enrichFromQuery(query, { useLlm = true } = {}) {
   const search = await searchWithCache(query, { maxResults: 5, searchDepth: 'basic' })
   const parts = []
   if (search.answer) parts.push(search.answer)
@@ -48,20 +92,29 @@ async function enrichFromQuery(query) {
     parts.push(`${r.title || ''} ${r.content || ''} ${r.url || ''}`)
   })
   const blob = parts.join('\n')
-  const extracted = extractFromText(blob)
-  if (!extracted.website && search.results?.[0]?.url) {
-    extracted.website = search.results[0].url
+  const regexFields = extractFromText(blob)
+  if (!regexFields.website && search.results?.[0]?.url) {
+    regexFields.website = search.results[0].url
   }
-  if (!extracted.description && search.answer) {
-    extracted.description = String(search.answer).slice(0, 2000)
-  } else if (!extracted.description && search.results?.[0]?.content) {
-    extracted.description = String(search.results[0].content).slice(0, 2000)
+  if (!regexFields.description && search.answer) {
+    regexFields.description = String(search.answer).slice(0, 2000)
+  } else if (!regexFields.description && search.results?.[0]?.content) {
+    regexFields.description = String(search.results[0].content).slice(0, 2000)
   }
+
+  let llmFields = null
+  if (useLlm !== false) {
+    llmFields = await extractWithLlm(blob, query)
+  }
+
+  const extracted = { ...regexFields, ...(llmFields || {}) }
+
   return {
     fields: extracted,
     sources: (search.results || []).slice(0, 3).map((r) => ({ title: r.title, url: r.url })),
     error: search.error || null,
     provider: search.provider || null,
+    llmUsed: Boolean(llmFields),
   }
 }
 
@@ -116,4 +169,6 @@ module.exports = {
   applyLeadEnrichment,
   applyAccountEnrichment,
   applyContactEnrichment,
+  extractFromText,
+  extractWithLlm,
 }

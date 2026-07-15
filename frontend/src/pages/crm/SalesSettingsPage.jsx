@@ -114,6 +114,16 @@ export default function SalesSettingsPage() {
       </div>
 
       <div className="settings-card">
+        <h3 className="settings-section-title">Sales AI</h3>
+        <ToggleRow
+          label="Use LLM for lead scoring"
+          hint="Combine jewelry/UAE ICP rules with an LLM nudge when scoring leads (slower, needs Groq/OpenAI)."
+          checked={draft.useLlmScoring === true}
+          onChange={(v) => patch({ useLlmScoring: v })}
+        />
+      </div>
+
+      <div className="settings-card">
         <h3 className="settings-section-title">Find contacts</h3>
         <ToggleRow
           label="Auto-save found contacts"

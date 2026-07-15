@@ -13,6 +13,8 @@ import ActivityTimeline from './ActivityTimeline'
 import FindContactsButton from './FindContactsButton'
 import EmailDraftButton from './EmailDraftButton'
 import SendEmailButton from './SendEmailButton'
+import ReplyAssistButton from './ReplyAssistButton'
+import SequenceLiteButton from './SequenceLiteButton'
 import RecordAiPanel from './RecordAiPanel'
 import CrmModal from './CrmModal'
 import LookupField from './LookupField'
@@ -240,12 +242,24 @@ export default function RecordDetailPage({ objectType }) {
               </button>
               <EmailDraftButton objectType="leads" id={data._id} hasEmail={Boolean(data.email)} />
               <SendEmailButton objectType="leads" id={data._id} hasEmail={Boolean(data.email)} />
+              <ReplyAssistButton objectType="leads" id={data._id} />
+              <SequenceLiteButton
+                objectType="leads"
+                id={data._id}
+                onDone={(d) => setActionMsg(`Sequence: Day 0 draft + follow-up due ${d?.day3DueDate || 'in 3 days'}.`)}
+              />
             </>
           ) : null}
           {objectType === 'contacts' ? (
             <>
               <EmailDraftButton objectType="contacts" id={data._id} hasEmail={Boolean(data.email)} className="crm-btn-primary" />
               <SendEmailButton objectType="contacts" id={data._id} hasEmail={Boolean(data.email)} />
+              <ReplyAssistButton objectType="contacts" id={data._id} />
+              <SequenceLiteButton
+                objectType="contacts"
+                id={data._id}
+                onDone={(d) => setActionMsg(`Sequence: Day 0 draft + follow-up due ${d?.day3DueDate || 'in 3 days'}.`)}
+              />
             </>
           ) : null}
           {objectType === 'opportunities' ? (

@@ -3109,6 +3109,12 @@ a { color: var(--brand); }
   margin-bottom: 0.5rem;
 }
 
+.crm-ai-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .crm-ai-panel-head h3 {
   margin: 0;
 }

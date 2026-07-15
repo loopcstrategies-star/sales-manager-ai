@@ -95,6 +95,81 @@ async function draftOutreachEmail({
   }
 }
 
+/**
+ * Suggest a reply to an inbound email and return subject + body.
+ */
+async function draftReplyEmail({
+  inbound = '',
+  person = {},
+  company = '',
+  tone = 'professional',
+} = {}) {
+  if (!isOpenAiConfigured()) {
+    return {
+      ok: false,
+      error: 'GROQ_API_KEY or OPENAI_API_KEY is required for reply assist.',
+      subject: '',
+      body: '',
+    }
+  }
+
+  const inboundText = String(inbound || '').trim()
+  if (!inboundText) {
+    return { ok: false, error: 'Paste the inbound email first.', subject: '', body: '' }
+  }
+
+  const name = [person.firstName, person.lastName].filter(Boolean).join(' ').trim()
+    || person.fullName
+    || 'there'
+  const email = String(person.email || '').trim()
+
+  const system = [
+    'You write short B2B reply emails for jewelry and precious metals wholesale sales.',
+    'Return ONLY valid JSON: {"subject":"","body":""}',
+    'Rules:',
+    '- Respond to the inbound message; do not invent facts, prices, or commitments.',
+    '- 100–160 words max in the body.',
+    '- Plain text only (no HTML).',
+    '- Include a clear next step or soft CTA.',
+    `- Tone: ${tone || 'professional'}.`,
+  ].join('\n')
+
+  const user = [
+    `Recipient / contact name: ${name}`,
+    company ? `Company: ${company}` : null,
+    email ? `Their email: ${email}` : null,
+    '',
+    'Inbound email to reply to:',
+    inboundText.slice(0, 4000),
+  ].filter(Boolean).join('\n')
+
+  let raw
+  try {
+    raw = await createChatCompletion(
+      [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ],
+      { temperature: 0.4, maxTokens: 700, retryOnRateLimit: true },
+    )
+  } catch (err) {
+    return { ok: false, error: err.message || 'LLM failed', subject: '', body: '' }
+  }
+
+  const parsed = extractJsonObject(raw)
+  if (!parsed) {
+    return { ok: false, error: 'Could not parse reply JSON.', subject: '', body: '', raw }
+  }
+
+  return {
+    ok: true,
+    error: null,
+    to: email,
+    subject: String(parsed.subject || '').trim().slice(0, 200),
+    body: String(parsed.body || '').trim().slice(0, 5000),
+  }
+}
+
 /** Default win probability by pipeline stage (0–100). */
 const STAGE_PROBABILITY = {
   Prospecting: 10,
@@ -123,6 +198,7 @@ function weightedAmount(opp, stageProbabilities) {
 
 module.exports = {
   draftOutreachEmail,
+  draftReplyEmail,
   STAGE_PROBABILITY,
   probabilityForOpportunity,
   weightedAmount,

@@ -46,13 +46,24 @@ export default function RecordAiPanel({ objectType, id, onTaskCreated }) {
     }
   }
 
+  const askAi = () => {
+    window.dispatchEvent(new CustomEvent('sales-copilot-open', {
+      detail: { prompt: 'Summarize this record and suggest the best next step.' },
+    }))
+  }
+
   return (
     <section className="crm-home-panel crm-ai-panel">
       <div className="crm-ai-panel-head">
         <h3>AI assistant</h3>
-        <button type="button" className="crm-btn-secondary" disabled={loading || busy} onClick={load}>
-          Refresh
-        </button>
+        <div className="crm-ai-panel-actions">
+          <button type="button" className="crm-btn-secondary" disabled={loading || busy} onClick={askAi}>
+            Ask AI
+          </button>
+          <button type="button" className="crm-btn-secondary" disabled={loading || busy} onClick={load}>
+            Refresh
+          </button>
+        </div>
       </div>
       {loading ? <p className="crm-muted">Analyzing record…</p> : null}
       {error ? <p className="crm-banner-error">{error}</p> : null}

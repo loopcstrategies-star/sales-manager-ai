@@ -17,6 +17,7 @@ export const DEFAULT_SALES_PREFS = {
   enrichFillEmptyOnly: true,
   enrichStaleDays: 30,
   autoTaskFromNextStep: true,
+  useLlmScoring: false,
   stageProbabilities: {
     Prospecting: 10,
     Qualification: 25,
@@ -53,6 +54,7 @@ export function mergeSalesPrefs(partial = {}) {
     perQuery,
     scheduledFindHours,
     defaultProspectRegion: String(partial.defaultProspectRegion || '').slice(0, 40),
+    useLlmScoring: partial.useLlmScoring === true,
     stageProbabilities: {
       ...DEFAULT_SALES_PREFS.stageProbabilities,
       ...(partial.stageProbabilities || {}),

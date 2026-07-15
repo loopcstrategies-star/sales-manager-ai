@@ -31,6 +31,41 @@ const chatSchema = Joi.object({
   sessionId: Joi.string().optional().allow(null, ''),
 })
 
+function sleep(ms) {
+  return new Promise((resolve) => { setTimeout(resolve, ms) })
+}
+
+async function persistSession(user, body, result) {
+  let session = null
+  if (body.sessionId) {
+    session = await ChatSession.findOne({ _id: body.sessionId, userId: user._id })
+  }
+  if (!session) {
+    session = await ChatSession.create({
+      userId: user._id,
+      workspaceId: user.workspaceId,
+      title: String(body.message).slice(0, 80),
+      messages: [],
+    })
+  }
+  session.messages.push(
+    { role: 'user', content: body.message },
+    { role: 'assistant', content: result.reply, meta: result.meta },
+  )
+  await session.save()
+  return session
+}
+
+async function streamReplyChunks(res, writeEvent, reply) {
+  const text = String(reply || '')
+  const chunkSize = 24
+  for (let i = 0; i < text.length; i += chunkSize) {
+    writeEvent('delta', { text: text.slice(i, i + chunkSize) })
+    // eslint-disable-next-line no-await-in-loop
+    await sleep(12)
+  }
+}
+
 router.post('/', chatLimiter, validateBody(chatSchema), async (req, res) => {
   try {
     const result = await runSalesAiChat({
@@ -40,24 +75,7 @@ router.post('/', chatLimiter, validateBody(chatSchema), async (req, res) => {
       chatInputs: req.body.chatInputs || {},
     })
 
-    let session = null
-    if (req.body.sessionId) {
-      session = await ChatSession.findOne({ _id: req.body.sessionId, userId: req.user._id })
-    }
-    if (!session) {
-      session = await ChatSession.create({
-        userId: req.user._id,
-        workspaceId: req.user.workspaceId,
-        title: String(req.body.message).slice(0, 80),
-        messages: [],
-      })
-    }
-
-    session.messages.push(
-      { role: 'user', content: req.body.message },
-      { role: 'assistant', content: result.reply, meta: result.meta },
-    )
-    await session.save()
+    const session = await persistSession(req.user, req.body, result)
 
     res.json({
       success: true,
@@ -72,6 +90,52 @@ router.post('/', chatLimiter, validateBody(chatSchema), async (req, res) => {
       success: false,
       message: err.message || 'Chat failed.',
     })
+  }
+})
+
+router.post('/stream', chatLimiter, validateBody(chatSchema), async (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
+  res.setHeader('Cache-Control', 'no-cache, no-transform')
+  res.setHeader('Connection', 'keep-alive')
+  if (typeof res.flushHeaders === 'function') res.flushHeaders()
+
+  const writeEvent = (event, data) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+  }
+
+  try {
+    writeEvent('status', { status: 'Working…' })
+    const result = await runSalesAiChat({
+      user: req.user,
+      message: req.body.message,
+      history: req.body.history || [],
+      chatInputs: req.body.chatInputs || {},
+    })
+
+    writeEvent('status', {
+      status: result.meta?.status || (result.meta?.fastPath ? 'Done' : 'Streaming answer…'),
+      meta: {
+        fastPath: Boolean(result.meta?.fastPath),
+        crmMode: Boolean(result.meta?.crmMode),
+      },
+    })
+
+    await streamReplyChunks(res, writeEvent, result.reply)
+
+    const session = await persistSession(req.user, req.body, result)
+
+    writeEvent('done', {
+      success: true,
+      sessionId: session._id,
+      reply: result.reply,
+      sections: result.sections,
+      meta: result.meta,
+    })
+    res.end()
+  } catch (err) {
+    console.error('[chat/stream] error:', err)
+    writeEvent('error', { message: err.message || 'Chat failed.' })
+    res.end()
   }
 })
 

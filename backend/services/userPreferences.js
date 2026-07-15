@@ -35,6 +35,7 @@ const DEFAULT_SALES = {
   enrichFillEmptyOnly: true,
   enrichStaleDays: 30,
   autoTaskFromNextStep: true,
+  useLlmScoring: false,
   stageProbabilities: { ...STAGE_PROBABILITY },
 }
 
@@ -101,6 +102,7 @@ function mergeSales(partial = {}) {
     scheduledFindHours,
     convertDefaultStage,
     defaultProspectRegion,
+    useLlmScoring: partial.useLlmScoring === true,
     stageProbabilities: mergeStageProbabilities(partial.stageProbabilities || {}),
   }
 }

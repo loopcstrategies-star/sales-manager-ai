@@ -68,6 +68,7 @@ const patchSchema = Joi.object({
     enrichFillEmptyOnly: Joi.boolean(),
     enrichStaleDays: Joi.number().integer().min(7).max(90),
     autoTaskFromNextStep: Joi.boolean(),
+    useLlmScoring: Joi.boolean(),
     stageProbabilities: stageProbSchema,
   }).min(1),
 }).min(1)

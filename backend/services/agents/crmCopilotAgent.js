@@ -27,13 +27,225 @@ function detectFastIntent(raw) {
     || (/\bhow many\b/.test(text) && /\b(lead|account|deal|contact)\b/.test(text))) {
     return 'stats'
   }
-  if (/\b(pipeline|open deals|opportunit|deals by stage)\b/.test(text)) return 'pipeline'
+  if (/\b(score (my |these )?leads?|ai score)\b/.test(text)) return 'score_leads'
+  if (/\b(summarize (this|the) (record|lead|account|contact|opportunit|deal)|summarize this)\b/.test(text)) {
+    return 'summarize_record'
+  }
+  if (/\b(draft (an? )?email|email this|outreach)\b/.test(text) && /\b(this|current|lead|contact)\b/.test(text)) {
+    return 'draft_current'
+  }
+  if (/\benrich\b/.test(text) && /\b(this|current|lead|account)\b/.test(text)) return 'enrich_current'
+  if (/\b(pipeline|open deals|opportunit|deals by stage)\b/.test(text)
+    && !/\b(summarize this|draft|enrich)\b/.test(text)) {
+    return 'pipeline'
+  }
   if (/\b(my leads|list my open|who to call|open crm leads)\b/.test(text)
     || (/\bleads?\b/.test(text) && /\b(list|suggest|call first)\b/.test(text))) {
     return 'leads'
   }
   if (/\bcreate\b/.test(text) && /\b(task|follow[- ]?up)\b/.test(text)) return 'create_task'
   if (/\bfollow[- ]?up\b/.test(text) && /\btask\b/.test(text)) return 'create_task'
+  return null
+}
+
+function parseRecordRef(recordContext) {
+  const raw = String(recordContext || '').trim()
+  // Structured: leads:ObjectId
+  const structured = raw.match(/^(leads|accounts|contacts|opportunities|pipeline):([a-f0-9]{24})$/i)
+  if (structured) {
+    const type = structured[1].toLowerCase() === 'pipeline' ? 'opportunities' : structured[1].toLowerCase()
+    return { objectType: type, id: structured[2] }
+  }
+  // Display: Lead abc... / Opportunity abc...
+  const labeled = raw.match(/^(Lead|Account|Contact|Opportunity)\s+([a-f0-9]{24})$/i)
+  if (labeled) {
+    const map = {
+      lead: 'leads',
+      account: 'accounts',
+      contact: 'contacts',
+      opportunity: 'opportunities',
+    }
+    return { objectType: map[labeled[1].toLowerCase()], id: labeled[2] }
+  }
+  return null
+}
+
+function formatRecordSummary(rec) {
+  if (!rec || rec.error) return `## Record\n${rec?.error || 'Not found.'}`
+  if (rec.objectType === 'leads') {
+    return [
+      '## Lead summary',
+      `- **${rec.name || '—'}** @ ${rec.company || '—'}`,
+      `- Status: ${rec.status || '—'}`,
+      `- Email: ${rec.email || '—'} · Phone: ${rec.phone || '—'}`,
+      `- Website: ${rec.website || '—'} · Industry: ${rec.industry || '—'}`,
+      `- AI score: ${rec.aiScore != null ? `${rec.aiScore}/100` : '—'}`,
+      rec.description ? `- Notes: ${String(rec.description).slice(0, 240)}` : '',
+      '',
+      '**Suggested:** Draft outreach if email exists, or Enrich / Score.',
+    ].filter(Boolean).join('\n')
+  }
+  if (rec.objectType === 'accounts') {
+    return [
+      '## Account summary',
+      `- **${rec.name}**`,
+      `- Website: ${rec.website || '—'} · Phone: ${rec.phone || '—'}`,
+      `- Type: ${rec.type || '—'} · Region: ${rec.region || '—'}`,
+      '',
+      '**Suggested:** Find contacts, Enrich from web, or New Opportunity.',
+    ].join('\n')
+  }
+  if (rec.objectType === 'contacts') {
+    return [
+      '## Contact summary',
+      `- **${rec.name}** (${rec.title || 'no title'})`,
+      `- Account: ${rec.account || '—'}`,
+      `- Email: ${rec.email || '—'} · Phone: ${rec.phone || '—'}`,
+      '',
+      '**Suggested:** Draft email if an address is on file.',
+    ].join('\n')
+  }
+  return [
+    '## Opportunity summary',
+    `- **${rec.name}** — ${rec.stage || '—'} · ${formatMoney(rec.amount)}`,
+    `- Account: ${rec.account || '—'}`,
+    `- Close: ${rec.closeDate || '—'} · Next: ${rec.nextStep || '—'}`,
+    '',
+    '**Suggested:** Set next step or create a follow-up task.',
+  ].join('\n')
+}
+
+async function runFastPath(user, intent, recordRef = null) {
+  const toolsUsed = []
+  if (intent === 'pipeline') {
+    const data = await executeCrmTool('list_pipeline', { limit: 30 }, user)
+    toolsUsed.push('list_pipeline')
+    return { reply: replyPipeline(data), toolsUsed, status: 'Listed pipeline' }
+  }
+  if (intent === 'leads') {
+    const data = await executeCrmTool('list_leads', { limit: 20 }, user)
+    toolsUsed.push('list_leads')
+    return { reply: replyLeads(data), toolsUsed, status: 'Listed leads' }
+  }
+  if (intent === 'stats') {
+    const data = await executeCrmTool('get_crm_stats', {}, user)
+    toolsUsed.push('get_crm_stats')
+    return { reply: replyStats(data), toolsUsed, status: 'Loaded CRM stats' }
+  }
+  if (intent === 'score_leads') {
+    const sales = (await require('../userPreferences').getUserPreferences(user._id)).sales
+    const useLlm = sales?.useLlmScoring === true
+    if (recordRef?.objectType === 'leads' && recordRef.id) {
+      const data = await executeCrmTool('score_leads', { id: recordRef.id, useLlm }, user)
+      toolsUsed.push('score_leads')
+      return {
+        reply: data.error
+          ? `## Score\n${data.error}`
+          : `## Lead scored\n- Score: **${data.aiScore}/100**\n- Reasons: ${Array.isArray(data.reasons) ? data.reasons.join('; ') : (data.reasons || '—')}`,
+        toolsUsed,
+        status: 'Scored lead',
+      }
+    }
+    const data = await executeCrmTool('score_leads', { cap: 40, useLlm }, user)
+    toolsUsed.push('score_leads')
+    return {
+      reply: [
+        '## Lead scoring',
+        `Scored **${data.scored || 0}** open lead(s)${useLlm ? ' (rules + LLM)' : ' (rules)'}.`,
+        'Open **Leads** to see the AI Score column.',
+      ].join('\n'),
+      toolsUsed,
+      status: 'Scored leads',
+    }
+  }
+  if (intent === 'summarize_record') {
+    if (!recordRef?.id) {
+      return {
+        reply: '## Summarize\nOpen a Lead, Account, Contact, or Opportunity detail page, then click **Summarize this**.',
+        toolsUsed,
+        status: 'Need record context',
+      }
+    }
+    const data = await executeCrmTool('get_record', recordRef, user)
+    toolsUsed.push('get_record')
+    return { reply: formatRecordSummary(data), toolsUsed, status: 'Loaded record' }
+  }
+  if (intent === 'draft_current') {
+    if (!recordRef?.id || !['leads', 'contacts'].includes(recordRef.objectType)) {
+      return {
+        reply: '## Draft email\nOpen a **Lead** or **Contact** detail page, then click **Draft email**.',
+        toolsUsed,
+        status: 'Need lead/contact',
+      }
+    }
+    const data = await executeCrmTool('draft_email', {
+      objectType: recordRef.objectType,
+      id: recordRef.id,
+    }, user)
+    toolsUsed.push('draft_email')
+    if (data.error) return { reply: `## Draft email\n${data.error}`, toolsUsed, status: 'Draft failed' }
+    return {
+      reply: [
+        '## Email draft',
+        `**To:** ${data.to || '(no email)'}`,
+        `**Subject:** ${data.subject || '—'}`,
+        '',
+        data.body || '',
+        data.taskId ? `\n_Saved as Task \`${data.taskId}\`._` : '',
+      ].join('\n'),
+      toolsUsed,
+      status: 'Drafted email',
+    }
+  }
+  if (intent === 'enrich_current') {
+    if (!recordRef?.id || !['leads', 'accounts'].includes(recordRef.objectType)) {
+      return {
+        reply: '## Enrich\nOpen a **Lead** or **Account** detail page, then click **Enrich**.',
+        toolsUsed,
+        status: 'Need lead/account',
+      }
+    }
+    const data = await executeCrmTool('enrich_record', {
+      objectType: recordRef.objectType,
+      id: recordRef.id,
+    }, user)
+    toolsUsed.push('enrich_record')
+    if (data.error) return { reply: `## Enrich\n${data.error}`, toolsUsed, status: 'Enrich failed' }
+    const fields = data.fields || {}
+    const lines = Object.entries(fields).map(([k, v]) => `- **${k}**: ${v}`)
+    return {
+      reply: [
+        '## Enriched from web',
+        lines.length ? lines.join('\n') : '_No new fields found (search returned little structured data)._',
+        '',
+        'Refresh the record page to see updates.',
+      ].join('\n'),
+      toolsUsed,
+      status: 'Enriched record',
+    }
+  }
+  if (intent === 'create_task') {
+    const pipeline = await executeCrmTool('list_pipeline', { limit: 5 }, user)
+    toolsUsed.push('list_pipeline')
+    const top = (pipeline.opportunities || [])[0]
+    const subject = top
+      ? `Follow up: ${top.name}`.slice(0, 200)
+      : 'Follow up hottest opportunity this week'
+    const due = new Date()
+    due.setDate(due.getDate() + 2)
+    const data = await executeCrmTool('create_task', {
+      subject,
+      priority: 'High',
+      dueDate: due.toISOString().slice(0, 10),
+      description: top
+        ? `Auto-created from Sales AI. Deal: ${top.name} (${top.stage}, ${formatMoney(top.amount)}).`
+        : 'Auto-created from Sales AI. No open deals found — follow up leads instead.',
+      relatedType: top ? 'Opportunity' : (recordRef?.objectType === 'leads' ? 'Lead' : ''),
+      relatedId: top?.id || recordRef?.id || '',
+    }, user)
+    toolsUsed.push('create_task')
+    return { reply: replyCreateTask(data, pipeline), toolsUsed, status: 'Created task' }
+  }
   return null
 }
 
@@ -132,48 +344,6 @@ function replyCreateTask(data, pipeline) {
   ].filter(Boolean).join('\n')
 }
 
-async function runFastPath(user, intent) {
-  const toolsUsed = []
-  if (intent === 'pipeline') {
-    const data = await executeCrmTool('list_pipeline', { limit: 30 }, user)
-    toolsUsed.push('list_pipeline')
-    return { reply: replyPipeline(data), toolsUsed }
-  }
-  if (intent === 'leads') {
-    const data = await executeCrmTool('list_leads', { limit: 20 }, user)
-    toolsUsed.push('list_leads')
-    return { reply: replyLeads(data), toolsUsed }
-  }
-  if (intent === 'stats') {
-    const data = await executeCrmTool('get_crm_stats', {}, user)
-    toolsUsed.push('get_crm_stats')
-    return { reply: replyStats(data), toolsUsed }
-  }
-  if (intent === 'create_task') {
-    const pipeline = await executeCrmTool('list_pipeline', { limit: 5 }, user)
-    toolsUsed.push('list_pipeline')
-    const top = (pipeline.opportunities || [])[0]
-    const subject = top
-      ? `Follow up: ${top.name}`.slice(0, 200)
-      : 'Follow up hottest opportunity this week'
-    const due = new Date()
-    due.setDate(due.getDate() + 2)
-    const data = await executeCrmTool('create_task', {
-      subject,
-      priority: 'High',
-      dueDate: due.toISOString().slice(0, 10),
-      description: top
-        ? `Auto-created from Sales AI. Deal: ${top.name} (${top.stage}, ${formatMoney(top.amount)}).`
-        : 'Auto-created from Sales AI. No open deals found — follow up leads instead.',
-      relatedType: top ? 'Opportunity' : '',
-      relatedId: top?.id || '',
-    }, user)
-    toolsUsed.push('create_task')
-    return { reply: replyCreateTask(data, pipeline), toolsUsed }
-  }
-  return null
-}
-
 function metaBase(toolsUsed, extras = {}) {
   return {
     model: extras.model || (isOpenAiConfigured() ? getModel() : 'crm-fast'),
@@ -182,6 +352,7 @@ function metaBase(toolsUsed, extras = {}) {
     toolsUsed,
     crmMode: true,
     fastPath: Boolean(extras.fastPath),
+    status: extras.status || undefined,
   }
 }
 
@@ -261,20 +432,25 @@ async function runToolCallingLoop({ user, userMessage, history = [] }) {
   }
 }
 
-async function runCrmCopilotAgent({ user, userMessage, history = [] }) {
+async function runCrmCopilotAgent({ user, userMessage, history = [], recordContext = '' }) {
+  const recordRef = parseRecordRef(recordContext)
   const intent = detectFastIntent(userMessage)
 
   // Fast path: Mongo tools only — works even without LLM, answers in ms
   if (intent) {
     try {
-      const fast = await runFastPath(user, intent)
+      const fast = await runFastPath(user, intent, recordRef)
       if (fast) {
         return {
           agent: 'crm-copilot',
           title: 'CRM assistant',
           reply: fast.reply,
           sections: [],
-          meta: metaBase(fast.toolsUsed, { fastPath: true, model: 'crm-fast' }),
+          meta: metaBase(fast.toolsUsed, {
+            fastPath: true,
+            model: 'crm-fast',
+            status: fast.status,
+          }),
         }
       }
     } catch (err) {
@@ -342,4 +518,5 @@ module.exports = {
   runCrmCopilotAgent,
   looksLikeCrmRequest,
   detectFastIntent,
+  parseRecordRef,
 }

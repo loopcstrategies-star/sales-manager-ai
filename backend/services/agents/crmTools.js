@@ -135,6 +135,36 @@ const CRM_TOOL_DEFINITIONS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'get_record',
+      description: 'Load one CRM record by type and id (Lead, Account, Contact, or Opportunity).',
+      parameters: {
+        type: 'object',
+        properties: {
+          objectType: { type: 'string', enum: ['leads', 'accounts', 'contacts', 'opportunities'] },
+          id: { type: 'string' },
+        },
+        required: ['objectType', 'id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'score_leads',
+      description: 'Score open leads 0–100 against jewelry/UAE ICP (rules, optional LLM).',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Optional single lead id' },
+          cap: { type: 'integer', description: 'Max leads to score when id omitted' },
+          useLlm: { type: 'boolean' },
+        },
+      },
+    },
+  },
 ]
 
 function limitOf(n, fallback = 15, max = 30) {
@@ -363,6 +393,90 @@ async function executeCrmTool(name, rawArgs, user) {
       applyAccountEnrichment(account, result.fields || {}, false)
       await account.save()
       return { ok: true, objectType: 'accounts', id: String(account._id), fields: result.fields || {} }
+    }
+
+    case 'get_record': {
+      const objectType = String(args.objectType || '').toLowerCase()
+      const id = toObjectId(args.id)
+      if (!id) return { error: 'id is required' }
+      if (objectType === 'leads') {
+        const lead = await Lead.findOne({ ...filter, _id: id }).lean()
+        if (!lead) return { error: 'Lead not found' }
+        return {
+          objectType: 'leads',
+          id: String(lead._id),
+          name: [lead.firstName, lead.lastName].filter(Boolean).join(' '),
+          company: lead.company,
+          status: lead.status,
+          email: lead.email || '',
+          phone: lead.phone || '',
+          website: lead.website || '',
+          industry: lead.industry || '',
+          description: lead.description || '',
+          aiScore: lead.aiScore ?? null,
+        }
+      }
+      if (objectType === 'accounts') {
+        const account = await Account.findOne({ ...filter, _id: id }).lean()
+        if (!account) return { error: 'Account not found' }
+        return {
+          objectType: 'accounts',
+          id: String(account._id),
+          name: account.name,
+          website: account.website || '',
+          phone: account.phone || '',
+          type: account.type || '',
+          region: account.region || '',
+          description: account.description || '',
+        }
+      }
+      if (objectType === 'contacts') {
+        const contact = await Contact.findOne({ ...filter, _id: id }).populate('accountId', 'name').lean()
+        if (!contact) return { error: 'Contact not found' }
+        return {
+          objectType: 'contacts',
+          id: String(contact._id),
+          name: [contact.firstName, contact.lastName].filter(Boolean).join(' '),
+          email: contact.email || '',
+          phone: contact.phone || '',
+          title: contact.title || '',
+          account: contact.accountId?.name || '',
+        }
+      }
+      if (objectType === 'opportunities' || objectType === 'pipeline') {
+        const opp = await Opportunity.findOne({ ...filter, _id: id }).populate('accountId', 'name').lean()
+        if (!opp) return { error: 'Opportunity not found' }
+        return {
+          objectType: 'opportunities',
+          id: String(opp._id),
+          name: opp.name,
+          stage: opp.stage,
+          amount: opp.amount,
+          closeDate: opp.closeDate ? String(opp.closeDate).slice(0, 10) : null,
+          nextStep: opp.nextStep || '',
+          account: opp.accountId?.name || '',
+          description: opp.description || '',
+        }
+      }
+      return { error: 'objectType must be leads|accounts|contacts|opportunities' }
+    }
+
+    case 'score_leads': {
+      const { scoreAndSaveLead, scoreWorkspaceLeads } = require('../leadScore')
+      const useLlm = args.useLlm === true
+      const id = toObjectId(args.id)
+      if (id) {
+        const lead = await Lead.findOne({ ...filter, _id: id })
+        if (!lead) return { error: 'Lead not found' }
+        return { ok: true, ...(await scoreAndSaveLead(lead, { useLlm })) }
+      }
+      return {
+        ok: true,
+        ...(await scoreWorkspaceLeads(user, {
+          cap: limitOf(args.cap, 40, 80),
+          useLlm,
+        })),
+      }
     }
 
     default:

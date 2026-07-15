@@ -68,6 +68,7 @@ async function runSalesAiChat({ user, message, history = [], chatInputs = {} }) 
         user,
         userMessage: crmMessage,
         history: normalizedHistory,
+        recordContext,
       })
       return {
         reply: crm.reply,

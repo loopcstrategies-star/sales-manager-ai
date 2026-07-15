@@ -9,9 +9,10 @@ const Lead = require('../models/Lead')
 const Contact = require('../models/Contact')
 const Task = require('../models/Task')
 const { sendCrmEmail, isSendConfigured } = require('../services/sendEmail')
-const { draftOutreachEmail } = require('../services/emailDraft')
+const { draftOutreachEmail, draftReplyEmail } = require('../services/emailDraft')
 const { getUserPreferences } = require('../services/userPreferences')
 const { alertStaleDealsForWorkspace } = require('../jobs/staleDeals')
+const { startSequenceLite } = require('../services/outreachSequence')
 
 const router = express.Router()
 router.use(protect)
@@ -190,6 +191,105 @@ router.post('/email-send', async (req, res) => {
     })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message || 'Send email failed.' })
+  }
+})
+
+router.post('/ai/reply-assist', async (req, res) => {
+  try {
+    const objectType = String(req.body.objectType || '').trim().toLowerCase()
+    const id = toObjectId(req.body.id)
+    const inbound = String(req.body.inbound || '').trim()
+    const logAsTask = req.body.logAsTask !== false
+    if (!id) return res.status(400).json({ success: false, message: 'id required' })
+    if (!inbound) return res.status(400).json({ success: false, message: 'Paste the inbound email.' })
+
+    const salesPrefs = (await getUserPreferences(req.user._id)).sales
+    let person = null
+    let company = ''
+    let relatedType = ''
+
+    if (objectType === 'leads' || objectType === 'lead') {
+      const lead = await Lead.findOne({ ...workspaceFilter(req.user), _id: id }).lean()
+      if (!lead) return res.status(404).json({ success: false, message: 'Lead not found.' })
+      person = lead
+      company = lead.company || ''
+      relatedType = 'Lead'
+    } else if (objectType === 'contacts' || objectType === 'contact') {
+      const contact = await Contact.findOne({ ...workspaceFilter(req.user), _id: id })
+        .populate('accountId', 'name')
+        .lean()
+      if (!contact) return res.status(404).json({ success: false, message: 'Contact not found.' })
+      person = contact
+      company = contact.accountId?.name || ''
+      relatedType = 'Contact'
+    } else {
+      return res.status(400).json({ success: false, message: 'objectType must be leads or contacts' })
+    }
+
+    const draft = await draftReplyEmail({
+      inbound,
+      person,
+      company,
+      tone: salesPrefs.emailTone || 'professional',
+    })
+    if (!draft.ok) {
+      return res.status(502).json({ success: false, message: draft.error || 'Reply assist failed.' })
+    }
+
+    let taskId = null
+    if (logAsTask) {
+      const task = await Task.create({
+        subject: `Reply draft: ${draft.subject || 'Inbound'}`.slice(0, 200),
+        status: 'Not Started',
+        priority: 'High',
+        description: [
+          'AI reply assist',
+          `To: ${draft.to || '(no email)'}`,
+          `Subject: ${draft.subject || ''}`,
+          '',
+          draft.body || '',
+          '',
+          '--- Inbound ---',
+          inbound.slice(0, 3000),
+        ].join('\n'),
+        relatedType,
+        relatedId: id,
+        workspaceId: req.user.workspaceId,
+        ownerId: req.user._id,
+      })
+      taskId = task._id
+    }
+
+    res.json({
+      success: true,
+      data: {
+        to: draft.to,
+        subject: draft.subject,
+        body: draft.body,
+        taskId,
+      },
+    })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Reply assist failed.' })
+  }
+})
+
+router.post('/ai/sequence-lite', async (req, res) => {
+  try {
+    const objectType = String(req.body.objectType || '').trim().toLowerCase()
+    const id = toObjectId(req.body.id)
+    if (!id) return res.status(400).json({ success: false, message: 'id required' })
+    const data = await startSequenceLite({
+      user: req.user,
+      objectType,
+      id,
+    })
+    if (!data.ok) {
+      return res.status(502).json({ success: false, message: data.error || 'Sequence failed.' })
+    }
+    res.json({ success: true, data })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Sequence failed.' })
   }
 })
 

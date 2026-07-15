@@ -123,6 +123,68 @@ async function createChatCompletion(messages, options = {}) {
   return String(content).trim()
 }
 
+/**
+ * Stream completion tokens (OpenAI-compatible SSE). Yields text deltas.
+ */
+async function* streamChatCompletion(messages, options = {}) {
+  const apiKey = getApiKey()
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY or GROQ_API_KEY is not configured.')
+  }
+
+  const model = options.model || getModel()
+  const baseUrl = getApiBaseUrl()
+  const timeoutMs = Math.max(5000, Number(options.timeoutMs || 45000))
+  const body = {
+    model,
+    messages,
+    temperature: options.temperature ?? 0.4,
+    max_tokens: options.maxTokens ?? 2000,
+    stream: true,
+  }
+
+  const res = await fetch(`${baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(timeoutMs),
+  })
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(data?.error?.message || `LLM HTTP ${res.status}`)
+  }
+  if (!res.body) throw new Error('LLM stream body missing.')
+
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() || ''
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed.startsWith('data:')) continue
+      const payload = trimmed.slice(5).trim()
+      if (payload === '[DONE]') return
+      try {
+        const json = JSON.parse(payload)
+        const delta = json?.choices?.[0]?.delta?.content
+        if (delta) yield String(delta)
+      } catch {
+        // skip bad chunks
+      }
+    }
+  }
+}
+
 module.exports = {
   getModel,
   getApiKey,
@@ -134,4 +196,5 @@ module.exports = {
   getEffectiveSynthesisMode,
   createChatCompletion,
   requestChatCompletion,
+  streamChatCompletion,
 }

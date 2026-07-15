@@ -54,6 +54,7 @@ const salesPrefsSchema = new mongoose.Schema({
   enrichFillEmptyOnly: { type: Boolean, default: true },
   enrichStaleDays: { type: Number, min: 7, max: 90, default: 30 },
   autoTaskFromNextStep: { type: Boolean, default: true },
+  useLlmScoring: { type: Boolean, default: false },
   stageProbabilities: { type: stageProbabilitiesSchema, default: () => ({}) },
 }, { _id: false })
 

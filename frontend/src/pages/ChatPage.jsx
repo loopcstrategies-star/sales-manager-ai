@@ -25,6 +25,7 @@ export default function ChatPage() {
   const [constraints, setConstraints] = useState('')
   const [depth, setDepth] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [status, setStatus] = useState('')
   const bottomRef = useRef(null)
 
   const loadSessions = useCallback(() => {
@@ -52,7 +53,7 @@ export default function ChatPage() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, busy])
+  }, [messages, busy, status])
 
   const startNewChat = useCallback(() => {
     setMessages([])
@@ -83,6 +84,13 @@ export default function ChatPage() {
     setMessages((prev) => [...prev, { role: 'user', content: message }])
     setInput('')
     setBusy(true)
+    setStatus('Working…')
+
+    setMessages((prev) => [...prev, {
+      role: 'assistant',
+      content: '',
+      streaming: true,
+    }])
 
     try {
       const history = messages.slice(-10).map((m) => ({ role: m.role, content: m.content }))
@@ -91,24 +99,59 @@ export default function ChatPage() {
         ...(constraints.trim() ? { constraints: constraints.trim() } : {}),
         ...(depth === 'deep' ? { depth: 'deep' } : {}),
       }
-      const data = await chatApi.send({
+      const data = await chatApi.stream({
         message,
         history,
         ...(sessionId ? { sessionId } : {}),
         chatInputs,
+      }, {
+        timeoutMs: 60000,
+        onEvent: ({ type, data: evt }) => {
+          if (type === 'status' && evt?.status) setStatus(evt.status)
+          if (type === 'delta' && evt?.text) {
+            setMessages((prev) => {
+              const next = [...prev]
+              const i = next.length - 1
+              if (next[i]?.role === 'assistant') {
+                next[i] = {
+                  ...next[i],
+                  content: `${next[i].content || ''}${evt.text}`,
+                  streaming: true,
+                }
+              }
+              return next
+            })
+          }
+        },
       })
       if (data.sessionId) setSessionId(data.sessionId)
-      setMessages((prev) => [...prev, {
-        role: 'assistant',
-        content: data.reply,
-        sections: data.sections,
-        meta: data.meta,
-      }])
+      setMessages((prev) => {
+        const next = [...prev]
+        const i = next.length - 1
+        if (next[i]?.role === 'assistant') {
+          next[i] = {
+            role: 'assistant',
+            content: data.reply,
+            sections: data.sections,
+            meta: data.meta,
+          }
+        }
+        return next
+      })
       loadSessions()
     } catch (err) {
-      setMessages((prev) => [...prev, { role: 'assistant', content: `Error: ${err.message}` }])
+      setMessages((prev) => {
+        const next = [...prev]
+        const i = next.length - 1
+        if (next[i]?.role === 'assistant' && next[i].streaming) {
+          next[i] = { role: 'assistant', content: `Error: ${err.message}` }
+          return next
+        }
+        return [...prev, { role: 'assistant', content: `Error: ${err.message}` }]
+      })
     } finally {
       setBusy(false)
+      setStatus('')
     }
   }, [busy, messages, sessionId, region, constraints, depth, loadSessions])
 
@@ -221,10 +264,10 @@ export default function ChatPage() {
         )}
         {messages.map((msg, i) => (
           <div key={i} className={`msg msg-${msg.role}`}>
-            <MessageContent content={msg.content} sections={msg.sections} meta={msg.meta} />
+            <MessageContent content={msg.content || (msg.streaming ? '…' : '')} sections={msg.sections} meta={msg.meta} />
           </div>
         ))}
-        {busy && <div className="msg msg-assistant">Working…</div>}
+        {busy && status ? <div className="msg msg-assistant sidebar-meta">{status}</div> : null}
         <div ref={bottomRef} />
       </div>
 
