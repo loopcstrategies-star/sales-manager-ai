@@ -15,6 +15,7 @@ import EmailDraftButton from './EmailDraftButton'
 import SendEmailButton from './SendEmailButton'
 import ReplyAssistButton from './ReplyAssistButton'
 import SequenceLiteButton from './SequenceLiteButton'
+import MeetingNotesButton from './MeetingNotesButton'
 import RecordAiPanel from './RecordAiPanel'
 import CrmModal from './CrmModal'
 import LookupField from './LookupField'
@@ -73,6 +74,7 @@ export default function RecordDetailPage({ objectType }) {
     stage: 'Prospecting',
   })
   const [nextStepDraft, setNextStepDraft] = useState({ nextStep: '', nextStepDue: '' })
+  const [timelineKey, setTimelineKey] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -265,9 +267,24 @@ export default function RecordDetailPage({ objectType }) {
             </>
           ) : null}
           {objectType === 'opportunities' ? (
-            <Link className="crm-btn-primary" to={`/sales/pipeline/${data._id}/quote`}>
-              Print quote
-            </Link>
+            <>
+              <Link className="crm-btn-primary" to={`/sales/pipeline/${data._id}/quote`}>
+                Print quote
+              </Link>
+              <MeetingNotesButton
+                opportunityId={data._id}
+                onDone={(d) => {
+                  setActionMsg(
+                    `Meeting notes: ${(d?.tasksCreated || []).length} task(s) created`
+                    + (d?.nextStep ? ` · next: ${d.nextStep}` : ''),
+                  )
+                  setTimelineKey((k) => k + 1)
+                  opportunitiesApi.get(data._id).then((res) => {
+                    if (res.data) setData(res.data)
+                  }).catch(() => {})
+                }}
+              />
+            </>
           ) : null}
           {objectType === 'accounts' ? (
             <>
@@ -392,7 +409,7 @@ export default function RecordDetailPage({ objectType }) {
           ) : null}
         </section>
 
-        <ActivityTimeline relatedType={cfg.relatedType} relatedId={id} />
+        <ActivityTimeline key={timelineKey} relatedType={cfg.relatedType} relatedId={id} />
       </div>
 
       <div className="crm-home-columns" style={{ marginTop: '1rem' }}>

@@ -13,6 +13,7 @@ const { draftOutreachEmail, draftReplyEmail } = require('../services/emailDraft'
 const { getUserPreferences } = require('../services/userPreferences')
 const { alertStaleDealsForWorkspace } = require('../jobs/staleDeals')
 const { startSequenceLite } = require('../services/outreachSequence')
+const { processMeetingNotes } = require('../services/meetingNotes')
 
 const router = express.Router()
 router.use(protect)
@@ -290,6 +291,24 @@ router.post('/ai/sequence-lite', async (req, res) => {
     res.json({ success: true, data })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message || 'Sequence failed.' })
+  }
+})
+
+router.post('/ai/meeting-notes', async (req, res) => {
+  try {
+    const opportunityId = req.body.opportunityId || req.body.id
+    const notes = String(req.body.notes || '').trim()
+    const data = await processMeetingNotes({
+      user: req.user,
+      opportunityId,
+      notes,
+    })
+    if (!data.ok) {
+      return res.status(400).json({ success: false, message: data.error || 'Meeting notes failed.' })
+    }
+    res.json({ success: true, data })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Meeting notes failed.' })
   }
 })
 

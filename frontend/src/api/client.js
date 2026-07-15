@@ -432,6 +432,10 @@ export const crmApi = {
     method: 'POST',
     body: JSON.stringify(body),
   }),
+  meetingNotes: (body) => api('/api/crm/ai/meeting-notes', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  }),
   digest: (refresh = false) => api(`/api/crm/digest${refresh ? '?refresh=1' : ''}`),
   scoreLeads: (body = {}) => api('/api/crm/leads/score', {
     method: 'POST',
