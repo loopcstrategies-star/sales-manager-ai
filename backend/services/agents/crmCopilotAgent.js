@@ -192,9 +192,18 @@ async function runFastPath(user, intent, recordRef = null) {
         '',
         data.body || '',
         data.taskId ? `\n_Saved as Task \`${data.taskId}\`._` : '',
+        '',
+        '_Use **Send via SendGrid** below to send (or log as Task if SendGrid is not configured)._',
       ].join('\n'),
       toolsUsed,
       status: 'Drafted email',
+      emailDraft: {
+        to: data.to || '',
+        subject: data.subject || '',
+        body: data.body || '',
+        objectType: recordRef.objectType,
+        id: recordRef.id,
+      },
     }
   }
   if (intent === 'enrich_current') {
@@ -353,6 +362,7 @@ function metaBase(toolsUsed, extras = {}) {
     crmMode: true,
     fastPath: Boolean(extras.fastPath),
     status: extras.status || undefined,
+    ...(extras.emailDraft ? { emailDraft: extras.emailDraft } : {}),
   }
 }
 
@@ -364,6 +374,7 @@ async function runToolCallingLoop({ user, userMessage, history = [] }) {
   ]
 
   const toolsUsed = []
+  let lastEmailDraft = null
   const maxRounds = 3
 
   for (let round = 0; round < maxRounds; round += 1) {
@@ -386,7 +397,7 @@ async function runToolCallingLoop({ user, userMessage, history = [] }) {
         title: 'CRM assistant',
         reply,
         sections: [],
-        meta: metaBase(toolsUsed),
+        meta: metaBase(toolsUsed, lastEmailDraft ? { emailDraft: lastEmailDraft } : {}),
       }
     }
 
@@ -411,6 +422,15 @@ async function runToolCallingLoop({ user, userMessage, history = [] }) {
         result = { error: err.message || 'Tool failed' }
       }
       toolsUsed.push(name)
+      if (name === 'draft_email' && result?.ok && result.subject) {
+        lastEmailDraft = {
+          to: result.to || '',
+          subject: result.subject || '',
+          body: result.body || '',
+          objectType: result.objectType || parsed.objectType,
+          id: result.id || parsed.id,
+        }
+      }
       messages.push({
         role: 'tool',
         tool_call_id: call.id,
@@ -428,7 +448,7 @@ async function runToolCallingLoop({ user, userMessage, history = [] }) {
       toolsUsed.length ? `Tools used: ${[...new Set(toolsUsed)].join(', ')}` : '',
     ].filter(Boolean).join('\n\n'),
     sections: [],
-    meta: metaBase(toolsUsed),
+    meta: metaBase(toolsUsed, lastEmailDraft ? { emailDraft: lastEmailDraft } : {}),
   }
 }
 
@@ -450,6 +470,7 @@ async function runCrmCopilotAgent({ user, userMessage, history = [], recordConte
             fastPath: true,
             model: 'crm-fast',
             status: fast.status,
+            ...(fast.emailDraft ? { emailDraft: fast.emailDraft } : {}),
           }),
         }
       }

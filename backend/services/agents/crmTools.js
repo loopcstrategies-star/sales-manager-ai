@@ -368,6 +368,8 @@ async function executeCrmTool(name, rawArgs, user) {
         subject: draft.subject,
         body: draft.body,
         taskId,
+        objectType,
+        id: String(id),
       }
     }
 

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { chatApi } from '../../api/client'
+import { chatApi, crmApi } from '../../api/client'
+import { usePreferences } from '../../context/PreferencesContext'
 import MessageContent from '../MessageContent'
 
 const BASE_QUICK = [
@@ -43,12 +44,16 @@ function parsePathRecord(pathname) {
 
 export default function SalesCopilotDrawer({ openSignal = 0, seedPrompt = '' }) {
   const location = useLocation()
+  const { providers } = usePreferences()
+  const sendConfigured = Boolean(providers?.sendgrid)
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState('')
   const [sessionId, setSessionId] = useState(null)
+  const [sendBusyIdx, setSendBusyIdx] = useState(null)
+  const [sendHints, setSendHints] = useState({})
   const bottomRef = useRef(null)
   const panelRef = useRef(null)
 
@@ -101,7 +106,35 @@ export default function SalesCopilotDrawer({ openSignal = 0, seedPrompt = '' }) 
 
   useEffect(() => {
     if (open) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, busy, status, open])
+  }, [messages, busy, status, open, sendHints])
+
+  const sendDraft = useCallback(async (msgIndex, draft) => {
+    if (!draft?.objectType || !draft?.id || sendBusyIdx != null) return
+    setSendBusyIdx(msgIndex)
+    setSendHints((prev) => ({ ...prev, [msgIndex]: '' }))
+    try {
+      const res = await crmApi.emailSend({
+        objectType: draft.objectType,
+        id: draft.id,
+        to: draft.to || undefined,
+        subject: draft.subject || undefined,
+        body: draft.body || undefined,
+      })
+      setSendHints((prev) => ({
+        ...prev,
+        [msgIndex]: res.data?.sent
+          ? 'Sent via SendGrid (logged as Task).'
+          : 'Logged as Task (SendGrid not configured on server).',
+      }))
+    } catch (err) {
+      setSendHints((prev) => ({
+        ...prev,
+        [msgIndex]: err.message || 'Send failed',
+      }))
+    } finally {
+      setSendBusyIdx(null)
+    }
+  }, [sendBusyIdx])
 
   const sendMessage = useCallback(async (text) => {
     const message = String(text || '').trim()
@@ -188,6 +221,7 @@ export default function SalesCopilotDrawer({ openSignal = 0, seedPrompt = '' }) 
     setSessionId(null)
     setInput('')
     setStatus('')
+    setSendHints({})
   }
 
   return (
@@ -259,6 +293,21 @@ export default function SalesCopilotDrawer({ openSignal = 0, seedPrompt = '' }) 
                     sections={msg.sections}
                     meta={msg.meta}
                   />
+                  {msg.meta?.emailDraft?.id ? (
+                    <div className="crm-copilot-msg-actions">
+                      <button
+                        type="button"
+                        className="crm-btn-primary"
+                        disabled={sendBusyIdx === i || busy}
+                        onClick={() => sendDraft(i, msg.meta.emailDraft)}
+                      >
+                        {sendBusyIdx === i
+                          ? 'Sending…'
+                          : (sendConfigured ? 'Send via SendGrid' : 'Log send as Task')}
+                      </button>
+                      {sendHints[i] ? <p className="crm-muted">{sendHints[i]}</p> : null}
+                    </div>
+                  ) : null}
                 </div>
               ))}
               {busy ? <p className="crm-muted">{status || 'Working…'}</p> : null}

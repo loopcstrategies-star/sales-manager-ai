@@ -211,6 +211,18 @@ export default function RecordDetailPage({ objectType }) {
 
   const alreadyConverted = objectType === 'leads' && (data.status === 'Converted' || data.convertedAt)
 
+  const openConvertModal = () => {
+    setConvertForm({
+      createOpportunity: sales?.convertCreateOpportunity !== false,
+      opportunityName: data.company ? `${data.company} — Opportunity` : '',
+      amount: '',
+      accountId: '',
+      accountName: '',
+      stage: sales?.convertDefaultStage || 'Prospecting',
+    })
+    setConvertOpen(true)
+  }
+
   return (
     <div className="crm-record-detail">
       <header className="crm-record-header">
@@ -226,17 +238,7 @@ export default function RecordDetailPage({ objectType }) {
                 type="button"
                 className="crm-btn-primary"
                 disabled={actionBusy}
-                onClick={() => {
-                  setConvertForm({
-                    createOpportunity: sales?.convertCreateOpportunity !== false,
-                    opportunityName: data.company ? `${data.company} — Opportunity` : '',
-                    amount: '',
-                    accountId: '',
-                    accountName: '',
-                    stage: sales?.convertDefaultStage || 'Prospecting',
-                  })
-                  setConvertOpen(true)
-                }}
+                onClick={openConvertModal}
               >
                 Convert Lead
               </button>
@@ -394,7 +396,13 @@ export default function RecordDetailPage({ objectType }) {
       </div>
 
       <div className="crm-home-columns" style={{ marginTop: '1rem' }}>
-        <RecordAiPanel objectType={objectType} id={id} />
+        <RecordAiPanel
+          objectType={objectType}
+          id={id}
+          canConvert={objectType === 'leads' && !alreadyConverted}
+          onRequestConvert={openConvertModal}
+          accountRegion={objectType === 'accounts' ? (data.region || '') : ''}
+        />
       </div>
 
       {objectType === 'accounts' ? (

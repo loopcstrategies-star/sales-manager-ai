@@ -3140,6 +3140,12 @@ a { color: var(--brand); }
   margin: 0 0 0.65rem;
 }
 
+.crm-ai-next-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .crm-ai-meta {
   margin-top: 0.5rem;
   font-size: 0.8rem;
@@ -3298,6 +3304,14 @@ a { color: var(--brand); }
   background: #fffcf8;
   border: 1px solid var(--crm-border, #e4ddd3);
   color: var(--crm-text, #1c1917);
+}
+
+.crm-copilot-msg-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  margin-top: 0.65rem;
 }
 
 .crm-copilot-msg-user a {
