@@ -62,6 +62,7 @@ async function requestChatCompletion(messages, options = {}) {
   const model = options.model || getModel()
   const baseUrl = getApiBaseUrl()
   const maxAttempts = options.retryOnRateLimit === false ? 1 : 2
+  const timeoutMs = Math.max(3000, Number(options.timeoutMs || 20000))
   const body = {
     model,
     messages,
@@ -74,21 +75,33 @@ async function requestChatCompletion(messages, options = {}) {
   }
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    const res = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(body),
-    })
+    let res
+    try {
+      res = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs),
+      })
+    } catch (err) {
+      const name = String(err?.name || '')
+      const msg = String(err?.message || err || '')
+      if (name === 'TimeoutError' || name === 'AbortError' || msg.toLowerCase().includes('timeout')) {
+        throw new Error(`LLM request timed out after ${timeoutMs}ms.`)
+      }
+      throw err
+    }
 
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
       const errMsg = data?.error?.message || `LLM HTTP ${res.status}`
       const err = new Error(errMsg)
       if (attempt < maxAttempts && (res.status === 429 || isRateLimitError(err))) {
-        const waitMs = Math.max(1000, Number(options.rateLimitRetryMs || 55000))
+        // Short wait for interactive chat/copilot; long wait only if caller opts in
+        const waitMs = Math.max(1000, Number(options.rateLimitRetryMs ?? 3000))
         await sleep(waitMs)
         continue
       }

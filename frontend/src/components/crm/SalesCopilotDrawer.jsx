@@ -77,7 +77,7 @@ export default function SalesCopilotDrawer() {
           surface: 'sales-copilot',
           recordContext,
         },
-      })
+      }, { timeoutMs: 45000 })
       if (data.sessionId) setSessionId(data.sessionId)
       setMessages((prev) => [...prev, {
         role: 'assistant',

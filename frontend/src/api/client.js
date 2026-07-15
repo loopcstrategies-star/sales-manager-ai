@@ -28,12 +28,30 @@ async function api(path, options = {}) {
   const token = getToken()
   if (token) headers.Authorization = `Bearer ${token}`
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) {
-    throw new Error(data.message || `Request failed (${res.status})`)
+  const { timeoutMs, signal: outerSignal, ...fetchOpts } = options
+  let signal = outerSignal
+  let timer
+  if (timeoutMs && !outerSignal) {
+    const ctrl = new AbortController()
+    signal = ctrl.signal
+    timer = setTimeout(() => ctrl.abort(), timeoutMs)
   }
-  return data
+
+  try {
+    const res = await fetch(`${API_BASE}${path}`, { ...fetchOpts, headers, signal })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      throw new Error(data.message || `Request failed (${res.status})`)
+    }
+    return data
+  } catch (err) {
+    if (err?.name === 'AbortError') {
+      throw new Error('Request timed out. Try again or use a shorter question.')
+    }
+    throw err
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
 }
 
 export const authApi = {
@@ -43,7 +61,11 @@ export const authApi = {
 }
 
 export const chatApi = {
-  send: (body) => api('/api/chat', { method: 'POST', body: JSON.stringify(body) }),
+  send: (body, opts = {}) => api('/api/chat', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    timeoutMs: opts.timeoutMs ?? 45000,
+  }),
   sessions: () => api('/api/chat/sessions'),
   session: (id) => api(`/api/chat/sessions/${id}`),
 }
