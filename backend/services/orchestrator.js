@@ -46,18 +46,27 @@ async function runSalesAiChat({ user, message, history = [], chatInputs = {} }) 
     .slice(-12)
     .filter((m) => m && (m.role === 'user' || m.role === 'assistant'))
 
+  const surface = String(chatInputs.surface || '').trim()
+  const recordContext = String(chatInputs.recordContext || '').trim().slice(0, 300)
   const normalizedInputs = {
     region: String(chatInputs.region || '').trim(),
     constraints: String(chatInputs.constraints || '').trim(),
     depth: String(chatInputs.depth || '').trim(),
+    surface,
+    recordContext,
   }
 
-  // CRM-aware path: read/write live Sales data via tool calling
-  if (looksLikeCrmRequest(userMessage) && user) {
+  const crmMessage = recordContext
+    ? `[Viewing: ${recordContext}]\n\n${userMessage}`
+    : userMessage
+
+  // Sales drawer always uses CRM tools; Chat uses CRM when intent matches
+  const preferCrm = surface === 'sales-copilot' || looksLikeCrmRequest(userMessage)
+  if (preferCrm && user) {
     try {
       const crm = await runCrmCopilotAgent({
         user,
-        userMessage,
+        userMessage: crmMessage,
         history: normalizedHistory,
       })
       return {
@@ -65,10 +74,32 @@ async function runSalesAiChat({ user, message, history = [], chatInputs = {} }) 
         sections: [
           { title: crm.title, agent: crm.agent },
         ],
-        meta: crm.meta,
+        meta: {
+          ...crm.meta,
+          surface: surface || 'chat',
+          recordContext: recordContext || undefined,
+        },
       }
     } catch (err) {
       console.error('[orchestrator] CRM copilot failed, falling back to web research:', err.message)
+      if (surface === 'sales-copilot') {
+        return {
+          reply: [
+            '## CRM assistant unavailable',
+            err.message || 'Could not reach CRM tools.',
+            'Try Chat for market research, or refresh and ask again.',
+          ].join('\n\n'),
+          sections: [{ title: 'CRM assistant', agent: 'crm-copilot' }],
+          meta: {
+            model: 'none',
+            synthesisMode: 'crm-tools',
+            crmMode: true,
+            surface: 'sales-copilot',
+            toolsUsed: [],
+            error: err.message,
+          },
+        }
+      }
     }
   }
 

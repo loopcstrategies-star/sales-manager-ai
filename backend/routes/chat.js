@@ -25,6 +25,8 @@ const chatSchema = Joi.object({
     region: Joi.string().max(40).allow('').optional(),
     constraints: Joi.string().max(500).allow('').optional(),
     depth: Joi.string().valid('deep', '').optional(),
+    surface: Joi.string().valid('sales-copilot', 'chat', '').optional(),
+    recordContext: Joi.string().max(300).allow('').optional(),
   }).optional(),
   sessionId: Joi.string().optional().allow(null, ''),
 })

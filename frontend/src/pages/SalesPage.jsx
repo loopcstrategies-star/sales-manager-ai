@@ -2,6 +2,7 @@ import React from 'react'
 import { Outlet } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import CrmSidebar from '../components/crm/CrmSidebar'
+import SalesCopilotDrawer from '../components/crm/SalesCopilotDrawer'
 
 export default function SalesPage() {
   return (
@@ -12,6 +13,7 @@ export default function SalesPage() {
           <Outlet />
         </div>
       </div>
+      <SalesCopilotDrawer />
     </AppShell>
   )
 }
