@@ -105,7 +105,25 @@ router.post('/lead', async (req, res) => {
     }
 
     lead = await Lead.create(payload)
-    res.status(201).json({ success: true, data: { lead, created: true } })
+
+    // Auto-enrich inbound leads from web (best-effort, non-blocking for response timing)
+    let enriched = false
+    try {
+      const { enrichFromQuery, applyLeadEnrichment } = require('../services/crmEnrichment')
+      const { scoreAndSaveLead } = require('../services/leadScore')
+      const query = [lead.company, lead.website, lead.email].filter(Boolean).join(' ')
+      if (query) {
+        const result = await enrichFromQuery(query)
+        applyLeadEnrichment(lead, result.fields || {}, false)
+        await lead.save()
+        enriched = true
+      }
+      await scoreAndSaveLead(lead, { useLlm: false })
+    } catch (enrichErr) {
+      console.error('[webhook] auto-enrich failed:', enrichErr.message)
+    }
+
+    res.status(201).json({ success: true, data: { lead, created: true, enriched } })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message || 'Webhook failed.' })
   }

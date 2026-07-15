@@ -52,11 +52,14 @@ export default function MessageContent({ content, sections, meta }) {
         if (!line.trim()) return <br key={i} />
         return <div key={i}>{renderInlineMarkdown(line)}</div>
       })}
-      {meta && (meta.searchQueryCount != null || meta.searchCacheHits > 0) && (
+      {meta && (meta.searchQueryCount != null || meta.searchCacheHits > 0 || meta.crmMode || (meta.toolsUsed || []).length > 0) && (
         <div className="msg-meta">
+          {meta.crmMode ? 'CRM assistant' : null}
+          {meta.crmMode && meta.searchQueryCount != null ? ' · ' : null}
           {meta.searchQueryCount != null && `Searches: ${meta.searchQueryCount}`}
           {meta.searchCacheHits > 0 && ` · Cached: ${meta.searchCacheHits}`}
           {meta.searchProvider && ` · ${meta.searchProvider}`}
+          {(meta.toolsUsed || []).length > 0 && ` · Tools: ${[...new Set(meta.toolsUsed)].join(', ')}`}
         </div>
       )}
       {sources.length > 0 && (

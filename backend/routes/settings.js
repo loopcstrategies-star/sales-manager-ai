@@ -12,6 +12,7 @@ function getProviderStatus() {
     tavily: cfg.providers?.tavily?.configured ?? false,
     brave: cfg.providers?.brave?.configured ?? false,
     hunter: cfg.providers?.hunter?.configured ?? false,
+    sendgrid: cfg.providers?.sendgrid?.configured ?? false,
     newsApi: Boolean(String(process.env.NEWSAPI_KEY || '').trim()),
     goldApi: Boolean(String(process.env.GOLDAPI_KEY || '').trim()),
     searchProvider: cfg.providers?.search?.provider || null,

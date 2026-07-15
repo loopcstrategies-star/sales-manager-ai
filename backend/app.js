@@ -78,6 +78,7 @@ function createApp() {
   app.use('/api/crm/webhooks', crmWebhooksRoutes)
   app.use('/api/crm', crmImportRoutes)
   app.use('/api/crm', crmEnrichRoutes)
+  app.use('/api/crm', require('./routes/crmAi'))
   app.use('/api/crm', crmRoutes)
 
   app.use((req, res) => {

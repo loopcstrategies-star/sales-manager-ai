@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { accountsApi, campaignsApi, leadsApi } from '../../api/client'
+import { accountsApi, campaignsApi, leadsApi, crmApi } from '../../api/client'
 import { useAuth } from '../../context/AuthContext'
 import CrmListView from '../../components/crm/CrmListView'
 import CrmModal from '../../components/crm/CrmModal'
@@ -8,6 +8,7 @@ import CrmImportModal from '../../components/crm/CrmImportModal'
 import CrmEnrichButton from '../../components/crm/CrmEnrichButton'
 import LookupField from '../../components/crm/LookupField'
 import EmailDraftButton from '../../components/crm/EmailDraftButton'
+import SendEmailButton from '../../components/crm/SendEmailButton'
 import { usePreferences } from '../../context/PreferencesContext'
 import { CONVERT_STAGES } from '../../components/crm/salesPrefs'
 
@@ -278,6 +279,7 @@ export default function LeadsPage() {
     phone: l.phone || '—',
     email: l.email || '—',
     status: l.status || '—',
+    aiScore: l.aiScore != null ? l.aiScore : '—',
     createdDate: formatDate(l.createdAt),
     ownerAlias: l.ownerAlias || '—',
   }))
@@ -288,6 +290,20 @@ export default function LeadsPage() {
     await Promise.all(selectedIds.map((id) => leadsApi.remove(id).catch(() => null)))
     setSelectedIds([])
     await load(search)
+  }
+
+  const scoreSelected = async () => {
+    setListError('')
+    try {
+      if (selectedIds.length === 1) {
+        await crmApi.scoreLeads({ id: selectedIds[0], useLlm: false })
+      } else {
+        await crmApi.scoreLeads({ cap: 40, useLlm: false })
+      }
+      await load(search)
+    } catch (err) {
+      setListError(err.message || 'Score failed')
+    }
   }
 
   const runConvert = async () => {
@@ -409,6 +425,7 @@ export default function LeadsPage() {
             <button type="button" className="crm-btn-secondary" onClick={openCampaignModal}>
               Add to Campaign
             </button>
+            <button type="button" className="crm-btn-secondary" onClick={scoreSelected}>Score</button>
             <button type="button" className="crm-btn-secondary" onClick={deleteSelected}>Delete</button>
           </>
         )}
@@ -424,6 +441,7 @@ export default function LeadsPage() {
             >
               Add to Campaign
             </button>
+            <button type="button" className="crm-btn-secondary" onClick={scoreSelected}>Score leads</button>
           </>
         )}
         columns={[
@@ -433,6 +451,7 @@ export default function LeadsPage() {
           { key: 'phone', label: 'Phone' },
           { key: 'email', label: 'Email' },
           { key: 'status', label: 'Lead Status' },
+          { key: 'aiScore', label: 'AI Score' },
           { key: 'createdDate', label: 'Created Date' },
           { key: 'ownerAlias', label: 'Owner Alias' },
         ]}
@@ -460,7 +479,10 @@ export default function LeadsPage() {
               />
               {enrichedHint ? <span className="crm-enrich-hint">{enrichedHint}</span> : null}
               {editingId ? (
-                <EmailDraftButton objectType="leads" id={editingId} hasEmail={Boolean(form.email)} />
+                <>
+                  <EmailDraftButton objectType="leads" id={editingId} hasEmail={Boolean(form.email)} />
+                  <SendEmailButton objectType="leads" id={editingId} hasEmail={Boolean(form.email)} />
+                </>
               ) : null}
               {editingId ? (
                 <button

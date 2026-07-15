@@ -53,7 +53,7 @@ function sleep(ms) {
   return new Promise((resolve) => { setTimeout(resolve, ms) })
 }
 
-async function createChatCompletion(messages, options = {}) {
+async function requestChatCompletion(messages, options = {}) {
   const apiKey = getApiKey()
   if (!apiKey) {
     throw new Error('OPENAI_API_KEY or GROQ_API_KEY is not configured.')
@@ -62,6 +62,16 @@ async function createChatCompletion(messages, options = {}) {
   const model = options.model || getModel()
   const baseUrl = getApiBaseUrl()
   const maxAttempts = options.retryOnRateLimit === false ? 1 : 2
+  const body = {
+    model,
+    messages,
+    temperature: options.temperature ?? 0.4,
+    max_tokens: options.maxTokens ?? 2000,
+  }
+  if (options.tools?.length) {
+    body.tools = options.tools
+    body.tool_choice = options.toolChoice || 'auto'
+  }
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const res = await fetch(`${baseUrl}/chat/completions`, {
@@ -70,12 +80,7 @@ async function createChatCompletion(messages, options = {}) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature: options.temperature ?? 0.4,
-        max_tokens: options.maxTokens ?? 2000,
-      }),
+      body: JSON.stringify(body),
     })
 
     const data = await res.json().catch(() => ({}))
@@ -90,12 +95,19 @@ async function createChatCompletion(messages, options = {}) {
       throw err
     }
 
-    const content = data?.choices?.[0]?.message?.content
-    if (!content) throw new Error('LLM returned an empty response.')
-    return String(content).trim()
+    const message = data?.choices?.[0]?.message
+    if (!message) throw new Error('LLM returned an empty response.')
+    return message
   }
 
   throw new Error('LLM request failed after retries.')
+}
+
+async function createChatCompletion(messages, options = {}) {
+  const message = await requestChatCompletion(messages, options)
+  const content = message?.content
+  if (!content) throw new Error('LLM returned an empty response.')
+  return String(content).trim()
 }
 
 module.exports = {
@@ -108,4 +120,5 @@ module.exports = {
   shouldUseLlmSynthesis,
   getEffectiveSynthesisMode,
   createChatCompletion,
+  requestChatCompletion,
 }

@@ -271,6 +271,8 @@ export default function SettingsPage() {
                   { key: 'groq', label: 'Groq' },
                   { key: 'brave', label: 'Brave' },
                   { key: 'tavily', label: 'Tavily' },
+                  { key: 'hunter', label: 'Hunter' },
+                  { key: 'sendgrid', label: 'SendGrid' },
                   { key: 'newsApi', label: 'NewsAPI' },
                   { key: 'goldApi', label: 'GoldAPI' },
                 ].map(({ key, label }) => (

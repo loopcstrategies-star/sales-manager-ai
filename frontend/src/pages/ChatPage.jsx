@@ -209,7 +209,7 @@ export default function ChatPage() {
       <div className="messages">
         {messages.length === 0 && (
           <div>
-            <p>Ask about market trends, customer demand, or sales strategy.</p>
+            <p>Ask about market trends, your CRM pipeline, leads, or sales strategy.</p>
             <div className="chip-row">
               {quickActions.map((action) => (
                 <button key={action.id} type="button" className="chip" onClick={() => sendMessage(action.prompt)}>
@@ -224,7 +224,7 @@ export default function ChatPage() {
             <MessageContent content={msg.content} sections={msg.sections} meta={msg.meta} />
           </div>
         ))}
-        {busy && <div className="msg msg-assistant">Researching…</div>}
+        {busy && <div className="msg msg-assistant">Working…</div>}
         <div ref={bottomRef} />
       </div>
 
@@ -238,7 +238,7 @@ export default function ChatPage() {
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask about markets, trends, or strategy…"
+          placeholder="Ask about markets, my pipeline, leads, or strategy…"
           rows={2}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {

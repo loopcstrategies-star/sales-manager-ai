@@ -12,6 +12,8 @@ import { usePreferences } from '../../context/PreferencesContext'
 import ActivityTimeline from './ActivityTimeline'
 import FindContactsButton from './FindContactsButton'
 import EmailDraftButton from './EmailDraftButton'
+import SendEmailButton from './SendEmailButton'
+import RecordAiPanel from './RecordAiPanel'
 import CrmModal from './CrmModal'
 import LookupField from './LookupField'
 import { CONVERT_STAGES } from './salesPrefs'
@@ -237,10 +239,14 @@ export default function RecordDetailPage({ objectType }) {
                 Convert Lead
               </button>
               <EmailDraftButton objectType="leads" id={data._id} hasEmail={Boolean(data.email)} />
+              <SendEmailButton objectType="leads" id={data._id} hasEmail={Boolean(data.email)} />
             </>
           ) : null}
           {objectType === 'contacts' ? (
-            <EmailDraftButton objectType="contacts" id={data._id} hasEmail={Boolean(data.email)} className="crm-btn-primary" />
+            <>
+              <EmailDraftButton objectType="contacts" id={data._id} hasEmail={Boolean(data.email)} className="crm-btn-primary" />
+              <SendEmailButton objectType="contacts" id={data._id} hasEmail={Boolean(data.email)} />
+            </>
           ) : null}
           {objectType === 'opportunities' ? (
             <Link className="crm-btn-primary" to={`/sales/pipeline/${data._id}/quote`}>
@@ -290,6 +296,7 @@ export default function RecordDetailPage({ objectType }) {
                 <div><dt>Phone</dt><dd>{data.phone || '—'}</dd></div>
                 <div><dt>Website</dt><dd>{data.website || '—'}</dd></div>
                 <div><dt>Industry</dt><dd>{data.industry || '—'}</dd></div>
+                <div><dt>AI Score</dt><dd>{data.aiScore != null ? `${data.aiScore}/100` : '—'}</dd></div>
               </>
             ) : null}
             {objectType === 'accounts' ? (
@@ -370,6 +377,10 @@ export default function RecordDetailPage({ objectType }) {
         </section>
 
         <ActivityTimeline relatedType={cfg.relatedType} relatedId={id} />
+      </div>
+
+      <div className="crm-home-columns" style={{ marginTop: '1rem' }}>
+        <RecordAiPanel objectType={objectType} id={id} />
       </div>
 
       {objectType === 'accounts' ? (

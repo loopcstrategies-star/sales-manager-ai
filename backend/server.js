@@ -6,6 +6,9 @@ const { startDashboardRefreshJob } = require('./jobs/dashboardRefresh')
 const { startCrmEnrichRefreshJob } = require('./jobs/crmEnrichRefresh')
 const { startNextStepAutoTasksJob } = require('./jobs/nextStepAutoTasks')
 const { startThinAccountFindJob } = require('./jobs/thinAccountFind')
+const { startDailyDigestJob } = require('./jobs/dailyDigest')
+const { startStaleDealsJob } = require('./jobs/staleDeals')
+const { startLeadScoreJob } = require('./jobs/leadScore')
 
 const PORT = Number(process.env.PORT) || 5100
 const mongoUri = String(process.env.MONGO_URI || '').trim()
@@ -33,6 +36,9 @@ if (mongoUri) {
       startCrmEnrichRefreshJob()
       startNextStepAutoTasksJob()
       startThinAccountFindJob()
+      startDailyDigestJob()
+      startStaleDealsJob()
+      startLeadScoreJob()
     })
     .catch((err) => console.error('[startup] Mongo connect failed:', err.message))
 }

@@ -317,5 +317,26 @@ export const crmApi = {
     method: 'POST',
     body: JSON.stringify(body),
   }),
+  emailSend: (body) => api('/api/crm/email-send', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  }),
+  aiSummarize: (body) => api('/api/crm/ai/summarize', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  }),
+  aiCreateTask: (body) => api('/api/crm/ai/summarize/create-task', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  }),
+  digest: (refresh = false) => api(`/api/crm/digest${refresh ? '?refresh=1' : ''}`),
+  scoreLeads: (body = {}) => api('/api/crm/leads/score', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  }),
+  staleDealsScan: (body = {}) => api('/api/crm/stale-deals/scan', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  }),
 }
 

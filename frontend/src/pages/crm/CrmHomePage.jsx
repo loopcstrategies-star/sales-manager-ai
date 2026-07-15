@@ -17,6 +17,9 @@ export default function CrmHomePage() {
   const [geoBusy, setGeoBusy] = useState(false)
   const [fillBusy, setFillBusy] = useState(false)
   const [region, setRegion] = useState('')
+  const [digest, setDigest] = useState(null)
+  const [digestBusy, setDigestBusy] = useState(false)
+  const [staleBusy, setStaleBusy] = useState(false)
 
   useEffect(() => {
     if (sales?.defaultProspectRegion && !region) {
@@ -44,8 +47,14 @@ export default function CrmHomePage() {
     ;(async () => {
       setLoading(true)
       try {
-        const res = await crmApi.stats()
-        if (!cancelled) setData(res.data)
+        const [res, dig] = await Promise.all([
+          crmApi.stats(),
+          crmApi.digest(false).catch(() => null),
+        ])
+        if (!cancelled) {
+          setData(res.data)
+          if (dig?.data) setDigest(dig.data)
+        }
       } catch (err) {
         if (!cancelled) setError(err.message || 'Failed to load home')
       } finally {
@@ -54,6 +63,33 @@ export default function CrmHomePage() {
     })()
     return () => { cancelled = true }
   }, [])
+
+  const refreshDigest = async () => {
+    setDigestBusy(true)
+    try {
+      const dig = await crmApi.digest(true)
+      setDigest(dig.data || null)
+      setRefreshMsg('Daily digest refreshed.')
+    } catch (err) {
+      setRefreshMsg(err.message || 'Digest failed')
+    } finally {
+      setDigestBusy(false)
+    }
+  }
+
+  const scanStaleDeals = async () => {
+    setStaleBusy(true)
+    setRefreshMsg('')
+    try {
+      const res = await crmApi.staleDealsScan({})
+      const d = res.data || {}
+      setRefreshMsg(`Stale deals · scanned ${d.scanned || 0} · alert tasks +${d.created || 0} (>${d.staleDays || 14}d quiet).`)
+    } catch (err) {
+      setRefreshMsg(err.message || 'Stale scan failed')
+    } finally {
+      setStaleBusy(false)
+    }
+  }
 
   const runRefresh = async () => {
     setRefreshMsg('')
@@ -211,7 +247,7 @@ export default function CrmHomePage() {
   }
 
   const counts = data?.counts || {}
-  const anyBusy = bulkBusy || cleanupBusy || findBusy || backfillBusy || geoBusy || fillBusy
+  const anyBusy = bulkBusy || cleanupBusy || findBusy || backfillBusy || geoBusy || fillBusy || digestBusy || staleBusy
 
   return (
     <div className="crm-home">
@@ -225,6 +261,24 @@ export default function CrmHomePage() {
 
       {!loading && !error ? (
         <>
+          {digest?.summary ? (
+            <section className="crm-home-panel crm-digest-panel">
+              <div className="crm-ai-panel-head">
+                <h3>AI daily digest</h3>
+                <button type="button" className="crm-btn-secondary" disabled={digestBusy} onClick={refreshDigest}>
+                  {digestBusy ? 'Refreshing…' : 'Refresh digest'}
+                </button>
+              </div>
+              <pre className="crm-digest-body">{digest.summary}</pre>
+            </section>
+          ) : (
+            <p className="crm-muted">
+              <button type="button" className="crm-btn-secondary" disabled={digestBusy} onClick={refreshDigest}>
+                {digestBusy ? 'Loading…' : 'Generate AI daily digest'}
+              </button>
+            </p>
+          )}
+
           <div className="crm-stat-grid">
             <div className="crm-stat-card">
               <span className="crm-stat-label">Open Leads</span>
@@ -402,6 +456,9 @@ export default function CrmHomePage() {
             <Link className="crm-btn-secondary" to="/sales/settings">Sales settings</Link>
             <button type="button" className="crm-btn-secondary" disabled={anyBusy} onClick={runRefresh}>
               Refresh stale records
+            </button>
+            <button type="button" className="crm-btn-secondary" disabled={anyBusy} onClick={scanStaleDeals}>
+              {staleBusy ? 'Scanning…' : 'Scan stale deals'}
             </button>
             <button
               type="button"
