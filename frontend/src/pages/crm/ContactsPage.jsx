@@ -11,6 +11,7 @@ import CustomFieldsEditor from '../../components/crm/CustomFieldsEditor'
 import LookupField from '../../components/crm/LookupField'
 import PhotoUpload from '../../components/crm/PhotoUpload'
 import EmailDraftButton from '../../components/crm/EmailDraftButton'
+import { getIndustryConfig, listIndustryConfigs } from '../../lib/industryCatalog'
 
 const emptyAddress = () => ({
   country: '',
@@ -38,10 +39,13 @@ const emptyForm = () => ({
   customFields: [],
   needsVerify: false,
   source: 'manual',
+  industrySlug: '',
+  businessType: '',
 })
 
 const SALUTATIONS = ['--None--', 'Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Prof.']
 const COUNTRIES = ['--None--', 'United Arab Emirates', 'United States', 'United Kingdom', 'India', 'Other']
+const INDUSTRIES = listIndustryConfigs()
 
 export default function ContactsPage() {
   const { user } = useAuth()
@@ -61,6 +65,7 @@ export default function ContactsPage() {
   const [countryFilter, setCountryFilter] = useState('')
   const [needsVerifyOnly, setNeedsVerifyOnly] = useState(searchParams.get('needsVerify') === '1')
   const [sourceFilter, setSourceFilter] = useState(searchParams.get('source') || '')
+  const [industryFilter, setIndustryFilter] = useState(searchParams.get('industry') || '')
 
   const load = useCallback(async (q = '') => {
     setLoading(true)
@@ -69,6 +74,7 @@ export default function ContactsPage() {
       const res = await contactsApi.list(q, {
         needsVerify: needsVerifyOnly,
         source: sourceFilter || undefined,
+        industry: industryFilter || undefined,
       })
       setItems(res.data || [])
     } catch (err) {
@@ -77,7 +83,7 @@ export default function ContactsPage() {
     } finally {
       setLoading(false)
     }
-  }, [needsVerifyOnly, sourceFilter])
+  }, [needsVerifyOnly, sourceFilter, industryFilter])
 
   useEffect(() => {
     const t = setTimeout(() => load(search), 250)
@@ -88,8 +94,9 @@ export default function ContactsPage() {
     const next = {}
     if (needsVerifyOnly) next.needsVerify = '1'
     if (sourceFilter) next.source = sourceFilter
+    if (industryFilter) next.industry = industryFilter
     setSearchParams(next, { replace: true })
-  }, [needsVerifyOnly, sourceFilter, setSearchParams])
+  }, [needsVerifyOnly, sourceFilter, industryFilter, setSearchParams])
 
   const openNew = useCallback(() => {
     setEditingId(null)
@@ -123,6 +130,8 @@ export default function ContactsPage() {
       customFields: Array.isArray(item.customFields) ? item.customFields : [],
       needsVerify: Boolean(item.needsVerify),
       source: item.source || 'manual',
+      industrySlug: item.industrySlug || '',
+      businessType: item.businessType || '',
     })
     setEnrichedHint(item.lastEnrichedAt
       ? `Updated from web · ${new Date(item.lastEnrichedAt).toLocaleString()}`
@@ -171,6 +180,8 @@ export default function ContactsPage() {
     mailingAddress: form.mailingAddress,
     emailOptOut: form.emailOptOut,
     photoUrl: form.photoUrl,
+    industrySlug: form.industrySlug || '',
+    businessType: form.businessType || '',
     customFields: (form.customFields || []).filter((f) => f.label || f.value),
   })
 
@@ -222,8 +233,11 @@ export default function ContactsPage() {
     if (countryFilter) {
       list = list.filter((c) => String(c.mailingAddress?.country || '') === countryFilter)
     }
+    if (industryFilter) {
+      list = list.filter((c) => String(c.industrySlug || '') === industryFilter)
+    }
     return list
-  }, [items, listFilter, user, countryFilter])
+  }, [items, listFilter, user, countryFilter, industryFilter])
 
   const countryOptions = useMemo(() => {
     const set = new Set(
@@ -246,6 +260,7 @@ export default function ContactsPage() {
       </Link>
     ),
     accountName: c.accountName || '—',
+    industry: c.industrySlug || '—',
     country: c.mailingAddress?.country || '—',
     title: c.title || '—',
     phone: c.phone || '—',
@@ -306,6 +321,15 @@ export default function ContactsPage() {
         actions={(
           <>
             <label className="crm-inline-filter">
+              <span>Industry</span>
+              <select value={industryFilter} onChange={(e) => setIndustryFilter(e.target.value)}>
+                <option value="">All</option>
+                {INDUSTRIES.map((industry) => (
+                  <option key={industry.slug} value={industry.slug}>{industry.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="crm-inline-filter">
               <span>Source</span>
               <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}>
                 <option value="">All</option>
@@ -344,6 +368,7 @@ export default function ContactsPage() {
         columns={[
           { key: 'name', label: 'Name' },
           { key: 'accountName', label: 'Account Name' },
+          { key: 'industry', label: 'Industry' },
           { key: 'country', label: 'Country' },
           { key: 'title', label: 'Title' },
           { key: 'phone', label: 'Phone' },

@@ -12,6 +12,33 @@ const ITEMS = [
     ),
   },
   {
+    to: '/sales/industries',
+    label: 'Industries',
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path fill="currentColor" d="M4 20V10l4-3 4 3v10H4zm8 0V4l4 2.5V20h-4zm6 0v-8l2 1.2V20h-2z" />
+      </svg>
+    ),
+  },
+  {
+    to: '/sales/find-companies',
+    label: 'Find Companies',
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path fill="currentColor" d="M10 4a6 6 0 1 0 3.9 10.6l4.2 4.2 1.4-1.4-4.2-4.2A6 6 0 0 0 10 4zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8z" />
+      </svg>
+    ),
+  },
+  {
+    to: '/sales/find-contacts',
+    label: 'Find Contacts',
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path fill="currentColor" d="M12 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zm-6.5 8v-1.5c0-2.5 3.5-4 6.5-4 .8 0 1.6.1 2.3.2-.5.5-.9 1.2-1.2 1.9-.4 0-.7-.1-1.1-.1-2.5 0-4.5 1-4.5 2v1.5h-2zm13.5-5.5h-1.5V13h-2v1.5H14v2h1.5V18h2v-1.5H19v-2z" />
+      </svg>
+    ),
+  },
+  {
     to: '/sales/leads',
     label: 'Leads',
     icon: (
@@ -57,6 +84,15 @@ const ITEMS = [
     ),
   },
   {
+    to: '/sales/solutions',
+    label: 'Solutions',
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path fill="currentColor" d="M12 2 3 7v10l9 5 9-5V7l-9-5zm0 2.2L18.5 8 12 11.8 5.5 8 12 4.2zm-7 5.5 6 3.4v6.2l-6-3.3V9.7zm8 9.6v-6.2l6-3.4V16l-6 3.3z" />
+      </svg>
+    ),
+  },
+  {
     to: '/sales/price-books',
     label: 'Price Books',
     icon: (
@@ -89,6 +125,15 @@ const ITEMS = [
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path fill="currentColor" d="M4 18h3V9H4v9zm6.5 0h3V5h-3v13zM17 18h3v-7h-3v7z" />
+      </svg>
+    ),
+  },
+  {
+    to: '/sales/playbooks',
+    label: 'Playbooks',
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path fill="currentColor" d="M5 4h12a2 2 0 0 1 2 2v13l-4-2-4 2-4-2-4 2V6a2 2 0 0 1 2-2zm0 2v9.5l2-.8 4 2 4-2 2 .8V6H5z" />
       </svg>
     ),
   },

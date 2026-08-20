@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { crmApi } from '../../api/client'
 import ProspectSearchPanel from '../../components/crm/ProspectSearchPanel'
 import { usePreferences } from '../../context/PreferencesContext'
+import { listIndustryConfigs } from '../../lib/industryCatalog'
 
 export default function CrmHomePage() {
   const { sales } = usePreferences()
@@ -20,6 +21,9 @@ export default function CrmHomePage() {
   const [digest, setDigest] = useState(null)
   const [digestBusy, setDigestBusy] = useState(false)
   const [staleBusy, setStaleBusy] = useState(false)
+  const [industrySlug, setIndustrySlug] = useState('jewelry')
+  const [businessType, setBusinessType] = useState('')
+  const industry = listIndustryConfigs().find((item) => item.slug === industrySlug) || null
 
   useEffect(() => {
     if (sales?.defaultProspectRegion && !region) {
@@ -132,6 +136,8 @@ export default function CrmHomePage() {
         perQuery: sales?.perQuery || 8,
         queryLimit: sales?.bulkQueries || 5,
         region: effectiveRegion,
+        industrySlug: industrySlug || undefined,
+        businessType: businessType || undefined,
       })
       const d = res.data || {}
       let msg = `Web import · Accounts +${d.accountsCreated || 0} (upd ${d.accountsUpdated || 0}) · enriched ${d.enriched || 0} · skipped low-quality ${d.skippedLowQuality || 0} · skipped duplicates ${d.skippedDuplicates || 0} (${d.resultsSeen || 0} seen).`
@@ -223,6 +229,8 @@ export default function CrmHomePage() {
         perQuery: sales?.perQuery || 8,
         queryLimit: sales?.bulkQueries || 5,
         region: effectiveRegion,
+        industrySlug: industrySlug || undefined,
+        businessType: businessType || undefined,
       })
       const imp = importRes.data || {}
       setRefreshMsg(`Fill pipeline · 2/3 Geo… (Accounts +${imp.accountsCreated || 0})`)
@@ -253,7 +261,7 @@ export default function CrmHomePage() {
     <div className="crm-home">
       <header className="crm-home-header">
         <h2>Home</h2>
-        <p>Worldwide CRM snapshot — companies, people contacts, deals, and service.</p>
+        <p>Worldwide CRM snapshot with configurable industry workspaces for prospecting, scoring, and playbooks.</p>
       </header>
 
       {error ? <p className="crm-banner-error">{error}</p> : null}
@@ -407,6 +415,9 @@ export default function CrmHomePage() {
           </div>
 
           <div className="crm-home-actions">
+            <Link className="crm-btn-primary" to={`/sales/industries`}>Industry Explorer</Link>
+            <Link className="crm-btn-secondary" to={`/sales/find-companies?industry=${encodeURIComponent(industrySlug)}`}>Open company workspace</Link>
+            <Link className="crm-btn-secondary" to={`/sales/find-contacts?industry=${encodeURIComponent(industrySlug)}`}>Open contact workspace</Link>
             <button
               type="button"
               className="crm-btn-primary"
@@ -497,11 +508,19 @@ export default function CrmHomePage() {
             Needs <code>GROQ_API_KEY</code> and <code>BRAVE_API_KEY</code> (or Tavily) on Railway.
             Web import tags Accounts with Region; enable scheduled find under Settings for ongoing growth.
           </p>
+          <p className="crm-muted">
+            Current workspace: <strong>{industry?.name || 'All industries'}</strong>
+            {businessType ? ` · ${businessType}` : ''}
+          </p>
           {refreshMsg ? <p className="crm-muted">{refreshMsg}</p> : null}
 
           <ProspectSearchPanel
             region={region}
             onRegionChange={setRegion}
+            industrySlug={industrySlug}
+            onIndustryChange={setIndustrySlug}
+            businessType={businessType}
+            onBusinessTypeChange={setBusinessType}
             onImported={() => load()}
           />
 

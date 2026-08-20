@@ -19,6 +19,10 @@ const accountSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true, maxlength: 200 },
   website: { type: String, trim: true, default: '', maxlength: 300 },
   type: { type: String, trim: true, default: '', maxlength: 80 },
+  industryId: { type: String, trim: true, default: '', maxlength: 80, index: true },
+  industrySlug: { type: String, trim: true, default: '', maxlength: 80, index: true },
+  industry: { type: String, trim: true, default: '', maxlength: 80 },
+  businessType: { type: String, trim: true, default: '', maxlength: 120 },
   description: { type: String, trim: true, default: '', maxlength: 5000 },
   parentAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Account', default: null },
   phone: { type: String, trim: true, default: '', maxlength: 60 },
@@ -30,6 +34,14 @@ const accountSchema = new mongoose.Schema({
   shippingAddress: { type: addressSchema, default: () => ({}) },
   customFields: { type: [customFieldSchema], default: [] },
   lastEnrichedAt: { type: Date, default: null },
+  researchSummary: {
+    verifiedData: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
+    inferredData: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
+    unknownData: { type: [String], default: [] },
+    source: { type: String, trim: true, default: '', maxlength: 200 },
+    confidence: { type: Number, default: 0, min: 0, max: 100 },
+    researchedAt: { type: Date, default: null },
+  },
 }, { timestamps: true })
 
 accountSchema.index({ workspaceId: 1, name: 1 })

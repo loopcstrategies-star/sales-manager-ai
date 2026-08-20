@@ -147,6 +147,16 @@ export const configApi = {
   get: () => api('/api/config'),
 }
 
+export const industriesApi = {
+  list: () => api('/api/industries'),
+  get: (slug) => api(`/api/industries/${encodeURIComponent(slug)}`),
+  categories: (slug) => api(`/api/industries/${encodeURIComponent(slug)}/categories`),
+  solutions: (slug) => api(`/api/industries/${encodeURIComponent(slug)}/solutions`),
+  playbook: (slug) => api(`/api/industries/${encodeURIComponent(slug)}/playbook`),
+  questions: (slug) => api(`/api/industries/${encodeURIComponent(slug)}/questions`),
+  scoring: (slug) => api(`/api/industries/${encodeURIComponent(slug)}/scoring`),
+}
+
 export const dashboardApi = {
   get: (region = '') => api(`/api/dashboard${region ? `?region=${encodeURIComponent(region)}` : ''}`),
   refresh: (region = '') => api('/api/dashboard/refresh', {
@@ -177,6 +187,7 @@ export const accountsApi = {
     const params = new URLSearchParams()
     if (q) params.set('q', q)
     if (opts.label) params.set('label', opts.label)
+    if (opts.industry) params.set('industry', opts.industry)
     const qs = params.toString()
     return api(`/api/accounts${qs ? `?${qs}` : ''}`)
   },
@@ -196,6 +207,7 @@ export const contactsApi = {
     if (q) params.set('q', q)
     if (opts.needsVerify) params.set('needsVerify', '1')
     if (opts.source) params.set('source', opts.source)
+    if (opts.industry) params.set('industry', opts.industry)
     const qs = params.toString()
     return api(`/api/contacts${qs ? `?${qs}` : ''}`)
   },
@@ -206,7 +218,13 @@ export const contactsApi = {
 }
 
 export const opportunitiesApi = {
-  list: (q = '') => api(`/api/opportunities${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  list: (q = '', opts = {}) => {
+    const params = new URLSearchParams()
+    if (q) params.set('q', q)
+    if (opts.industry) params.set('industry', opts.industry)
+    const qs = params.toString()
+    return api(`/api/opportunities${qs ? `?${qs}` : ''}`)
+  },
   get: (id) => api(`/api/opportunities/${id}`),
   create: (body) => api('/api/opportunities', { method: 'POST', body: JSON.stringify(body) }),
   update: (id, body) => api(`/api/opportunities/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
@@ -214,10 +232,11 @@ export const opportunitiesApi = {
 }
 
 export const leadsApi = {
-  list: (q = '', view = 'open') => {
+  list: (q = '', view = 'open', opts = {}) => {
     const params = new URLSearchParams()
     if (q) params.set('q', q)
     if (view) params.set('view', view)
+    if (opts.industry) params.set('industry', opts.industry)
     const qs = params.toString()
     return api(`/api/leads${qs ? `?${qs}` : ''}`)
   },
@@ -360,9 +379,14 @@ export const crmApi = {
     URL.revokeObjectURL(url)
   },
   enrich: (body) => api('/api/crm/enrich', { method: 'POST', body: JSON.stringify(body) }),
-  prospectSearch: (query, region = '') => api('/api/crm/prospect/search', {
+  prospectSearch: (query, region = '', options = {}) => api('/api/crm/prospect/search', {
     method: 'POST',
-    body: JSON.stringify({ query, region: region || undefined }),
+    body: JSON.stringify({
+      query,
+      region: region || undefined,
+      industrySlug: options.industrySlug || undefined,
+      businessType: options.businessType || undefined,
+    }),
   }),
   prospectImport: (body) => api('/api/crm/prospect/import', {
     method: 'POST',
@@ -445,5 +469,20 @@ export const crmApi = {
     method: 'POST',
     body: JSON.stringify(body),
   }),
+  companySearch: (params = {}) => {
+    const query = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value != null && value !== '') query.set(key, value)
+    })
+    const qs = query.toString()
+    return api(`/api/crm/companies/search${qs ? `?${qs}` : ''}`)
+  },
+  companyIntelligence: (id) => api(`/api/crm/companies/${id}/intelligence`),
+  researchCompany: (id) => api(`/api/crm/companies/${id}/research`, { method: 'POST', body: JSON.stringify({}) }),
+  scoreCompany: (id) => api(`/api/crm/companies/${id}/score`, { method: 'POST', body: JSON.stringify({}) }),
+  companyRecommendations: (id) => api(`/api/crm/companies/${id}/recommendations`),
+  companyContacts: (id) => api(`/api/crm/companies/${id}/contacts`),
+  createLeadFromCompany: (body) => api('/api/crm/leads/from-company', { method: 'POST', body: JSON.stringify(body) }),
+  createOpportunityFromCompany: (body) => api('/api/crm/opportunities/from-company', { method: 'POST', body: JSON.stringify(body) }),
 }
 

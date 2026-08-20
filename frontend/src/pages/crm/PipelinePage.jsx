@@ -4,6 +4,7 @@ import { accountsApi, opportunitiesApi, productsApi } from '../../api/client'
 import CrmListView from '../../components/crm/CrmListView'
 import CrmModal from '../../components/crm/CrmModal'
 import LookupField from '../../components/crm/LookupField'
+import { getIndustryConfig, listIndustryConfigs } from '../../lib/industryCatalog'
 
 const STAGES = ['Prospecting', 'Qualification', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost']
 const STAGE_DEFAULT_PROB = {
@@ -14,11 +15,14 @@ const STAGE_DEFAULT_PROB = {
   'Closed Won': 100,
   'Closed Lost': 0,
 }
+const INDUSTRIES = listIndustryConfigs()
 
 const emptyForm = () => ({
   name: '',
   accountId: '',
   accountName: '',
+  industrySlug: '',
+  businessType: '',
   amount: '',
   stage: 'Prospecting',
   closeDate: '',
@@ -42,22 +46,23 @@ export default function PipelinePage() {
   const [saving, setSaving] = useState(false)
   const [selectedIds, setSelectedIds] = useState([])
   const [dragId, setDragId] = useState(null)
+  const [industryFilter, setIndustryFilter] = useState('')
 
   const load = useCallback(async (q = '') => {
     setLoading(true)
     try {
       const [oppRes, prodRes] = await Promise.all([
-        opportunitiesApi.list(q),
+        opportunitiesApi.list(q, { industry: industryFilter || undefined }),
         productsApi.list('').catch(() => ({ data: [] })),
       ])
-      setItems(oppRes.data || [])
+      setItems((oppRes.data || []).filter((item) => !industryFilter || item.industrySlug === industryFilter))
       setProducts(prodRes.data || [])
     } catch {
       setItems([])
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [industryFilter])
 
   useEffect(() => {
     const t = setTimeout(() => load(search), 250)
@@ -79,6 +84,8 @@ export default function PipelinePage() {
       name: item.name || '',
       accountId: item.accountId || '',
       accountName: item.accountName || '',
+      industrySlug: item.industrySlug || '',
+      businessType: item.businessType || '',
       amount: item.amount != null ? String(item.amount) : '',
       stage: item.stage || 'Prospecting',
       closeDate: item.closeDate ? String(item.closeDate).slice(0, 10) : '',
@@ -110,6 +117,8 @@ export default function PipelinePage() {
       const payload = {
         name: form.name.trim(),
         accountId: form.accountId || '',
+        industrySlug: form.industrySlug || '',
+        businessType: form.businessType || '',
         amount: Number(form.amount) || 0,
         stage: form.stage,
         closeDate: form.closeDate || null,
@@ -178,6 +187,7 @@ export default function PipelinePage() {
     id: o._id,
     name: <Link to={`/sales/pipeline/${o._id}`} onClick={(e) => e.stopPropagation()}>{o.name}</Link>,
     accountName: o.accountName || '—',
+    industry: o.industrySlug || '—',
     amount: o.amount != null ? `$${Number(o.amount).toLocaleString()}` : '—',
     stage: o.stage,
     nextStep: o.nextStep || '—',
@@ -201,6 +211,15 @@ export default function PipelinePage() {
           <button type="button" className={view === 'kanban' ? 'active' : ''} onClick={() => setView('kanban')}>Kanban</button>
           <button type="button" className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}>List</button>
         </div>
+        <label className="crm-inline-filter">
+          <span>Industry</span>
+          <select value={industryFilter} onChange={(e) => setIndustryFilter(e.target.value)}>
+            <option value="">All</option>
+            {INDUSTRIES.map((industry) => (
+              <option key={industry.slug} value={industry.slug}>{industry.name}</option>
+            ))}
+          </select>
+        </label>
         <button type="button" className="crm-btn-primary" onClick={openNew}>New</button>
       </div>
 
@@ -278,6 +297,7 @@ export default function PipelinePage() {
           columns={[
             { key: 'name', label: 'Opportunity Name' },
             { key: 'accountName', label: 'Account' },
+            { key: 'industry', label: 'Industry' },
             { key: 'amount', label: 'Amount' },
             { key: 'stage', label: 'Stage' },
             { key: 'nextStep', label: 'Next Step' },
@@ -344,6 +364,33 @@ export default function PipelinePage() {
             setField('accountName', '')
           }}
         />
+        <label className="crm-field">
+          <span>Industry</span>
+          <select
+            value={form.industrySlug || ''}
+            onChange={(e) => {
+              const nextSlug = e.target.value
+              setField('industrySlug', nextSlug)
+              if (!getIndustryConfig(nextSlug)?.businessTypes.includes(form.businessType)) {
+                setField('businessType', '')
+              }
+            }}
+          >
+            <option value="">None</option>
+            {INDUSTRIES.map((industry) => (
+              <option key={industry.slug} value={industry.slug}>{industry.name}</option>
+            ))}
+          </select>
+        </label>
+        <label className="crm-field">
+          <span>Business Type</span>
+          <select value={form.businessType || ''} onChange={(e) => setField('businessType', e.target.value)}>
+            <option value="">None</option>
+            {(getIndustryConfig(form.industrySlug)?.businessTypes || []).map((type) => (
+              <option key={type} value={type}>{type}</option>
+            ))}
+          </select>
+        </label>
         <label className="crm-field">
           <span>Amount</span>
           <input type="number" min="0" step="0.01" value={form.amount} onChange={(e) => setField('amount', e.target.value)} />

@@ -29,6 +29,8 @@ const { findContactsForCompany, isStubContact } = require('../services/contactFi
 const { hunterDomainSearch, isHunterConfigured } = require('../services/hunterClient')
 const { getUserPreferences } = require('../services/userPreferences')
 const { runThinAccountFind } = require('../services/thinAccountFind')
+const { getIndustry } = require('../services/industryCatalog')
+const { attachIndustryMetadata } = require('../services/industryRecord')
 
 const router = express.Router()
 router.use(protect)
@@ -136,7 +138,7 @@ async function importProspectItem(req, filter, item, flags, summary) {
   const siteUrl = companyWebsiteUrl(url) || url
   const country = resolveCountry({ website: siteUrl, region: regionLabel, existingCountry: '' })
   const blob = `${company}\n${title}\n${snippet}\n${siteUrl}`
-  const { asAccount, asLead, asContact } = flags
+  const { asAccount, asLead, asContact, industrySlug, businessType } = flags
   let account = null
   let createdAccount = false
   let createdLead = null
@@ -168,11 +170,14 @@ async function importProspectItem(req, filter, item, flags, summary) {
         website: siteUrl.slice(0, 300),
         description: snippet.slice(0, 2000),
         type: 'Prospect',
+        businessType: businessType || '',
         region: regionLabel,
         billingAddress: country ? { country } : {},
         workspaceId: req.user.workspaceId,
         ownerId: req.user._id,
       })
+      attachIndustryMetadata(account, { industrySlug, businessType }, { copyIndustryToType: false })
+      await account.save()
       createdAccount = true
       if (asAccount) summary.accountsCreated += 1
     }
@@ -186,10 +191,13 @@ async function importProspectItem(req, filter, item, flags, summary) {
       description: snippet.slice(0, 2000),
       leadSource: 'Web Search',
       status: 'Open',
+      businessType: businessType || '',
       address: country ? { country } : {},
       workspaceId: req.user.workspaceId,
       ownerId: req.user._id,
     })
+    attachIndustryMetadata(createdLead, { industrySlug, businessType })
+    await createdLead.save()
     summary.leadsCreated += 1
   }
 
@@ -200,6 +208,9 @@ async function importProspectItem(req, filter, item, flags, summary) {
     await Contact.create({
       lastName: 'Main',
       accountId: account._id,
+      industryId: account.industryId || '',
+      industrySlug: account.industrySlug || '',
+      businessType: account.businessType || businessType || '',
       description: snippet.slice(0, 2000),
       phone: phoneMatch ? phoneMatch[0].slice(0, 60) : '',
       email: emailMatch ? emailMatch[0].toLowerCase().slice(0, 200) : '',
@@ -320,7 +331,15 @@ router.post('/prospect/search', async (req, res) => {
     }
     const queryRaw = String(req.body.query || '').trim()
     const region = String(req.body.region || '').trim()
-    const query = withRegion(queryRaw, region)
+    const industrySlug = String(req.body.industrySlug || '').trim()
+    const businessType = String(req.body.businessType || '').trim()
+    const industry = getIndustry(industrySlug)
+    const effectiveQuery = [
+      queryRaw,
+      businessType,
+      industry?.name,
+    ].filter(Boolean).join(' ').trim()
+    const query = withRegion(effectiveQuery, region)
     if (!query) {
       return res.status(400).json({ success: false, message: 'query is required.' })
     }
@@ -336,6 +355,9 @@ router.post('/prospect/search', async (req, res) => {
       data: {
         query,
         region: region || null,
+        industry: industry?.name || null,
+        industrySlug: industry?.slug || null,
+        businessType: businessType || null,
         answer: search.answer || null,
         results,
         provider: search.provider || null,
@@ -355,6 +377,8 @@ router.post('/prospect/import', async (req, res) => {
     const asContact = Boolean(req.body.asContact)
     const force = Boolean(req.body.force)
     const region = String(req.body.region || '').trim()
+    const industrySlug = String(req.body.industrySlug || '').trim()
+    const businessType = String(req.body.businessType || '').trim()
     if (!items.length) {
       return res.status(400).json({ success: false, message: 'Select at least one result.' })
     }
@@ -375,7 +399,7 @@ router.post('/prospect/import', async (req, res) => {
       enriched: 0,
       errors: [],
     }
-    const flags = { asAccount, asLead, asContact, force, region }
+    const flags = { asAccount, asLead, asContact, force, region, industrySlug, businessType }
 
     for (const item of items.slice(0, 25)) {
       try {
@@ -402,12 +426,18 @@ router.post('/prospect/bulk', async (req, res) => {
 
     const salesPrefs = (await getUserPreferences(req.user._id)).sales
     const region = String(req.body.region || salesPrefs.defaultProspectRegion || '').trim()
+    const industrySlug = String(req.body.industrySlug || '').trim()
+    const businessType = String(req.body.businessType || '').trim()
     const queryLimit = Math.max(1, Math.min(8, Number(req.body.queryLimit) || salesPrefs.bulkQueries || 5))
     const rawQueries = Array.isArray(req.body.queries) && req.body.queries.length
       ? req.body.queries
       : DEFAULT_PROSPECT_QUERIES
+    const industry = getIndustry(industrySlug)
     const queries = [...new Set(
-      rawQueries.map((q) => withRegion(String(q || '').trim(), region)).filter(Boolean),
+      rawQueries
+        .map((q) => [String(q || '').trim(), businessType, industry?.name].filter(Boolean).join(' ').trim())
+        .map((q) => withRegion(q, region))
+        .filter(Boolean),
     )].slice(0, queryLimit)
     const perQuery = Math.max(1, Math.min(12, Number(req.body.perQuery) || salesPrefs.perQuery || 8))
     const asAccount = req.body.asAccount !== false
@@ -438,7 +468,7 @@ router.post('/prospect/bulk', async (req, res) => {
       resultsSeen: 0,
       errors: [],
     }
-    const flags = { asAccount, asLead, asContact, force: false, region }
+    const flags = { asAccount, asLead, asContact, force: false, region, industrySlug, businessType }
     const seenInRun = new Set()
 
     for (const query of queries) {
@@ -564,13 +594,20 @@ async function saveFoundContacts(req, filter, account, found, summary, options =
       phone: String(person.phone || '').slice(0, 60),
       title: String(person.title || '').slice(0, 120),
       accountId: account._id,
+      industryId: account.industryId || '',
+      industrySlug: account.industrySlug || '',
+      businessType: account.businessType || '',
       description: note,
       mailingAddress: acctCountry ? { country: acctCountry } : {},
       source,
       needsVerify,
+      verificationStatus: needsVerify ? 'unverified' : 'verified',
+      sourceUrl: (summary.sources || [])[0]?.url || '',
+      researchConfidence: source === 'hunter' ? 80 : 65,
       workspaceId: req.user.workspaceId,
       ownerId: req.user._id,
       lastEnrichedAt: new Date(),
+      researchedAt: new Date(),
     })
     created += 1
   }
@@ -607,6 +644,7 @@ router.post('/prospect/find-contacts', async (req, res) => {
       name: account.name,
       website: account.website,
       region: region || account.region,
+      targetRoles: getIndustry(account.industrySlug || account.industryId || account.industry)?.decisionMakerRoles || [],
     })
     if (!found.ok) {
       return res.status(502).json({

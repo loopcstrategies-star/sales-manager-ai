@@ -9,6 +9,7 @@ const {
   toObjectId,
   ownerAlias,
 } = require('../services/crmHelpers')
+const { attachIndustryMetadata, industryRecommendedSolutions } = require('../services/industryRecord')
 
 const router = express.Router()
 router.use(protect)
@@ -17,6 +18,9 @@ const bodySchema = Joi.object({
   name: Joi.string().trim().min(1).max(200),
   accountId: Joi.string().allow(null, ''),
   contactId: Joi.string().allow(null, ''),
+  industryId: Joi.string().allow('').max(80),
+  industrySlug: Joi.string().allow('').max(80),
+  businessType: Joi.string().allow('').max(120),
   amount: Joi.number().min(0),
   stage: Joi.string().valid(
     'Prospecting',
@@ -35,6 +39,7 @@ const bodySchema = Joi.object({
   products: Joi.array().items(Joi.object({
     productId: Joi.string().allow(null, ''),
     productName: Joi.string().allow('').max(200),
+    solutionId: Joi.string().allow('').max(80),
     quantity: Joi.number().min(0),
     unitPrice: Joi.number().min(0),
     _id: Joi.any(),
@@ -73,6 +78,7 @@ function normalizeProducts(products = []) {
   return (products || []).map((p) => ({
     productId: toObjectId(p.productId),
     productName: String(p.productName || '').slice(0, 200),
+    solutionId: String(p.solutionId || '').slice(0, 80),
     quantity: Number(p.quantity) || 0,
     unitPrice: Number(p.unitPrice) || 0,
   }))
@@ -85,8 +91,10 @@ function amountFromProducts(products) {
 router.get('/', async (req, res) => {
   try {
     const q = String(req.query.q || '').trim()
+    const industry = String(req.query.industry || '').trim()
     const filter = { ...workspaceFilter(req.user) }
     if (q) filter.name = { $regex: escapeRegex(q), $options: 'i' }
+    if (industry) filter.industrySlug = industry
 
     const items = await Opportunity.find(filter)
       .populate('ownerId', 'name')
@@ -141,6 +149,9 @@ router.post('/', validateBody(createSchema), async (req, res) => {
       workspaceId: req.user.workspaceId,
       ownerId: req.user._id,
     })
+    attachIndustryMetadata(created, req.body)
+    created.recommendedSolutionIds = industryRecommendedSolutions(created.industrySlug)
+    await created.save()
     await created.populate('ownerId', 'name')
     await created.populate('accountId', 'name')
     await created.populate('contactId', 'firstName lastName')
@@ -179,6 +190,10 @@ router.patch('/:id', validateBody(bodySchema), async (req, res) => {
     }
 
     Object.assign(existing, patch)
+    attachIndustryMetadata(existing, req.body)
+    if (existing.industrySlug && (!Array.isArray(existing.recommendedSolutionIds) || !existing.recommendedSolutionIds.length)) {
+      existing.recommendedSolutionIds = industryRecommendedSolutions(existing.industrySlug)
+    }
     await existing.save()
     await existing.populate('ownerId', 'name')
     await existing.populate('accountId', 'name')

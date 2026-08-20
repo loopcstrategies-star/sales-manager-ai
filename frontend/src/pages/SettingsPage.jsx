@@ -289,7 +289,7 @@ export default function SettingsPage() {
 
             <p className="settings-hint">
               See <Link to="/dashboard">Dashboard</Link> for live feed meta, or read{' '}
-              <a href="https://github.com/loopc-business-strategies/sales-manager-ai/blob/main/CHAT_GUIDE.md" target="_blank" rel="noopener noreferrer">
+              <a href="https://github.com/loopcstrategies-star/sales-manager-ai/blob/main/CHAT_GUIDE.md" target="_blank" rel="noopener noreferrer">
                 CHAT_GUIDE.md
               </a>
               {' '}for dashboard and settings documentation.

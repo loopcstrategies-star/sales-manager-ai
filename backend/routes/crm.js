@@ -168,7 +168,7 @@ router.get('/analytics', async (req, res) => {
     const prefs = await getUserPreferences(req.user._id)
     const stageProb = prefs.sales?.stageProbabilities || STAGE_PROBABILITY
     const opps = await Opportunity.find(filter)
-      .select('name stage amount closeDate updatedAt ownerId accountId probability')
+      .select('name stage amount closeDate updatedAt ownerId accountId probability industrySlug recommendedSolutionIds')
       .populate('accountId', 'name region billingAddress')
       .lean()
 
@@ -273,7 +273,7 @@ router.get('/analytics', async (req, res) => {
       .sort((a, b) => b.openAmount - a.openAmount || b.wonAmount - a.wonAmount)
       .slice(0, 10)
 
-    const [openLeads, leadsThisWeek, contactMeta, needsVerify, missingEmail, contacts] = await Promise.all([
+    const [openLeads, leadsThisWeek, contactMeta, needsVerify, missingEmail, contacts, allLeads] = await Promise.all([
       Lead.countDocuments({
         ...filter,
         status: { $in: ['Open', 'Working'] },
@@ -290,9 +290,21 @@ router.get('/analytics', async (req, res) => {
         $or: [{ email: '' }, { email: null }, { email: { $exists: false } }],
       }),
       Contact.countDocuments(filter),
+      Lead.find(filter).select('industrySlug industry').lean(),
     ])
 
-    const accountGeo = await Account.find(filter).select('region billingAddress.country').lean()
+    const accountGeo = await Account.find(filter).select('region billingAddress.country industrySlug industry').lean()
+    const leadsByIndustry = countByKey(allLeads, (lead) => lead.industry || lead.industrySlug)
+    const accountsByIndustry = countByKey(accountGeo, (account) => account.industry || account.industrySlug)
+    const opportunitiesByIndustry = sumByKey(
+      opps,
+      (opp) => opp.industrySlug || 'Unknown',
+      (opp) => opp.amount,
+    )
+    const solutionDemand = countByKey(
+      opps.flatMap((opp) => opp.recommendedSolutionIds || []).map((solutionId) => ({ solutionId })),
+      (row) => row.solutionId,
+    )
 
     res.json({
       success: true,
@@ -325,6 +337,10 @@ router.get('/analytics', async (req, res) => {
         },
         pipelineByCountry,
         ownerLeaderboard,
+        leadsByIndustry,
+        accountsByIndustry,
+        opportunitiesByIndustry,
+        solutionDemand,
         byRegion: countByKey(accountGeo, (a) => a.region),
         byCountry: countByKey(accountGeo, (a) => a.billingAddress?.country),
         recentOpportunities: opps

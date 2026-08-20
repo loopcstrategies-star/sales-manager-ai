@@ -1,0 +1,346 @@
+[
+  {
+    "id": "corporate-website",
+    "name": "Corporate Website",
+    "slug": "corporate-website",
+    "category": "websites",
+    "description": "Modern business website for company positioning, trust, and lead capture.",
+    "targetIndustries": ["all"]
+  },
+  {
+    "id": "business-website",
+    "name": "Business Website",
+    "slug": "business-website",
+    "category": "websites",
+    "description": "General purpose website for business presentation and inbound inquiries.",
+    "targetIndustries": ["all"]
+  },
+  {
+    "id": "ecommerce-website",
+    "name": "E-commerce Website",
+    "slug": "ecommerce-website",
+    "category": "websites",
+    "description": "Online store with catalog, cart, checkout, and order management.",
+    "targetIndustries": ["jewelry", "retail", "restaurant", "wholesale", "ecommerce", "hospitality"]
+  },
+  {
+    "id": "catalog-website",
+    "name": "Catalog Website",
+    "slug": "catalog-website",
+    "category": "websites",
+    "description": "Product or service catalog for B2B showcasing without full checkout.",
+    "targetIndustries": ["jewelry", "manufacturing", "wholesale", "professional-services", "real-estate"]
+  },
+  {
+    "id": "landing-page",
+    "name": "Landing Page",
+    "slug": "landing-page",
+    "category": "websites",
+    "description": "Single-purpose page for campaigns, launches, and lead capture.",
+    "targetIndustries": ["all"]
+  },
+  {
+    "id": "booking-website",
+    "name": "Booking Website",
+    "slug": "booking-website",
+    "category": "websites",
+    "description": "Website with appointment or reservation flows.",
+    "targetIndustries": ["healthcare", "hospitality", "restaurant", "professional-services"]
+  },
+  {
+    "id": "marketplace",
+    "name": "Marketplace",
+    "slug": "marketplace",
+    "category": "websites",
+    "description": "Multi-vendor marketplace for catalogs, orders, and payouts.",
+    "targetIndustries": ["ecommerce", "wholesale", "retail", "automobile"]
+  },
+  {
+    "id": "custom-web-application",
+    "name": "Custom Web Application",
+    "slug": "custom-web-application",
+    "category": "websites",
+    "description": "Custom business web application for operations, customers, or staff.",
+    "targetIndustries": ["all"]
+  },
+  {
+    "id": "crm",
+    "name": "CRM",
+    "slug": "crm",
+    "category": "software",
+    "description": "Sales and customer relationship management platform.",
+    "targetIndustries": ["all"]
+  },
+  {
+    "id": "erp",
+    "name": "ERP",
+    "slug": "erp",
+    "category": "software",
+    "description": "Enterprise resource planning across finance, inventory, and operations.",
+    "targetIndustries": ["jewelry", "construction", "manufacturing", "wholesale", "logistics", "finance"]
+  },
+  {
+    "id": "pos",
+    "name": "POS",
+    "slug": "pos",
+    "category": "software",
+    "description": "Point of sale system for stores, branches, and in-person sales.",
+    "targetIndustries": ["jewelry", "retail", "restaurant", "hospitality", "automobile"]
+  },
+  {
+    "id": "inventory",
+    "name": "Inventory",
+    "slug": "inventory",
+    "category": "software",
+    "description": "Inventory management for stock control, movements, and valuation.",
+    "targetIndustries": ["jewelry", "retail", "restaurant", "manufacturing", "wholesale", "logistics"]
+  },
+  {
+    "id": "billing",
+    "name": "Billing",
+    "slug": "billing",
+    "category": "software",
+    "description": "Billing and invoicing workflows for sales and service operations.",
+    "targetIndustries": ["all"]
+  },
+  {
+    "id": "hrms",
+    "name": "HRMS",
+    "slug": "hrms",
+    "category": "software",
+    "description": "Human resources workflows, attendance, and employee management.",
+    "targetIndustries": ["construction", "education", "healthcare", "manufacturing", "hospitality"]
+  },
+  {
+    "id": "payroll",
+    "name": "Payroll",
+    "slug": "payroll",
+    "category": "software",
+    "description": "Payroll automation for employee and contractor payouts.",
+    "targetIndustries": ["construction", "education", "healthcare", "manufacturing", "hospitality"]
+  },
+  {
+    "id": "project-management",
+    "name": "Project Management",
+    "slug": "project-management",
+    "category": "software",
+    "description": "Project execution, timeline, delivery, and collaboration workflows.",
+    "targetIndustries": ["construction", "professional-services", "manufacturing", "real-estate"]
+  },
+  {
+    "id": "customer-support",
+    "name": "Customer Support",
+    "slug": "customer-support",
+    "category": "software",
+    "description": "Support desk, ticketing, and service management workflows.",
+    "targetIndustries": ["all"]
+  },
+  {
+    "id": "booking-system",
+    "name": "Booking System",
+    "slug": "booking-system",
+    "category": "software",
+    "description": "Appointment, reservation, and schedule management.",
+    "targetIndustries": ["healthcare", "hospitality", "restaurant", "professional-services"]
+  },
+  {
+    "id": "industry-management-software",
+    "name": "Industry Management Software",
+    "slug": "industry-management-software",
+    "category": "software",
+    "description": "Custom industry-specific operational platform.",
+    "targetIndustries": ["all"]
+  },
+  {
+    "id": "android-app",
+    "name": "Android App",
+    "slug": "android-app",
+    "category": "mobile-apps",
+    "description": "Android mobile application for customers or staff.",
+    "targetIndustries": ["all"]
+  },
+  {
+    "id": "ios-app",
+    "name": "iOS App",
+    "slug": "ios-app",
+    "category": "mobile-apps",
+    "description": "iOS mobile application for customers or staff.",
+    "targetIndustries": ["all"]
+  },
+  {
+    "id": "android-ios-app",
+    "name": "Android + iOS App",
+    "slug": "android-ios-app",
+    "category": "mobile-apps",
+    "description": "Cross-platform customer or staff mobile app.",
+    "targetIndustries": ["all"]
+  },
+  {
+    "id": "customer-app",
+    "name": "Customer App",
+    "slug": "customer-app",
+    "category": "mobile-apps",
+    "description": "Customer-facing app for orders, loyalty, support, or tracking.",
+    "targetIndustries": ["jewelry", "retail", "restaurant", "healthcare", "hospitality", "ecommerce"]
+  },
+  {
+    "id": "employee-app",
+    "name": "Employee App",
+    "slug": "employee-app",
+    "category": "mobile-apps",
+    "description": "Internal mobile app for teams, field operations, or attendance.",
+    "targetIndustries": ["construction", "manufacturing", "logistics", "hospitality", "healthcare"]
+  },
+  {
+    "id": "delivery-app",
+    "name": "Delivery App",
+    "slug": "delivery-app",
+    "category": "mobile-apps",
+    "description": "Delivery and order fulfillment app for drivers and logistics teams.",
+    "targetIndustries": ["restaurant", "logistics", "ecommerce", "retail"]
+  },
+  {
+    "id": "marketplace-app",
+    "name": "Marketplace App",
+    "slug": "marketplace-app",
+    "category": "mobile-apps",
+    "description": "Marketplace mobile app for buyers and sellers.",
+    "targetIndustries": ["ecommerce", "wholesale", "automobile"]
+  },
+  {
+    "id": "b2b-app",
+    "name": "B2B App",
+    "slug": "b2b-app",
+    "category": "mobile-apps",
+    "description": "Business ordering, portal, or account management mobile app.",
+    "targetIndustries": ["wholesale", "manufacturing", "logistics", "professional-services"]
+  },
+  {
+    "id": "ai-chatbot",
+    "name": "AI Chatbot",
+    "slug": "ai-chatbot",
+    "category": "ai",
+    "description": "Website or app chatbot for lead capture and customer support.",
+    "targetIndustries": ["all"]
+  },
+  {
+    "id": "ai-customer-support",
+    "name": "AI Customer Support",
+    "slug": "ai-customer-support",
+    "category": "ai",
+    "description": "AI support automation for customer service and service teams.",
+    "targetIndustries": ["all"]
+  },
+  {
+    "id": "ai-sales-assistant",
+    "name": "AI Sales Assistant",
+    "slug": "ai-sales-assistant",
+    "category": "ai",
+    "description": "AI assistant for qualification, quoting, and sales follow-up.",
+    "targetIndustries": ["all"]
+  },
+  {
+    "id": "ai-lead-generation",
+    "name": "AI Lead Generation",
+    "slug": "ai-lead-generation",
+    "category": "ai",
+    "description": "AI workflows for lead discovery, research, and qualification.",
+    "targetIndustries": ["all"]
+  },
+  {
+    "id": "ai-document-processing",
+    "name": "AI Document Processing",
+    "slug": "ai-document-processing",
+    "category": "ai",
+    "description": "AI extraction and workflow automation for business documents.",
+    "targetIndustries": ["legal", "finance", "healthcare", "construction", "real-estate"]
+  },
+  {
+    "id": "ai-marketing",
+    "name": "AI Marketing",
+    "slug": "ai-marketing",
+    "category": "ai",
+    "description": "AI support for campaign generation and marketing optimization.",
+    "targetIndustries": ["all"]
+  },
+  {
+    "id": "ai-recommendation-engine",
+    "name": "AI Recommendation Engine",
+    "slug": "ai-recommendation-engine",
+    "category": "ai",
+    "description": "Personalized recommendation engine for products or services.",
+    "targetIndustries": ["jewelry", "retail", "ecommerce", "hospitality"]
+  },
+  {
+    "id": "ai-automation",
+    "name": "AI Automation",
+    "slug": "ai-automation",
+    "category": "ai",
+    "description": "Workflow automation combining AI with business process triggers.",
+    "targetIndustries": ["all"]
+  },
+  {
+    "id": "seo",
+    "name": "SEO",
+    "slug": "seo",
+    "category": "digital-marketing",
+    "description": "Search engine optimization to grow organic traffic.",
+    "targetIndustries": ["all"]
+  },
+  {
+    "id": "social-media",
+    "name": "Social Media",
+    "slug": "social-media",
+    "category": "digital-marketing",
+    "description": "Social media content and growth management.",
+    "targetIndustries": ["all"]
+  },
+  {
+    "id": "google-ads",
+    "name": "Google Ads",
+    "slug": "google-ads",
+    "category": "digital-marketing",
+    "description": "Paid search acquisition and campaign management.",
+    "targetIndustries": ["all"]
+  },
+  {
+    "id": "meta-ads",
+    "name": "Meta Ads",
+    "slug": "meta-ads",
+    "category": "digital-marketing",
+    "description": "Meta advertising for demand generation and remarketing.",
+    "targetIndustries": ["all"]
+  },
+  {
+    "id": "content-marketing",
+    "name": "Content",
+    "slug": "content-marketing",
+    "category": "digital-marketing",
+    "description": "Content strategy for traffic, trust, and conversion.",
+    "targetIndustries": ["all"]
+  },
+  {
+    "id": "email-marketing",
+    "name": "Email Marketing",
+    "slug": "email-marketing",
+    "category": "digital-marketing",
+    "description": "Lifecycle email automation and campaign execution.",
+    "targetIndustries": ["all"]
+  },
+  {
+    "id": "whatsapp-marketing",
+    "name": "WhatsApp Marketing",
+    "slug": "whatsapp-marketing",
+    "category": "digital-marketing",
+    "description": "WhatsApp broadcast, automation, and conversational sales workflows.",
+    "targetIndustries": ["jewelry", "retail", "restaurant", "healthcare", "professional-services"]
+  },
+  {
+    "id": "lead-generation-marketing",
+    "name": "Lead Generation",
+    "slug": "lead-generation-marketing",
+    "category": "digital-marketing",
+    "description": "Demand generation campaigns for new business opportunities.",
+    "targetIndustries": ["all"]
+  }
+]

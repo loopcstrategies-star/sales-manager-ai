@@ -11,6 +11,7 @@ const {
   customFieldsJoi,
   ownerAlias,
 } = require('../services/crmHelpers')
+const { attachIndustryMetadata } = require('../services/industryRecord')
 
 const router = express.Router()
 router.use(protect)
@@ -20,6 +21,9 @@ const contactBodySchema = Joi.object({
   firstName: Joi.string().allow('').max(100),
   lastName: Joi.string().trim().min(1).max(100).required(),
   accountId: Joi.string().trim().min(1).required(),
+  industryId: Joi.string().allow('').max(80),
+  industrySlug: Joi.string().allow('').max(80),
+  businessType: Joi.string().allow('').max(120),
   title: Joi.string().allow('').max(120),
   reportsToId: Joi.string().allow(null, ''),
   description: Joi.string().allow('').max(5000),
@@ -31,6 +35,9 @@ const contactBodySchema = Joi.object({
   customFields: customFieldsJoi(Joi),
   source: Joi.string().valid('manual', 'csv', 'web_llm', 'hunter').optional(),
   needsVerify: Joi.boolean().optional(),
+  verificationStatus: Joi.string().valid('verified', 'unverified', 'likely').optional(),
+  sourceUrl: Joi.string().allow('').max(500).optional(),
+  researchConfidence: Joi.number().min(0).max(100).optional(),
 })
 
 function serializeContact(doc) {
@@ -60,9 +67,11 @@ router.get('/', async (req, res) => {
     const q = String(req.query.q || '').trim()
     const needsVerify = String(req.query.needsVerify || '').trim()
     const source = String(req.query.source || '').trim()
+    const industry = String(req.query.industry || '').trim()
     const filter = { ...workspaceFilter(req.user) }
     if (needsVerify === '1' || needsVerify === 'true') filter.needsVerify = true
     if (source) filter.source = source
+    if (industry) filter.industrySlug = industry
     if (q) {
       filter.$or = [
         { firstName: { $regex: escapeRegex(q), $options: 'i' } },
@@ -127,9 +136,12 @@ router.post('/', validateBody(contactBodySchema), async (req, res) => {
       accountId,
       reportsToId,
       source: req.body.source || 'manual',
+      researchedAt: req.body.researchedAt || null,
       workspaceId: req.user.workspaceId,
       ownerId: req.user._id,
     })
+    attachIndustryMetadata(created, req.body)
+    await created.save()
     await created.populate('ownerId', 'name')
     await created.populate('accountId', 'name')
     await created.populate('reportsToId', 'firstName lastName')
@@ -155,6 +167,8 @@ router.patch('/:id', validateBody(contactBodySchema), async (req, res) => {
       .populate('accountId', 'name')
       .populate('reportsToId', 'firstName lastName')
     if (!updated) return res.status(404).json({ success: false, message: 'Contact not found.' })
+    attachIndustryMetadata(updated, req.body)
+    await updated.save()
     res.json({ success: true, data: serializeContact(updated) })
   } catch (err) {
     res.status(err.statusCode || 500).json({ success: false, message: err.message || 'Failed to update contact.' })

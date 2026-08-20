@@ -23,6 +23,8 @@ const crmRoutes = require('./routes/crm')
 const crmImportRoutes = require('./routes/crmImport')
 const crmEnrichRoutes = require('./routes/crmEnrich')
 const crmWebhooksRoutes = require('./routes/crmWebhooks')
+const industriesRoutes = require('./routes/industries')
+const companyIntelligenceRoutes = require('./routes/companyIntelligence')
 
 function createApp() {
   const app = express()
@@ -75,9 +77,11 @@ function createApp() {
   app.use('/api/calendar-events', calendarEventsRoutes)
   app.use('/api/tasks', tasksRoutes)
   app.use('/api/uploads', uploadsRoutes)
+  app.use('/api/industries', industriesRoutes)
   app.use('/api/crm/webhooks', crmWebhooksRoutes)
   app.use('/api/crm', crmImportRoutes)
   app.use('/api/crm', crmEnrichRoutes)
+  app.use('/api/crm', companyIntelligenceRoutes)
   app.use('/api/crm', require('./routes/crmAi'))
   app.use('/api/crm', crmRoutes)
 

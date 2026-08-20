@@ -8,3 +8,4 @@ backend/uploads/*
 .DS_Store
 
 backend/.crm-webhook-secret.local
+.vercel

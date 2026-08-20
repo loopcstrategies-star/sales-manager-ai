@@ -25,6 +25,11 @@ import SalesAnalyticsPage from './pages/crm/SalesAnalyticsPage'
 import TasksPage from './pages/crm/TasksPage'
 import QuotePrintPage from './pages/crm/QuotePrintPage'
 import SalesSettingsPage from './pages/crm/SalesSettingsPage'
+import IndustriesPage from './pages/crm/IndustriesPage'
+import FindCompaniesPage from './pages/crm/FindCompaniesPage'
+import FindContactsPage from './pages/crm/FindContactsPage'
+import SolutionsPage from './pages/crm/SolutionsPage'
+import SalesPlaybooksPage from './pages/crm/SalesPlaybooksPage'
 import RecordDetailPage from './components/crm/RecordDetailPage'
 
 function PrivateRoute({ children }) {
@@ -52,6 +57,9 @@ export default function App() {
       >
         <Route index element={<Navigate to="home" replace />} />
         <Route path="home" element={<CrmHomePage />} />
+        <Route path="industries" element={<IndustriesPage />} />
+        <Route path="find-companies" element={<FindCompaniesPage />} />
+        <Route path="find-contacts" element={<FindContactsPage />} />
         <Route path="contacts" element={<ContactsPage />} />
         <Route path="contacts/:id" element={<RecordDetailPage objectType="contacts" />} />
         <Route path="accounts" element={<AccountsPage />} />
@@ -62,10 +70,12 @@ export default function App() {
         <Route path="pipeline/:id/quote" element={<QuotePrintPage />} />
         <Route path="pipeline/:id" element={<RecordDetailPage objectType="opportunities" />} />
         <Route path="products" element={<ProductsPage />} />
+        <Route path="solutions" element={<SolutionsPage />} />
         <Route path="price-books" element={<PriceBooksPage />} />
         <Route path="calendar" element={<CalendarPage />} />
         <Route path="tasks" element={<TasksPage />} />
         <Route path="analytics" element={<SalesAnalyticsPage />} />
+        <Route path="playbooks" element={<SalesPlaybooksPage />} />
         <Route path="service" element={<ServiceLayout />}>
           <Route index element={<Navigate to="cases" replace />} />
           <Route path="cases" element={<ServicePage />} />

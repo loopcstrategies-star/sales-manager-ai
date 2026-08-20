@@ -1,13 +1,8 @@
 import React, { useState } from 'react'
 import { crmApi } from '../../api/client'
+import { getIndustryConfig, listIndustryConfigs } from '../../lib/industryCatalog'
 
-export const DEFAULT_PROSPECT_QUERIES = [
-  'jewelry manufacturers',
-  'gold wholesale suppliers',
-  'diamond trading companies',
-  'precious metals bullion dealers',
-  'jewellery exporters',
-]
+const INDUSTRY_OPTIONS = listIndustryConfigs()
 
 export const REGION_PRESETS = [
   { value: '', label: 'Worldwide' },
@@ -26,7 +21,23 @@ function skipLabel(reason) {
   return reason ? 'Skipped' : null
 }
 
-export default function ProspectSearchPanel({ onImported, region = '', onRegionChange }) {
+function defaultQueriesForIndustry(industry) {
+  if (!industry) return ['b2b companies', 'growing companies', 'multi location businesses']
+  return [
+    ...industry.businessTypes.slice(0, 3).map((type) => type.toLowerCase()),
+    ...industry.categories.slice(0, 2).map((category) => `${industry.name.toLowerCase()} ${category.toLowerCase()}`),
+  ].slice(0, 5)
+}
+
+export default function ProspectSearchPanel({
+  onImported,
+  region = '',
+  onRegionChange,
+  industrySlug = '',
+  onIndustryChange,
+  businessType = '',
+  onBusinessTypeChange,
+}) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])
   const [selected, setSelected] = useState({})
@@ -37,6 +48,9 @@ export default function ProspectSearchPanel({ onImported, region = '', onRegionC
   const [asContact, setAsContact] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const industry = getIndustryConfig(industrySlug)
+  const quickQueries = defaultQueriesForIndustry(industry)
+  const businessTypes = industry?.businessTypes || []
 
   const search = async (e, overrideQuery) => {
     e?.preventDefault?.()
@@ -47,7 +61,7 @@ export default function ProspectSearchPanel({ onImported, region = '', onRegionC
     setError('')
     setMessage('')
     try {
-      const res = await crmApi.prospectSearch(q, region)
+      const res = await crmApi.prospectSearch(q, region, { industrySlug, businessType })
       const next = res.data?.results || []
       setResults(next)
       const defaults = {}
@@ -91,6 +105,8 @@ export default function ProspectSearchPanel({ onImported, region = '', onRegionC
         asContact,
         force,
         region: region || undefined,
+        industrySlug: industrySlug || undefined,
+        businessType: businessType || undefined,
       })
       const d = res.data || {}
       setMessage(
@@ -108,8 +124,41 @@ export default function ProspectSearchPanel({ onImported, region = '', onRegionC
     <section className="crm-home-panel crm-prospect-panel">
       <h3>Find companies</h3>
       <p className="crm-muted">
-        Search worldwide (or pick a region), then add company-like results as Accounts. News, social, and listicle pages are filtered out by default.
+        Search worldwide or by region, then add company-like results as Accounts, Leads, or Contacts. Industry and business type flow into the universal CRM so research, scoring, and playbooks stay aligned.
       </p>
+      <div className="crm-field-row">
+        <label className="crm-prospect-region">
+          <span>Industry</span>
+          <select
+            value={industrySlug}
+            onChange={(e) => {
+              onIndustryChange?.(e.target.value)
+              onBusinessTypeChange?.('')
+            }}
+            aria-label="Prospect industry"
+          >
+            <option value="">All industries</option>
+            {INDUSTRY_OPTIONS.map((item) => (
+              <option key={item.slug} value={item.slug}>{item.name}</option>
+            ))}
+          </select>
+        </label>
+        {industry ? (
+          <label className="crm-prospect-region">
+            <span>Business Type</span>
+            <select
+              value={businessType}
+              onChange={(e) => onBusinessTypeChange?.(e.target.value)}
+              aria-label="Prospect business type"
+            >
+              <option value="">All business types</option>
+              {businessTypes.map((item) => (
+                <option key={item} value={item}>{item}</option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+      </div>
       <label className="crm-prospect-region">
         <span>Region</span>
         <select
@@ -123,7 +172,7 @@ export default function ProspectSearchPanel({ onImported, region = '', onRegionC
         </select>
       </label>
       <div className="crm-prospect-chips" role="list">
-        {DEFAULT_PROSPECT_QUERIES.map((chip) => (
+        {quickQueries.map((chip) => (
           <button
             key={chip}
             type="button"
@@ -139,7 +188,7 @@ export default function ProspectSearchPanel({ onImported, region = '', onRegionC
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="e.g. jewelry manufacturers Italy"
+          placeholder={industry ? `e.g. ${industry.name.toLowerCase()} companies in Dubai` : 'e.g. companies in Dubai'}
           aria-label="Prospect search"
         />
         <button type="submit" className="crm-btn-primary" disabled={busy}>

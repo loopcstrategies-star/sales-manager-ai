@@ -11,6 +11,7 @@ import EmailDraftButton from '../../components/crm/EmailDraftButton'
 import SendEmailButton from '../../components/crm/SendEmailButton'
 import { usePreferences } from '../../context/PreferencesContext'
 import { CONVERT_STAGES } from '../../components/crm/salesPrefs'
+import { getIndustryConfig, listIndustryConfigs } from '../../lib/industryCatalog'
 
 const STATUSES = ['Open', 'Working', 'Qualified', 'Unqualified']
 const SALUTATIONS = ['--None--', 'Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Prof.']
@@ -23,36 +24,7 @@ const LEAD_SOURCES = [
   'Purchased List',
   'Other',
 ]
-const INDUSTRIES = [
-  '--None--',
-  'Agriculture',
-  'Banking',
-  'Biotechnology',
-  'Communications',
-  'Construction',
-  'Consulting',
-  'Education',
-  'Electronics',
-  'Energy',
-  'Entertainment',
-  'Finance',
-  'Food & Beverage',
-  'Government',
-  'Healthcare',
-  'Hospitality',
-  'Insurance',
-  'Manufacturing',
-  'Media',
-  'Not For Profit',
-  'Recreation',
-  'Retail',
-  'Shipping',
-  'Technology',
-  'Telecommunications',
-  'Transportation',
-  'Utilities',
-  'Other',
-]
+const INDUSTRIES = listIndustryConfigs()
 
 const emptyAddress = () => ({
   country: '',
@@ -78,6 +50,8 @@ const emptyForm = () => ({
   annualRevenue: '',
   leadSource: '',
   industry: '',
+  industrySlug: '',
+  businessType: '',
   description: '',
 })
 
@@ -108,6 +82,7 @@ export default function LeadsPage() {
   const [converting, setConverting] = useState(false)
   const [convertResult, setConvertResult] = useState(null)
   const [campaignModalOpen, setCampaignModalOpen] = useState(false)
+  const [industryFilter, setIndustryFilter] = useState('')
   const [campaigns, setCampaigns] = useState([])
   const [campaignId, setCampaignId] = useState('')
   const [campaignBusy, setCampaignBusy] = useState(false)
@@ -124,7 +99,7 @@ export default function LeadsPage() {
     setLoading(true)
     setListError('')
     try {
-      const res = await leadsApi.list(q, 'open')
+      const res = await leadsApi.list(q, 'open', { industry: industryFilter || undefined })
       setItems(res.data || [])
     } catch (err) {
       setListError(err.message || 'Failed to load leads')
@@ -132,7 +107,7 @@ export default function LeadsPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [industryFilter])
 
   useEffect(() => {
     const t = setTimeout(() => load(search), 250)
@@ -174,6 +149,8 @@ export default function LeadsPage() {
       annualRevenue: item.annualRevenue || '',
       leadSource: item.leadSource || '',
       industry: item.industry || '',
+      industrySlug: item.industrySlug || '',
+      businessType: item.businessType || '',
       description: item.description || '',
     })
     setEnrichedHint(item.lastEnrichedAt
@@ -190,6 +167,7 @@ export default function LeadsPage() {
       website: fields.website ?? f.website,
       phone: fields.phone ?? f.phone,
       industry: fields.industry ?? f.industry,
+      industrySlug: fields.industrySlug ?? f.industrySlug,
       description: fields.description ?? f.description,
       numberOfEmployees: fields.numberOfEmployees ?? f.numberOfEmployees,
       annualRevenue: fields.annualRevenue ?? f.annualRevenue,
@@ -241,6 +219,8 @@ export default function LeadsPage() {
     annualRevenue: form.annualRevenue,
     leadSource: form.leadSource,
     industry: form.industry,
+    industrySlug: form.industrySlug || '',
+    businessType: form.businessType || '',
     description: form.description,
   })
 
@@ -266,7 +246,9 @@ export default function LeadsPage() {
     }
   }
 
-  const rows = items.map((l) => ({
+  const rows = items
+    .filter((l) => !industryFilter || String(l.industrySlug || '') === industryFilter)
+    .map((l) => ({
     id: l._id,
     raw: l,
     name: (
@@ -275,6 +257,8 @@ export default function LeadsPage() {
       </Link>
     ),
     company: l.company || '—',
+    industry: l.industry || '—',
+    businessType: l.businessType || '—',
     state: l.address?.state || l.state || '—',
     phone: l.phone || '—',
     email: l.email || '—',
@@ -433,6 +417,15 @@ export default function LeadsPage() {
         actions={(
           <>
             <button type="button" className="crm-btn-primary" onClick={openNew}>New</button>
+            <label className="crm-inline-filter">
+              <span>Industry</span>
+              <select value={industryFilter} onChange={(e) => setIndustryFilter(e.target.value)}>
+                <option value="">All</option>
+                {INDUSTRIES.map((industry) => (
+                  <option key={industry.slug} value={industry.slug}>{industry.name}</option>
+                ))}
+              </select>
+            </label>
             <button type="button" className="crm-btn-secondary" onClick={() => setImportOpen(true)}>Import</button>
             <button
               type="button"
@@ -448,6 +441,8 @@ export default function LeadsPage() {
         columns={[
           { key: 'name', label: 'Name' },
           { key: 'company', label: 'Company' },
+          { key: 'industry', label: 'Industry' },
+          { key: 'businessType', label: 'Business Type' },
           { key: 'state', label: 'State/Province' },
           { key: 'phone', label: 'Phone' },
           { key: 'email', label: 'Email' },
@@ -672,10 +667,28 @@ export default function LeadsPage() {
         <label className="crm-field">
           <span>Industry</span>
           <select
-            value={form.industry || '--None--'}
-            onChange={(e) => setField('industry', e.target.value === '--None--' ? '' : e.target.value)}
+            value={form.industrySlug || ''}
+            onChange={(e) => {
+              const nextSlug = e.target.value
+              const nextIndustry = getIndustryConfig(nextSlug)
+              setField('industrySlug', nextSlug)
+              setField('industry', nextIndustry?.name || '')
+              if (!nextIndustry?.businessTypes.includes(form.businessType)) {
+                setField('businessType', '')
+              }
+            }}
           >
-            {INDUSTRIES.map((s) => <option key={s} value={s}>{s}</option>)}
+            <option value="">None</option>
+            {INDUSTRIES.map((industry) => <option key={industry.slug} value={industry.slug}>{industry.name}</option>)}
+          </select>
+        </label>
+        <label className="crm-field">
+          <span>Business Type</span>
+          <select value={form.businessType || ''} onChange={(e) => setField('businessType', e.target.value)}>
+            <option value="">None</option>
+            {(getIndustryConfig(form.industrySlug)?.businessTypes || []).map((type) => (
+              <option key={type} value={type}>{type}</option>
+            ))}
           </select>
         </label>
       </CrmModal>

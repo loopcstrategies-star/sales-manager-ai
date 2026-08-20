@@ -75,6 +75,7 @@ export default function RecordDetailPage({ objectType }) {
   })
   const [nextStepDraft, setNextStepDraft] = useState({ nextStep: '', nextStepDue: '' })
   const [timelineKey, setTimelineKey] = useState(0)
+  const [intelligence, setIntelligence] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -93,10 +94,11 @@ export default function RecordDetailPage({ objectType }) {
         }
 
         if (objectType === 'accounts' && res.data?._id) {
-          const [cRes, oRes, caseRes] = await Promise.all([
+          const [cRes, oRes, caseRes, intelligenceRes] = await Promise.all([
             contactsApi.list(''),
             opportunitiesApi.list(''),
             casesApi.list('', 'all').catch(() => ({ data: [] })),
+            crmApi.companyIntelligence(res.data._id).catch(() => ({ data: null })),
           ])
           const aid = String(res.data._id)
           setRelated({
@@ -104,6 +106,7 @@ export default function RecordDetailPage({ objectType }) {
             opportunities: (oRes.data || []).filter((o) => String(o.accountId) === aid).slice(0, 20),
             cases: (caseRes.data || []).filter((c) => String(c.accountId) === aid).slice(0, 20),
           })
+          setIntelligence(intelligenceRes.data || null)
         }
       } catch (err) {
         if (!cancelled) setError(err.message || 'Failed to load record')
@@ -408,6 +411,40 @@ export default function RecordDetailPage({ objectType }) {
             </>
           ) : null}
         </section>
+
+        {objectType === 'accounts' ? (
+          <section className="crm-home-panel">
+            <h3>Company Intelligence</h3>
+            {!intelligence ? (
+              <p className="crm-muted">No opportunity analysis available. Research this company to generate recommendations.</p>
+            ) : (
+              <>
+                <dl className="crm-detail-dl">
+                  <div><dt>Industry</dt><dd>{intelligence.industry || 'Unknown'}</dd></div>
+                  <div><dt>Business Type</dt><dd>{intelligence.businessType || 'Unknown'}</dd></div>
+                  <div><dt>Opportunity Score</dt><dd>{intelligence.digitalOpportunityScore}/100 ({intelligence.scoreGrade})</dd></div>
+                  <div><dt>Website</dt><dd>{intelligence.websiteStatus}</dd></div>
+                  <div><dt>E-commerce</dt><dd>{intelligence.ecommerceStatus}</dd></div>
+                  <div><dt>Mobile App</dt><dd>{intelligence.mobileAppStatus}</dd></div>
+                  <div><dt>Social Presence</dt><dd>{intelligence.socialPresence}</dd></div>
+                  <div><dt>Research Confidence</dt><dd>{intelligence.researchConfidence || 0}%</dd></div>
+                </dl>
+                <p className="crm-muted">What this company does: {intelligence.aiSummary?.whatThisCompanyDoes || 'Unknown'}</p>
+                <p className="crm-muted">Visible technology: {intelligence.aiSummary?.visibleTechnology || 'Unknown'}</p>
+                <p className="crm-muted">Digital gaps: {(intelligence.aiSummary?.digitalGaps || []).join(', ') || 'Unknown'}</p>
+                <h4>Recommended Solutions</h4>
+                <ul className="crm-recent-list">
+                  {(intelligence.recommendations || []).map((item) => (
+                    <li key={item.solutionId}>
+                      <span>{item.name}</span>
+                      <span>{item.reason} · {item.confidence}</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </section>
+        ) : null}
 
         <ActivityTimeline key={timelineKey} relatedType={cfg.relatedType} relatedId={id} />
       </div>

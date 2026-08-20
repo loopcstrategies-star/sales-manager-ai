@@ -7,6 +7,7 @@ const {
   escapeRegex,
   ownerAlias,
 } = require('../services/crmHelpers')
+const { getSolution } = require('../services/industryCatalog')
 
 const router = express.Router()
 router.use(protect)
@@ -14,6 +15,10 @@ router.use(protect)
 const bodySchema = Joi.object({
   name: Joi.string().trim().min(1).max(200).required(),
   family: Joi.string().allow('').max(80),
+  solutionId: Joi.string().allow('').max(80),
+  solutionCategory: Joi.string().allow('').max(80),
+  targetIndustries: Joi.array().items(Joi.string().allow('').max(80)).optional(),
+  packageTags: Joi.array().items(Joi.string().allow('').max(80)).optional(),
   productCode: Joi.string().allow('').max(80),
   sku: Joi.string().allow('').max(80),
   active: Joi.boolean(),
@@ -61,6 +66,10 @@ router.post('/', validateBody(bodySchema), async (req, res) => {
     const created = await Product.create({
       name: req.body.name,
       family: req.body.family || '',
+      solutionId: req.body.solutionId || '',
+      solutionCategory: req.body.solutionCategory || getSolution(req.body.solutionId)?.category || '',
+      targetIndustries: Array.isArray(req.body.targetIndustries) ? req.body.targetIndustries.filter(Boolean) : [],
+      packageTags: Array.isArray(req.body.packageTags) ? req.body.packageTags.filter(Boolean) : [],
       productCode: req.body.productCode || '',
       sku: req.body.sku || '',
       active: req.body.active !== false,
@@ -82,6 +91,10 @@ router.patch('/:id', validateBody(bodySchema), async (req, res) => {
       {
         name: req.body.name,
         family: req.body.family || '',
+        solutionId: req.body.solutionId || '',
+        solutionCategory: req.body.solutionCategory || getSolution(req.body.solutionId)?.category || '',
+        targetIndustries: Array.isArray(req.body.targetIndustries) ? req.body.targetIndustries.filter(Boolean) : [],
+        packageTags: Array.isArray(req.body.packageTags) ? req.body.packageTags.filter(Boolean) : [],
         productCode: req.body.productCode || '',
         sku: req.body.sku || '',
         active: req.body.active !== false,

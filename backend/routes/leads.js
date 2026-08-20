@@ -7,6 +7,7 @@ const {
   escapeRegex,
   ownerAlias,
 } = require('../services/crmHelpers')
+const { attachIndustryMetadata, mergeResearchSummary } = require('../services/industryRecord')
 
 const router = express.Router()
 router.use(protect)
@@ -37,6 +38,9 @@ const bodySchema = Joi.object({
   annualRevenue: Joi.string().allow('').max(60),
   leadSource: Joi.string().allow('').max(80),
   industry: Joi.string().allow('').max(80),
+  industryId: Joi.string().allow('').max(80),
+  industrySlug: Joi.string().allow('').max(80),
+  businessType: Joi.string().allow('').max(120),
   description: Joi.string().allow('').max(5000),
 })
 
@@ -68,6 +72,7 @@ router.get('/', async (req, res) => {
   try {
     const q = String(req.query.q || '').trim()
     const view = String(req.query.view || 'open').trim().toLowerCase()
+    const industry = String(req.query.industry || '').trim()
     const filter = { ...workspaceFilter(req.user) }
 
     if (view === 'open') {
@@ -91,6 +96,7 @@ router.get('/', async (req, res) => {
         { phone: { $regex: escapeRegex(q), $options: 'i' } },
       ]
     }
+    if (industry) filter.industrySlug = industry
 
     const items = await Lead.find(filter)
       .populate('ownerId', 'name')
@@ -126,6 +132,9 @@ router.post('/', validateBody(bodySchema), async (req, res) => {
       workspaceId: req.user.workspaceId,
       ownerId: req.user._id,
     })
+    attachIndustryMetadata(created, req.body)
+    if (req.body.researchSummary) created.researchSummary = mergeResearchSummary({}, req.body.researchSummary)
+    await created.save()
     await created.populate('ownerId', 'name')
     res.status(201).json({ success: true, data: serialize(created) })
   } catch (err) {
@@ -141,6 +150,9 @@ router.patch('/:id', validateBody(bodySchema), async (req, res) => {
       { new: true, runValidators: true }
     ).populate('ownerId', 'name')
     if (!updated) return res.status(404).json({ success: false, message: 'Lead not found.' })
+    attachIndustryMetadata(updated, req.body)
+    if (req.body.researchSummary) updated.researchSummary = mergeResearchSummary(updated.researchSummary, req.body.researchSummary)
+    await updated.save()
     res.json({ success: true, data: serialize(updated) })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message || 'Failed to update lead.' })
@@ -196,6 +208,10 @@ router.post('/:id/convert', validateBody(convertSchema), async (req, res) => {
           phone: lead.phone || '',
           description: lead.description || '',
           type: lead.industry || 'Prospect',
+          industryId: lead.industryId || '',
+          industrySlug: lead.industrySlug || '',
+          industry: lead.industry || '',
+          businessType: lead.businessType || '',
           billingAddress: lead.address || {},
           workspaceId: req.user.workspaceId,
           ownerId: req.user._id,
@@ -214,6 +230,9 @@ router.post('/:id/convert', validateBody(convertSchema), async (req, res) => {
         lastName: lead.lastName,
         accountId: account._id,
         title: lead.title || '',
+        industryId: lead.industryId || '',
+        industrySlug: lead.industrySlug || '',
+        businessType: lead.businessType || '',
         phone: lead.phone || '',
         email: lead.email || '',
         mailingAddress: lead.address || {},
@@ -237,6 +256,9 @@ router.post('/:id/convert', validateBody(convertSchema), async (req, res) => {
         contactId: contact._id,
         amount: Number(req.body.amount) || 0,
         stage: defaultStage,
+        industryId: lead.industryId || account.industryId || '',
+        industrySlug: lead.industrySlug || account.industrySlug || '',
+        businessType: lead.businessType || account.businessType || '',
         description: lead.description || '',
         workspaceId: req.user.workspaceId,
         ownerId: req.user._id,

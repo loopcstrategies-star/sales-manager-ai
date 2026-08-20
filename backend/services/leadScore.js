@@ -1,34 +1,23 @@
 /**
- * Score leads 0–100 vs jewelry / UAE-GCC ICP (rules + optional LLM nudge).
+ * Score leads 0-100 using industry-aware rules with optional LLM nudge.
  */
 const { createChatCompletion, isOpenAiConfigured } = require('./openAiClient')
 const Lead = require('../models/Lead')
 const { workspaceFilter } = require('./crmHelpers')
+const { scoreCompanyOpportunity } = require('./industryScoring')
+const { normalizeIndustryFields } = require('./industryRecord')
 
 function ruleScoreLead(lead) {
-  let score = 20
-  const reasons = []
+  const opportunity = scoreCompanyOpportunity(lead)
+  let score = Math.max(10, opportunity.score)
+  const reasons = [...(opportunity.reasons || [])]
 
-  if (lead.email) { score += 15; reasons.push('+email') }
-  if (lead.phone) { score += 10; reasons.push('+phone') }
-  if (lead.website) { score += 8; reasons.push('+website') }
-  if (lead.title) { score += 5; reasons.push('+title') }
-
-  const industry = String(lead.industry || '').toLowerCase()
-  const company = String(lead.company || '').toLowerCase()
-  const desc = String(lead.description || '').toLowerCase()
-  const blob = `${industry} ${company} ${desc}`
-  if (/\b(jewel|gold|silver|diamond|precious|metal|bullion|gem)\b/.test(blob)) {
-    score += 20
-    reasons.push('+ICP industry')
-  }
-  if (/\b(uae|dubai|abu dhabi|gcc|saudi|qatar|kuwait|oman|bahrain|middle east)\b/.test(blob)
-    || /\b(uae|ae)\b/i.test(String(lead.address?.country || lead.state || ''))) {
-    score += 15
-    reasons.push('+region')
-  }
+  if (lead.email) { score += 12; reasons.push('+email') }
+  if (lead.phone) { score += 8; reasons.push('+phone') }
+  if (lead.website) { score += 6; reasons.push('+website') }
+  if (lead.title) { score += 4; reasons.push('+title') }
   if (['Qualified', 'Working'].includes(lead.status)) {
-    score += 10
+    score += 8
     reasons.push(`+${lead.status}`)
   }
   if (lead.status === 'Unqualified') {
@@ -40,25 +29,25 @@ function ruleScoreLead(lead) {
     reasons.push('-no contact')
   }
 
-  score = Math.max(0, Math.min(100, Math.round(score)))
-  return { score, reasons }
+  return { score: Math.max(0, Math.min(100, Math.round(score))), reasons }
 }
 
 async function scoreLeadWithLlm(lead, base) {
   if (!isOpenAiConfigured()) return base
+  const normalized = normalizeIndustryFields(lead)
   try {
     const raw = await createChatCompletion(
       [
         {
           role: 'system',
-          content: 'Score this B2B jewelry/precious-metals lead 0-100 for fit. Return ONLY JSON {"score":number,"reason":"short"}. Prefer UAE/GCC and metals wholesale.',
+          content: 'Score this B2B lead 0-100 for fit based on the provided industry and visible digital opportunity. Return ONLY JSON {"score":number,"reason":"short"}. Do not invent facts.',
         },
         {
           role: 'user',
           content: JSON.stringify({
             company: lead.company,
             name: [lead.firstName, lead.lastName].filter(Boolean).join(' '),
-            industry: lead.industry,
+            industry: normalized.industry || lead.industry,
             title: lead.title,
             status: lead.status,
             country: lead.address?.country || lead.state,

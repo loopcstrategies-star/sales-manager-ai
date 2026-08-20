@@ -4,13 +4,14 @@
 
 | Service | URL |
 |---------|-----|
+| **UI (Vercel)** | https://sales.loopcstrategies.com |
 | **API (Railway)** | https://api-production-6e16.up.railway.app |
-| **UI (Vercel)** | https://frontend-umber-five-ui0szwvc1b.vercel.app |
-| **Custom domain (pending DNS)** | https://sales.loopcstrategies.com |
 
 ## GitHub
 
-- Private repo: https://github.com/loopc-business-strategies/sales-manager-ai
+- Repo: https://github.com/loopcstrategies-star/sales-manager-ai
+- Owner: personal account `loopcstrategies-star` (transferred from `loopc-business-strategies`)
+- Visibility: **Public** for now (Railway GitHub App on the personal account can link public repos; set Private after granting that app private-repo access at https://github.com/settings/installations → Railway)
 
 ## Railway project
 
@@ -18,12 +19,15 @@
 - Services: `api` (Express), `MongoDB`
 - Dashboard: https://railway.com/project/9bec621f-9721-41a6-a3f2-1367990f0447
 - **Build:** custom root [`Dockerfile`](Dockerfile) (not Nixpacks) — secrets stay runtime-only, no `SecretsUsedInArgOrEnv` build warnings
+- **Git source:** connected to `loopcstrategies-star/sales-manager-ai` branch `main`
 
 ## Vercel project
 
-- Project: `frontend` (under `beulah-4360s-projects`)
-- Production deploys from `frontend/` directory with `frontend/vercel.json`
+- Project: `salesmanager-ai` (under `beulah-4360s-projects`)
+- Production deploys from `frontend/` (Vite build) with [`frontend/vercel.json`](frontend/vercel.json), or from repo root via root [`vercel.json`](vercel.json)
 - API proxy: `/api/*` → Railway
+- **Git source:** connected to `loopcstrategies-star/sales-manager-ai` (production branch `main`)
+- Login Connections GitHub identity must remain **`loopcstrategies-star`** (personal-repo owner) for Git deploys to keep working
 
 ## DNS required (GoDaddy / domain host)
 
@@ -36,11 +40,11 @@ Value: 76.76.21.21
 TTL: 600 (or default)
 ```
 
-Verify in Vercel → Project `frontend` → Domains → `sales.loopcstrategies.com`
+Verify in Vercel → Project `salesmanager-ai` → Domains → `sales.loopcstrategies.com`
 
 ## Smoke tests
 
-- `GET /api/health` — DB connected
+- `GET https://sales.loopcstrategies.com/api/health` — DB connected
 - Register + login
 - Chat endpoint
 - `GET /api/dashboard` (auth) — cards, price tiles, refreshedAt
@@ -82,7 +86,18 @@ Tavily usage stays ~2 advanced searches per refresh (cached 24h) via `SALES_AI_M
 cd sales-manager-ai
 railway up -s api
 
-# Vercel UI
+# Vercel UI (from repo root)
+cd sales-manager-ai
+npx vercel deploy --prod --scope beulah-4360s-projects
+
+# Or from frontend/ subdirectory
 cd sales-manager-ai/frontend
 npx vercel deploy --prod --scope beulah-4360s-projects
+```
+
+If the CLI reports a project mismatch after the rename, re-link locally:
+
+```powershell
+cd frontend
+npx vercel link --project sales-manager-ai --scope beulah-4360s-projects
 ```

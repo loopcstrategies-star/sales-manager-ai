@@ -11,6 +11,7 @@ import CrmEnrichButton from '../../components/crm/CrmEnrichButton'
 import FindContactsButton from '../../components/crm/FindContactsButton'
 import CustomFieldsEditor from '../../components/crm/CustomFieldsEditor'
 import LookupField from '../../components/crm/LookupField'
+import { getIndustryConfig, listIndustryConfigs } from '../../lib/industryCatalog'
 
 const emptyAddress = () => ({
   country: '',
@@ -24,6 +25,8 @@ const emptyForm = () => ({
   name: '',
   website: '',
   type: '',
+  industrySlug: '',
+  businessType: '',
   description: '',
   parentAccountId: '',
   parentAccountName: '',
@@ -38,6 +41,7 @@ const emptyForm = () => ({
 const ACCOUNT_TYPES = ['--None--', 'Customer', 'Partner', 'Prospect', 'Other']
 const ACCOUNT_LABELS = ['Hot', 'Warm', 'Cold', 'VIP', 'Partner', 'Prospect']
 const REGIONS = ['', 'Middle East', 'Europe', 'India', 'Asia Pacific', 'Americas', 'Africa']
+const INDUSTRIES = listIndustryConfigs()
 const COUNTRIES = [
   '--None--',
   'United Arab Emirates',
@@ -107,6 +111,7 @@ export default function AccountsPage() {
   const [regionFilter, setRegionFilter] = useState(searchParams.get('region') || '')
   const [countryFilter, setCountryFilter] = useState(searchParams.get('country') || '')
   const [labelFilter, setLabelFilter] = useState(searchParams.get('label') || '')
+  const [industryFilter, setIndustryFilter] = useState(searchParams.get('industry') || '')
   const [labelModalOpen, setLabelModalOpen] = useState(false)
   const [bulkLabel, setBulkLabel] = useState('Hot')
   const [labelBusy, setLabelBusy] = useState(false)
@@ -117,7 +122,7 @@ export default function AccountsPage() {
     setLoading(true)
     setListError('')
     try {
-      const res = await accountsApi.list(q)
+      const res = await accountsApi.list(q, { industry: industryFilter || undefined })
       setItems(res.data || [])
     } catch (err) {
       setListError(err.message || 'Failed to load accounts')
@@ -125,7 +130,7 @@ export default function AccountsPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [industryFilter])
 
   useEffect(() => {
     const t = setTimeout(() => load(search), 250)
@@ -137,8 +142,9 @@ export default function AccountsPage() {
     if (regionFilter) next.region = regionFilter
     if (countryFilter) next.country = countryFilter
     if (labelFilter) next.label = labelFilter
+    if (industryFilter) next.industry = industryFilter
     setSearchParams(next, { replace: true })
-  }, [regionFilter, countryFilter, labelFilter, setSearchParams])
+  }, [regionFilter, countryFilter, labelFilter, industryFilter, setSearchParams])
 
   const openNew = useCallback(() => {
     setEditingId(null)
@@ -158,6 +164,8 @@ export default function AccountsPage() {
       name: item.name || '',
       website: item.website || '',
       type: item.type || '',
+      industrySlug: item.industrySlug || '',
+      businessType: item.businessType || '',
       description: item.description || '',
       parentAccountId: item.parentAccountId || '',
       parentAccountName: item.parentAccountName || '',
@@ -183,6 +191,7 @@ export default function AccountsPage() {
       phone: fields.phone ?? f.phone,
       description: fields.description ?? f.description,
       type: fields.type ?? f.type,
+      industrySlug: fields.industrySlug ?? f.industrySlug,
       region: fields.region ?? f.region,
       billingAddress: {
         ...f.billingAddress,
@@ -209,6 +218,8 @@ export default function AccountsPage() {
     name: form.name.trim(),
     website: form.website,
     type: form.type,
+    industrySlug: form.industrySlug || '',
+    businessType: form.businessType || '',
     description: form.description,
     parentAccountId: form.parentAccountId || '',
     phone: form.phone,
@@ -261,8 +272,11 @@ export default function AccountsPage() {
     if (labelFilter) {
       list = list.filter((a) => String(a.label || '') === labelFilter)
     }
+    if (industryFilter) {
+      list = list.filter((a) => String(a.industrySlug || '') === industryFilter)
+    }
     return list
-  }, [items, listFilter, user, regionFilter, countryFilter, labelFilter])
+  }, [items, listFilter, user, regionFilter, countryFilter, labelFilter, industryFilter])
 
   const countryOptions = useMemo(() => {
     const set = new Set(
@@ -282,6 +296,8 @@ export default function AccountsPage() {
       </Link>
     ),
     label: a.label || '—',
+    industry: a.industry || '—',
+    businessType: a.businessType || '—',
     region: a.region || '—',
     country: a.billingAddress?.country || '—',
     phone: a.phone || '—',
@@ -385,6 +401,15 @@ export default function AccountsPage() {
         actions={(
           <>
             <label className="crm-inline-filter">
+              <span>Industry</span>
+              <select value={industryFilter} onChange={(e) => setIndustryFilter(e.target.value)}>
+                <option value="">All</option>
+                {INDUSTRIES.map((industry) => (
+                  <option key={industry.slug} value={industry.slug}>{industry.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="crm-inline-filter">
               <span>Label</span>
               <select value={labelFilter} onChange={(e) => setLabelFilter(e.target.value)}>
                 <option value="">All</option>
@@ -418,6 +443,8 @@ export default function AccountsPage() {
         columns={[
           { key: 'name', label: 'Account Name' },
           { key: 'label', label: 'Label' },
+          { key: 'industry', label: 'Industry' },
+          { key: 'businessType', label: 'Business Type' },
           { key: 'region', label: 'Region' },
           { key: 'country', label: 'Country' },
           { key: 'phone', label: 'Phone' },
@@ -496,6 +523,36 @@ export default function AccountsPage() {
             onChange={(e) => setField('type', e.target.value === '--None--' ? '' : e.target.value)}
           >
             {ACCOUNT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </label>
+        <label className="crm-field">
+          <span>Industry</span>
+          <select
+            value={form.industrySlug || ''}
+            onChange={(e) => {
+              const nextSlug = e.target.value
+              setField('industrySlug', nextSlug)
+              if (!getIndustryConfig(nextSlug)?.businessTypes.includes(form.businessType)) {
+                setField('businessType', '')
+              }
+            }}
+          >
+            <option value="">None</option>
+            {INDUSTRIES.map((industry) => (
+              <option key={industry.slug} value={industry.slug}>{industry.name}</option>
+            ))}
+          </select>
+        </label>
+        <label className="crm-field">
+          <span>Business Type</span>
+          <select
+            value={form.businessType || ''}
+            onChange={(e) => setField('businessType', e.target.value)}
+          >
+            <option value="">None</option>
+            {(getIndustryConfig(form.industrySlug)?.businessTypes || []).map((type) => (
+              <option key={type} value={type}>{type}</option>
+            ))}
           </select>
         </label>
         <label className="crm-field">

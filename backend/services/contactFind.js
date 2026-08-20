@@ -99,7 +99,7 @@ function isStubContact(doc) {
   return ln === 'main' && !fn
 }
 
-async function findContactsForCompany({ name, website, region } = {}) {
+async function findContactsForCompany({ name, website, region, targetRoles = [] } = {}) {
   const company = String(name || '').trim()
   const site = String(website || '').trim()
   const host = hostnameOf(site)
@@ -150,6 +150,7 @@ async function findContactsForCompany({ name, website, region } = {}) {
     '{"people":[{"firstName":"","lastName":"","email":"","phone":"","title":""}],"phones":[],"emails":[]}',
     'Rules:',
     '- Prefer named people (sales, purchasing, owners, directors) over generic inboxes when both appear.',
+    targetRoles.length ? `- Prioritize these roles when available: ${targetRoles.join(', ')}.` : '- Prioritize decision makers when available.',
     '- Only include emails/phones clearly present in the provided text.',
     '- Prefer company contact emails (info@, sales@, contact@) and named staff if shown.',
     '- Do not invent names or emails. If unsure, omit.',
@@ -160,6 +161,7 @@ async function findContactsForCompany({ name, website, region } = {}) {
     `Company: ${company || host || 'Unknown'}`,
     `Website: ${site || 'Unknown'}`,
     region ? `Region focus: ${region}` : 'Region focus: Worldwide',
+    targetRoles.length ? `Target roles: ${targetRoles.join(', ')}` : 'Target roles: decision makers and public business contacts',
     '',
     'Website pages (scraped text):',
     pageBlob || '(none fetched)',

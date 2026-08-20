@@ -1,0 +1,62 @@
+[
+  {
+    "id": "jewelry-starter",
+    "industrySlug": "jewelry",
+    "name": "Jewelry Starter",
+    "solutionIds": ["corporate-website", "crm", "whatsapp-marketing"]
+  },
+  {
+    "id": "jewelry-growth",
+    "industrySlug": "jewelry",
+    "name": "Jewelry Growth",
+    "solutionIds": ["ecommerce-website", "crm", "catalog-website", "social-media"]
+  },
+  {
+    "id": "jewelry-business",
+    "industrySlug": "jewelry",
+    "name": "Jewelry Business",
+    "solutionIds": ["pos", "inventory", "crm", "corporate-website"]
+  },
+  {
+    "id": "jewelry-enterprise",
+    "industrySlug": "jewelry",
+    "name": "Jewelry Enterprise",
+    "solutionIds": ["erp", "pos", "crm", "android-ios-app", "ecommerce-website", "ai-automation"]
+  },
+  {
+    "id": "construction-operations",
+    "industrySlug": "construction",
+    "name": "Construction Operations",
+    "solutionIds": ["erp", "project-management", "employee-app", "billing"]
+  },
+  {
+    "id": "construction-growth",
+    "industrySlug": "construction",
+    "name": "Construction Growth",
+    "solutionIds": ["corporate-website", "customer-app", "ai-automation"]
+  },
+  {
+    "id": "education-campus",
+    "industrySlug": "education",
+    "name": "Education Campus",
+    "solutionIds": ["erp", "customer-app", "booking-system", "corporate-website"]
+  },
+  {
+    "id": "education-digital",
+    "industrySlug": "education",
+    "name": "Education Digital",
+    "solutionIds": ["customer-app", "employee-app", "ai-chatbot", "corporate-website"]
+  },
+  {
+    "id": "retail-growth",
+    "industrySlug": "retail",
+    "name": "Retail Growth",
+    "solutionIds": ["pos", "inventory", "ecommerce-website", "customer-app"]
+  },
+  {
+    "id": "professional-services-accelerator",
+    "industrySlug": "professional-services",
+    "name": "Professional Services Accelerator",
+    "solutionIds": ["crm", "project-management", "corporate-website", "ai-sales-assistant"]
+  }
+]

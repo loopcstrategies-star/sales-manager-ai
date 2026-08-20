@@ -10,6 +10,7 @@ const {
   customFieldsJoi,
   ownerAlias,
 } = require('../services/crmHelpers')
+const { attachIndustryMetadata, mergeResearchSummary } = require('../services/industryRecord')
 
 const router = express.Router()
 router.use(protect)
@@ -18,6 +19,10 @@ const accountBodySchema = Joi.object({
   name: Joi.string().trim().min(1).max(200).required(),
   website: Joi.string().allow('').max(300),
   type: Joi.string().allow('').max(80),
+  industryId: Joi.string().allow('').max(80),
+  industrySlug: Joi.string().allow('').max(80),
+  industry: Joi.string().allow('').max(80),
+  businessType: Joi.string().allow('').max(120),
   description: Joi.string().allow('').max(5000),
   parentAccountId: Joi.string().allow(null, ''),
   phone: Joi.string().allow('').max(60),
@@ -51,9 +56,11 @@ router.get('/', async (req, res) => {
   try {
     const q = String(req.query.q || '').trim()
     const label = String(req.query.label || '').trim()
+    const industry = String(req.query.industry || '').trim()
     const filter = { ...workspaceFilter(req.user) }
     if (q) filter.name = { $regex: escapeRegex(q), $options: 'i' }
     if (label) filter.label = label
+    if (industry) filter.industrySlug = industry
 
     const items = await Account.find(filter)
       .populate('ownerId', 'name')
@@ -92,6 +99,9 @@ router.post('/', validateBody(accountBodySchema), async (req, res) => {
       workspaceId: req.user.workspaceId,
       ownerId: req.user._id,
     })
+    attachIndustryMetadata(created, req.body)
+    if (req.body.researchSummary) created.researchSummary = mergeResearchSummary({}, req.body.researchSummary)
+    await created.save()
     await created.populate('ownerId', 'name')
     await created.populate('parentAccountId', 'name')
     res.status(201).json({ success: true, data: serializeAccount(created) })
@@ -130,6 +140,9 @@ router.patch('/:id', validateBody(accountBodySchema), async (req, res) => {
       .populate('ownerId', 'name')
       .populate('parentAccountId', 'name')
     if (!updated) return res.status(404).json({ success: false, message: 'Account not found.' })
+    attachIndustryMetadata(updated, req.body)
+    if (req.body.researchSummary) updated.researchSummary = mergeResearchSummary(updated.researchSummary, req.body.researchSummary)
+    await updated.save()
     res.json({ success: true, data: serializeAccount(updated) })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message || 'Failed to update account.' })

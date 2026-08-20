@@ -173,6 +173,39 @@ export default function SalesAnalyticsPage() {
 
             <div className="crm-home-columns" style={{ marginTop: '1rem' }}>
               <section className="crm-home-panel">
+                <h3>Leads by Industry</h3>
+                {(data.leadsByIndustry || []).length === 0 ? (
+                  <p className="crm-muted">No industry-tagged leads yet.</p>
+                ) : (
+                  <ul className="crm-recent-list">
+                    {data.leadsByIndustry.map((r) => (
+                      <li key={r.label}>
+                        <span>{r.label}</span>
+                        <span>{r.count}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+              <section className="crm-home-panel">
+                <h3>Opportunities by Industry</h3>
+                {(data.opportunitiesByIndustry || []).length === 0 ? (
+                  <p className="crm-muted">No industry-tagged opportunities yet.</p>
+                ) : (
+                  <ul className="crm-recent-list">
+                    {data.opportunitiesByIndustry.map((r) => (
+                      <li key={r.label}>
+                        <span>{r.label}</span>
+                        <span>{r.count} · ${Number(r.amount || 0).toLocaleString()}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            </div>
+
+            <div className="crm-home-columns" style={{ marginTop: '1rem' }}>
+              <section className="crm-home-panel">
                 <h3>Pipeline $ by Country</h3>
                 {(data.pipelineByCountry || []).length === 0 ? (
                   <p className="crm-muted">No open pipeline with country yet.</p>
@@ -200,6 +233,39 @@ export default function SalesAnalyticsPage() {
                           open {r.openCount} · ${Number(r.openAmount || 0).toLocaleString()}
                           {r.wonCount ? ` · won $${Number(r.wonAmount || 0).toLocaleString()}` : ''}
                         </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            </div>
+
+            <div className="crm-home-columns" style={{ marginTop: '1rem' }}>
+              <section className="crm-home-panel">
+                <h3>Solution Demand</h3>
+                {(data.solutionDemand || []).length === 0 ? (
+                  <p className="crm-muted">No recommended solutions yet.</p>
+                ) : (
+                  <ul className="crm-recent-list">
+                    {data.solutionDemand.map((r) => (
+                      <li key={r.label}>
+                        <span>{r.label}</span>
+                        <span>{r.count}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+              <section className="crm-home-panel">
+                <h3>Accounts by Industry</h3>
+                {(data.accountsByIndustry || []).length === 0 ? (
+                  <p className="crm-muted">No industry-tagged accounts yet.</p>
+                ) : (
+                  <ul className="crm-recent-list">
+                    {data.accountsByIndustry.map((r) => (
+                      <li key={r.label}>
+                        <span>{r.label}</span>
+                        <span>{r.count}</span>
                       </li>
                     ))}
                   </ul>

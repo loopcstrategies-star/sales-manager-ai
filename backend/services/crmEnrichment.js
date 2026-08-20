@@ -1,6 +1,7 @@
 const { searchWithCache } = require('./webSearch')
 const { createChatCompletion, isOpenAiConfigured } = require('./openAiClient')
 const { extractJsonObject } = require('./emailDraft')
+const { attachIndustryMetadata, mergeResearchSummary } = require('./industryRecord')
 
 function fillIfEmpty(target, key, value, overwrite) {
   if (value == null || String(value).trim() === '') return
@@ -133,7 +134,19 @@ function applyLeadEnrichment(lead, fields, overwrite = false) {
   if (address.city || address.country) patch.address = address
 
   patch.lastEnrichedAt = new Date()
+  patch.researchSummary = mergeResearchSummary(lead.researchSummary, {
+    inferredData: fields,
+    unknownData: [
+      !fields.website ? 'website' : null,
+      !fields.industry ? 'industry' : null,
+      !fields.phone ? 'phone' : null,
+    ].filter(Boolean),
+    source: 'web-search',
+    confidence: fields.website || fields.phone ? 70 : 45,
+    researchedAt: new Date(),
+  })
   Object.assign(lead, patch)
+  attachIndustryMetadata(lead, patch)
   return patch
 }
 
@@ -150,7 +163,22 @@ function applyAccountEnrichment(account, fields, overwrite = false) {
   if (billing.city || billing.country) patch.billingAddress = billing
 
   patch.lastEnrichedAt = new Date()
+  patch.researchSummary = mergeResearchSummary(account.researchSummary, {
+    inferredData: fields,
+    unknownData: [
+      !fields.website ? 'website' : null,
+      !fields.phone ? 'phone' : null,
+      !fields.industry ? 'industry' : null,
+    ].filter(Boolean),
+    source: 'web-search',
+    confidence: fields.website || fields.phone ? 72 : 50,
+    researchedAt: new Date(),
+  })
   Object.assign(account, patch)
+  attachIndustryMetadata(account, {
+    industry: fields.industry,
+    type: patch.type || account.type,
+  }, { copyIndustryToType: true })
   return patch
 }
 
@@ -160,6 +188,8 @@ function applyContactEnrichment(contact, fields, overwrite = false) {
   fillIfEmpty(patch, 'title', fields.title, overwrite)
   fillIfEmpty(patch, 'description', fields.description, overwrite)
   patch.lastEnrichedAt = new Date()
+  patch.researchConfidence = fields.phone || fields.title ? 65 : 40
+  patch.researchedAt = new Date()
   Object.assign(contact, patch)
   return patch
 }
