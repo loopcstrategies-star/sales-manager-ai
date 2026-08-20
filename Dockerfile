@@ -6,6 +6,7 @@ COPY backend/package.json backend/package-lock.json ./
 RUN npm ci --omit=dev
 
 COPY backend/ ./
+COPY shared/ /app/shared/
 
 ENV NODE_ENV=production
 EXPOSE 8080
