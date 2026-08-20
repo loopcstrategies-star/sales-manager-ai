@@ -23,6 +23,8 @@ const contactSchema = new mongoose.Schema({
   industryId: { type: String, trim: true, default: '', maxlength: 80, index: true },
   industrySlug: { type: String, trim: true, default: '', maxlength: 80, index: true },
   businessType: { type: String, trim: true, default: '', maxlength: 120 },
+  category: { type: String, trim: true, default: '', maxlength: 80, index: true },
+  subcategory: { type: String, trim: true, default: '', maxlength: 80, index: true },
   title: { type: String, trim: true, default: '', maxlength: 120 },
   reportsToId: { type: mongoose.Schema.Types.ObjectId, ref: 'Contact', default: null },
   description: { type: String, trim: true, default: '', maxlength: 5000 },

@@ -27,6 +27,8 @@ const emptyForm = () => ({
   type: '',
   industrySlug: '',
   businessType: '',
+  category: '',
+  subcategory: '',
   description: '',
   parentAccountId: '',
   parentAccountName: '',
@@ -112,17 +114,24 @@ export default function AccountsPage() {
   const [countryFilter, setCountryFilter] = useState(searchParams.get('country') || '')
   const [labelFilter, setLabelFilter] = useState(searchParams.get('label') || '')
   const [industryFilter, setIndustryFilter] = useState(searchParams.get('industry') || '')
+  const [categoryFilter, setCategoryFilter] = useState(searchParams.get('category') || '')
+  const [subcategoryFilter, setSubcategoryFilter] = useState(searchParams.get('subcategory') || '')
   const [labelModalOpen, setLabelModalOpen] = useState(false)
   const [bulkLabel, setBulkLabel] = useState('Hot')
   const [labelBusy, setLabelBusy] = useState(false)
   const [findBusy, setFindBusy] = useState(false)
   const [findHint, setFindHint] = useState('')
+  const [enrichBusy, setEnrichBusy] = useState(false)
 
   const load = useCallback(async (q = '') => {
     setLoading(true)
     setListError('')
     try {
-      const res = await accountsApi.list(q, { industry: industryFilter || undefined })
+      const res = await accountsApi.list(q, {
+        industry: industryFilter || undefined,
+        category: categoryFilter || undefined,
+        subcategory: subcategoryFilter || undefined,
+      })
       setItems(res.data || [])
     } catch (err) {
       setListError(err.message || 'Failed to load accounts')
@@ -130,7 +139,7 @@ export default function AccountsPage() {
     } finally {
       setLoading(false)
     }
-  }, [industryFilter])
+  }, [industryFilter, categoryFilter, subcategoryFilter])
 
   useEffect(() => {
     const t = setTimeout(() => load(search), 250)
@@ -143,8 +152,10 @@ export default function AccountsPage() {
     if (countryFilter) next.country = countryFilter
     if (labelFilter) next.label = labelFilter
     if (industryFilter) next.industry = industryFilter
+    if (categoryFilter) next.category = categoryFilter
+    if (subcategoryFilter) next.subcategory = subcategoryFilter
     setSearchParams(next, { replace: true })
-  }, [regionFilter, countryFilter, labelFilter, industryFilter, setSearchParams])
+  }, [regionFilter, countryFilter, labelFilter, industryFilter, categoryFilter, subcategoryFilter, setSearchParams])
 
   const openNew = useCallback(() => {
     setEditingId(null)
@@ -166,6 +177,8 @@ export default function AccountsPage() {
       type: item.type || '',
       industrySlug: item.industrySlug || '',
       businessType: item.businessType || '',
+      category: item.category || '',
+      subcategory: item.subcategory || '',
       description: item.description || '',
       parentAccountId: item.parentAccountId || '',
       parentAccountName: item.parentAccountName || '',
@@ -220,6 +233,8 @@ export default function AccountsPage() {
     type: form.type,
     industrySlug: form.industrySlug || '',
     businessType: form.businessType || '',
+    category: form.category || '',
+    subcategory: form.subcategory || '',
     description: form.description,
     parentAccountId: form.parentAccountId || '',
     phone: form.phone,
@@ -296,7 +311,9 @@ export default function AccountsPage() {
       </Link>
     ),
     label: a.label || '—',
-    industry: a.industry || '—',
+    industry: a.industry || a.industrySlug || '—',
+    category: a.category || '—',
+    subcategory: a.subcategory || '—',
     businessType: a.businessType || '—',
     region: a.region || '—',
     country: a.billingAddress?.country || '—',
@@ -305,6 +322,23 @@ export default function AccountsPage() {
     billingCity: a.billingAddress?.city || '—',
     ownerAlias: a.ownerAlias || '—',
   }))
+
+  const enrichSelected = async () => {
+    if (!selectedIds.length) return
+    setEnrichBusy(true)
+    setFindHint('')
+    try {
+      const res = await crmApi.enrichBatch({ object: 'accounts', ids: selectedIds.slice(0, 25) })
+      const d = res.data || {}
+      setFindHint(`Enrich selected · ${d.enriched || 0} enriched, ${d.failed || 0} failed, ${d.skipped || 0} skipped (max 25).`)
+      setSelectedIds([])
+      await load(search)
+    } catch (err) {
+      setListError(err.message || 'Enrich selected failed')
+    } finally {
+      setEnrichBusy(false)
+    }
+  }
 
   const deleteSelected = async () => {
     if (!selectedIds.length) return
@@ -380,6 +414,14 @@ export default function AccountsPage() {
             <button
               type="button"
               className="crm-btn-secondary"
+              disabled={enrichBusy || !selectedIds.length}
+              onClick={enrichSelected}
+            >
+              {enrichBusy ? 'Enriching…' : 'Enrich selected'}
+            </button>
+            <button
+              type="button"
+              className="crm-btn-secondary"
               disabled={findBusy || !selectedIds.length}
               onClick={findContactsSelected}
             >
@@ -402,10 +444,35 @@ export default function AccountsPage() {
           <>
             <label className="crm-inline-filter">
               <span>Industry</span>
-              <select value={industryFilter} onChange={(e) => setIndustryFilter(e.target.value)}>
+              <select
+                value={industryFilter}
+                onChange={(e) => {
+                  setIndustryFilter(e.target.value)
+                  setCategoryFilter('')
+                  setSubcategoryFilter('')
+                }}
+              >
                 <option value="">All</option>
                 {INDUSTRIES.map((industry) => (
                   <option key={industry.slug} value={industry.slug}>{industry.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="crm-inline-filter">
+              <span>Category</span>
+              <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+                <option value="">All</option>
+                {(getIndustryConfig(industryFilter)?.categories || []).map((item) => (
+                  <option key={item} value={item}>{item}</option>
+                ))}
+              </select>
+            </label>
+            <label className="crm-inline-filter">
+              <span>Subcategory</span>
+              <select value={subcategoryFilter} onChange={(e) => setSubcategoryFilter(e.target.value)}>
+                <option value="">All</option>
+                {(getIndustryConfig(industryFilter)?.subcategories || []).map((item) => (
+                  <option key={item} value={item}>{item}</option>
                 ))}
               </select>
             </label>
@@ -444,6 +511,8 @@ export default function AccountsPage() {
           { key: 'name', label: 'Account Name' },
           { key: 'label', label: 'Label' },
           { key: 'industry', label: 'Industry' },
+          { key: 'category', label: 'Category' },
+          { key: 'subcategory', label: 'Subcategory' },
           { key: 'businessType', label: 'Business Type' },
           { key: 'region', label: 'Region' },
           { key: 'country', label: 'Country' },
@@ -532,14 +601,39 @@ export default function AccountsPage() {
             onChange={(e) => {
               const nextSlug = e.target.value
               setField('industrySlug', nextSlug)
-              if (!getIndustryConfig(nextSlug)?.businessTypes.includes(form.businessType)) {
-                setField('businessType', '')
-              }
+              const cfg = getIndustryConfig(nextSlug)
+              if (!cfg?.businessTypes.includes(form.businessType)) setField('businessType', '')
+              if (!cfg?.categories?.includes(form.category)) setField('category', '')
+              if (!cfg?.subcategories?.includes(form.subcategory)) setField('subcategory', '')
             }}
           >
             <option value="">None</option>
             {INDUSTRIES.map((industry) => (
               <option key={industry.slug} value={industry.slug}>{industry.name}</option>
+            ))}
+          </select>
+        </label>
+        <label className="crm-field">
+          <span>Category</span>
+          <select
+            value={form.category || ''}
+            onChange={(e) => setField('category', e.target.value)}
+          >
+            <option value="">None</option>
+            {(getIndustryConfig(form.industrySlug)?.categories || []).map((item) => (
+              <option key={item} value={item}>{item}</option>
+            ))}
+          </select>
+        </label>
+        <label className="crm-field">
+          <span>Subcategory</span>
+          <select
+            value={form.subcategory || ''}
+            onChange={(e) => setField('subcategory', e.target.value)}
+          >
+            <option value="">None</option>
+            {(getIndustryConfig(form.industrySlug)?.subcategories || []).map((item) => (
+              <option key={item} value={item}>{item}</option>
             ))}
           </select>
         </label>

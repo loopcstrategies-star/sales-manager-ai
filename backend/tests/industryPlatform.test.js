@@ -10,6 +10,7 @@ const {
 } = require('../services/industryScoring')
 const { extractDomain, qualificationResult } = require('../services/duplicateDetect')
 const { workspaceFilter } = require('../services/crmHelpers')
+const { copyAccountTaxonomyToContact } = require('../services/industryRecord')
 
 describe('industry catalog completeness', () => {
   test('loads 16 industries with required configuration keys', () => {
@@ -82,5 +83,21 @@ describe('workspace isolation filter', () => {
   test('workspaceFilter scopes by workspaceId', () => {
     const filter = workspaceFilter({ workspaceId: '64b000000000000000000001' })
     expect(filter).toEqual({ workspaceId: '64b000000000000000000001' })
+  })
+})
+
+describe('account taxonomy copy', () => {
+  test('copies category fields onto contact when empty', () => {
+    const contact = { industrySlug: '', category: '', subcategory: '', businessType: '' }
+    copyAccountTaxonomyToContact(contact, {
+      industrySlug: 'jewelry',
+      category: 'Retail',
+      subcategory: 'Gold',
+      businessType: 'Retail Jeweller',
+    })
+    expect(contact.industrySlug).toBe('jewelry')
+    expect(contact.category).toBe('Retail')
+    expect(contact.subcategory).toBe('Gold')
+    expect(contact.businessType).toBe('Retail Jeweller')
   })
 })

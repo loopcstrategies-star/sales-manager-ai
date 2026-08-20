@@ -21,8 +21,11 @@ export default function CrmHomePage() {
   const [digest, setDigest] = useState(null)
   const [digestBusy, setDigestBusy] = useState(false)
   const [staleBusy, setStaleBusy] = useState(false)
+  const [enrichBusy, setEnrichBusy] = useState(false)
   const [industrySlug, setIndustrySlug] = useState('jewelry')
   const [businessType, setBusinessType] = useState('')
+  const [enrichMode, setEnrichMode] = useState('stale')
+  const [enrichOverwrite, setEnrichOverwrite] = useState(false)
   const industry = listIndustryConfigs().find((item) => item.slug === industrySlug) || null
 
   useEffect(() => {
@@ -96,17 +99,34 @@ export default function CrmHomePage() {
   }
 
   const runRefresh = async () => {
+    if (enrichMode === 'force') {
+      if (!window.confirm('Force re-enrich can take several minutes and may use search quota. Continue?')) return
+    }
     setRefreshMsg('')
+    setEnrichBusy(true)
     try {
-      const res = await crmApi.enrichRefresh(50)
+      const res = await crmApi.enrichRefresh({
+        cap: 100,
+        mode: enrichMode,
+        includeContacts: true,
+        overwrite: enrichOverwrite,
+      })
       const d = res.data || {}
       if (d.skipped) {
-        setRefreshMsg(`Refresh skipped: ${d.reason}`)
+        setRefreshMsg(`Enrich All skipped: ${d.reason}`)
       } else {
-        setRefreshMsg(`Re-enriched ${d.totalEnriched || 0} records (cap ${d.cap}).`)
+        const more = d.moreRemain ? ' Run again to continue.' : ''
+        setRefreshMsg(
+          `Enrich All (${d.mode}) · ${d.totalEnriched || 0} enriched`
+          + ` (leads ${d.leads?.enriched || 0}, accounts ${d.accounts?.enriched || 0}, contacts ${d.contacts?.enriched || 0})`
+          + ` · cap ${d.cap}.${more}`,
+        )
       }
+      await load()
     } catch (err) {
-      setRefreshMsg(err.message || 'Refresh failed.')
+      setRefreshMsg(err.message || 'Enrich All failed.')
+    } finally {
+      setEnrichBusy(false)
     }
   }
 
@@ -255,7 +275,7 @@ export default function CrmHomePage() {
   }
 
   const counts = data?.counts || {}
-  const anyBusy = bulkBusy || cleanupBusy || findBusy || backfillBusy || geoBusy || fillBusy || digestBusy || staleBusy
+  const anyBusy = bulkBusy || cleanupBusy || findBusy || backfillBusy || geoBusy || fillBusy || digestBusy || staleBusy || enrichBusy
 
   return (
     <div className="crm-home ui-enter">
@@ -465,8 +485,25 @@ export default function CrmHomePage() {
             <Link className="crm-btn-secondary" to="/sales/pipeline">View Pipeline</Link>
             <Link className="crm-btn-secondary" to="/sales/tasks">My Tasks</Link>
             <Link className="crm-btn-secondary" to="/sales/settings">Sales settings</Link>
-            <button type="button" className="crm-btn-secondary" disabled={anyBusy} onClick={runRefresh}>
-              Refresh stale records
+            <label className="crm-inline-filter">
+              <span>Enrich All mode</span>
+              <select value={enrichMode} onChange={(e) => setEnrichMode(e.target.value)} disabled={anyBusy}>
+                <option value="stale">Stale only</option>
+                <option value="fillEmpty">Fill empty fields</option>
+                <option value="force">Force re-enrich</option>
+              </select>
+            </label>
+            <label className="crm-checkbox" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+              <input
+                type="checkbox"
+                checked={enrichOverwrite}
+                onChange={(e) => setEnrichOverwrite(e.target.checked)}
+                disabled={anyBusy}
+              />
+              Overwrite filled fields
+            </label>
+            <button type="button" className="crm-btn-primary" disabled={anyBusy} onClick={runRefresh}>
+              {enrichBusy ? 'Enriching…' : 'Enrich All'}
             </button>
             <button type="button" className="crm-btn-secondary" disabled={anyBusy} onClick={scanStaleDeals}>
               {staleBusy ? 'Scanning…' : 'Scan stale deals'}
@@ -500,6 +537,12 @@ export default function CrmHomePage() {
             </button>
             <Link className="crm-btn-secondary" to="/sales/contacts?needsVerify=1">Contacts needing verify</Link>
           </div>
+          <p className="crm-muted">
+            <strong>Enrich All options:</strong> Stale only (never enriched or older than Settings days) ·
+            Fill empty fields (blank website/phone/title) · Force re-enrich (confirm; ignores freshness).
+            Includes leads, accounts, and contacts · max 100 per run · Enrich selected also available on each list.
+            Scheduled enrich still runs from Settings. Import-time enrich only affects newly imported rows.
+          </p>
           <p className="crm-muted">
             <strong>Fill pipeline</strong> runs Import → Geo → Find contacts (caps in{' '}
             <Link to="/sales/settings">Sales settings</Link>).

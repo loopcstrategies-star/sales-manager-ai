@@ -86,6 +86,7 @@ export default function LeadsPage() {
   const [campaigns, setCampaigns] = useState([])
   const [campaignId, setCampaignId] = useState('')
   const [campaignBusy, setCampaignBusy] = useState(false)
+  const [enrichBusy, setEnrichBusy] = useState(false)
   const [convertForm, setConvertForm] = useState({
     createOpportunity: true,
     opportunityName: '',
@@ -411,6 +412,28 @@ export default function LeadsPage() {
               Add to Campaign
             </button>
             <button type="button" className="crm-btn-secondary" onClick={scoreSelected}>Score</button>
+            <button
+              type="button"
+              className="crm-btn-secondary"
+              disabled={!selectedIds.length || enrichBusy}
+              onClick={async () => {
+                setEnrichBusy(true)
+                try {
+                  const res = await crmApi.enrichBatch({ object: 'leads', ids: selectedIds.slice(0, 25) })
+                  const d = res.data || {}
+                  setListError('')
+                  setEnrichedHint(`Enrich selected · ${d.enriched || 0} enriched, ${d.failed || 0} failed (max 25).`)
+                  setSelectedIds([])
+                  await load(search)
+                } catch (err) {
+                  setListError(err.message || 'Enrich selected failed')
+                } finally {
+                  setEnrichBusy(false)
+                }
+              }}
+            >
+              {enrichBusy ? 'Enriching…' : 'Enrich selected'}
+            </button>
             <button type="button" className="crm-btn-secondary" onClick={deleteSelected}>Delete</button>
           </>
         )}

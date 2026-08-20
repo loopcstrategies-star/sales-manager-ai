@@ -926,10 +926,94 @@ router.post('/contacts/from-accounts', async (req, res) => {
 router.post('/enrich/refresh', async (req, res) => {
   try {
     const workspaceId = req.user.workspaceId
-    const result = await runCrmEnrichRefresh({ workspaceId, cap: Number(req.body.cap) || 50 })
+    const mode = String(req.body.mode || 'stale')
+    const result = await runCrmEnrichRefresh({
+      workspaceId,
+      cap: Number(req.body.cap) || 100,
+      mode: ['stale', 'fillEmpty', 'force'].includes(mode) ? mode : 'stale',
+      includeContacts: req.body.includeContacts !== false,
+      overwrite: Boolean(req.body.overwrite),
+      force: mode === 'force',
+    })
     res.json({ success: true, data: result })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message || 'Refresh failed.' })
+  }
+})
+
+router.post('/enrich/batch', async (req, res) => {
+  try {
+    if (!isSearchConfigured()) {
+      return res.status(503).json({
+        success: false,
+        message: 'Web search is not configured. Set TAVILY_API_KEY or BRAVE_API_KEY.',
+      })
+    }
+    const object = String(req.body.object || '').toLowerCase()
+    const overwrite = Boolean(req.body.overwrite)
+    const ids = Array.isArray(req.body.ids) ? req.body.ids.map((id) => String(id)).filter(Boolean) : []
+    if (!['leads', 'contacts', 'accounts'].includes(object)) {
+      return res.status(400).json({ success: false, message: 'object must be leads, contacts, or accounts.' })
+    }
+    if (!ids.length) {
+      return res.status(400).json({ success: false, message: 'ids are required.' })
+    }
+    const capped = ids.slice(0, 25)
+    const filter = workspaceFilter(req.user)
+    const Model = object === 'leads' ? Lead : object === 'accounts' ? Account : Contact
+    const applyFn = object === 'leads'
+      ? applyLeadEnrichment
+      : object === 'accounts'
+        ? applyAccountEnrichment
+        : applyContactEnrichment
+
+    const results = []
+    let enriched = 0
+    let failed = 0
+    let skipped = 0
+
+    for (const id of capped) {
+      try {
+        const record = await Model.findOne({ ...filter, _id: id })
+        if (!record) {
+          skipped += 1
+          results.push({ id, status: 'skipped', reason: 'not_found' })
+          continue
+        }
+        const query = buildQuery(object, record, {})
+        if (!query) {
+          skipped += 1
+          results.push({ id, status: 'skipped', reason: 'no_query' })
+          continue
+        }
+        const result = await enrichFromQuery(query)
+        applyFn(record, result.fields, overwrite)
+        if (object === 'accounts') {
+          applyAccountGeo(record, { website: record.website, region: record.region })
+        }
+        await record.save()
+        enriched += 1
+        results.push({ id, status: 'enriched' })
+      } catch (err) {
+        failed += 1
+        results.push({ id, status: 'failed', reason: err.message || 'error' })
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        object,
+        requested: ids.length,
+        processed: capped.length,
+        enriched,
+        failed,
+        skipped,
+        results,
+      },
+    })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Batch enrich failed.' })
   }
 })
 

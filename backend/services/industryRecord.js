@@ -30,11 +30,15 @@ function normalizeIndustryFields(input = {}, fallback = {}) {
   })
 
   const businessType = normalizeText(input.businessType || fallback.businessType, 120)
+  const category = normalizeText(input.category || fallback.category, 80)
+  const subcategory = normalizeText(input.subcategory || fallback.subcategory, 80)
   return {
     industryId: industry?.id || normalizeText(input.industryId || fallback.industryId, 80),
     industrySlug: industry?.slug || normalizeText(input.industrySlug || fallback.industrySlug, 80),
     industry: industry?.name || normalizeText(input.industry || fallback.industry, 80),
     businessType,
+    category,
+    subcategory,
     industryConfig: industry || null,
   }
 }
@@ -82,10 +86,22 @@ function attachIndustryMetadata(record, input = {}, options = {}) {
     if (!record.type && options.copyIndustryToType) record.type = normalized.industry
   }
   if (normalized.businessType) record.businessType = normalized.businessType
+  if (normalized.category && 'category' in record) record.category = normalized.category
+  if (normalized.subcategory && 'subcategory' in record) record.subcategory = normalized.subcategory
   if (options.copyIndustryToType && normalized.industry && !record.type) {
     record.type = normalized.industry
   }
   return normalized
+}
+
+function copyAccountTaxonomyToContact(contact, account = {}) {
+  if (!contact || !account) return contact
+  if (account.industryId && !contact.industryId) contact.industryId = account.industryId
+  if (account.industrySlug && !contact.industrySlug) contact.industrySlug = account.industrySlug
+  if (account.businessType && !contact.businessType) contact.businessType = account.businessType
+  if (account.category && !contact.category) contact.category = account.category
+  if (account.subcategory && !contact.subcategory) contact.subcategory = account.subcategory
+  return contact
 }
 
 function industryRecommendedSolutions(industrySlug, facts = {}) {
@@ -114,6 +130,7 @@ function industryRecommendedSolutions(industrySlug, facts = {}) {
 module.exports = {
   normalizeIndustryFields,
   attachIndustryMetadata,
+  copyAccountTaxonomyToContact,
   mergeResearchSummary,
   defaultResearchSummary,
   industryRecommendedSolutions,

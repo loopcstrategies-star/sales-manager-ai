@@ -11,7 +11,7 @@ const {
   customFieldsJoi,
   ownerAlias,
 } = require('../services/crmHelpers')
-const { attachIndustryMetadata } = require('../services/industryRecord')
+const { attachIndustryMetadata, copyAccountTaxonomyToContact } = require('../services/industryRecord')
 
 const router = express.Router()
 router.use(protect)
@@ -24,6 +24,8 @@ const contactBodySchema = Joi.object({
   industryId: Joi.string().allow('').max(80),
   industrySlug: Joi.string().allow('').max(80),
   businessType: Joi.string().allow('').max(120),
+  category: Joi.string().allow('').max(80),
+  subcategory: Joi.string().allow('').max(80),
   title: Joi.string().allow('').max(120),
   reportsToId: Joi.string().allow(null, ''),
   description: Joi.string().allow('').max(5000),
@@ -55,6 +57,12 @@ function serializeContact(doc) {
     ownerAlias: ownerAlias(owner),
     accountId: account?._id || obj.accountId || null,
     accountName: account?.name || '',
+    accountLabel: account?.label || '',
+    accountCategory: account?.category || '',
+    accountSubcategory: account?.subcategory || '',
+    accountRegion: account?.region || '',
+    accountBusinessType: account?.businessType || '',
+    accountIndustrySlug: account?.industrySlug || '',
     reportsToId: reportsTo?._id || obj.reportsToId || null,
     reportsToName: reportsTo
       ? [reportsTo.firstName, reportsTo.lastName].filter(Boolean).join(' ').trim()
@@ -68,10 +76,15 @@ router.get('/', async (req, res) => {
     const needsVerify = String(req.query.needsVerify || '').trim()
     const source = String(req.query.source || '').trim()
     const industry = String(req.query.industry || '').trim()
+    const category = String(req.query.category || '').trim()
+    const subcategory = String(req.query.subcategory || '').trim()
+    const businessType = String(req.query.businessType || '').trim()
+    const label = String(req.query.label || '').trim()
+    const region = String(req.query.region || '').trim()
+    const country = String(req.query.country || '').trim()
     const filter = { ...workspaceFilter(req.user) }
     if (needsVerify === '1' || needsVerify === 'true') filter.needsVerify = true
     if (source) filter.source = source
-    if (industry) filter.industrySlug = industry
     if (q) {
       filter.$or = [
         { firstName: { $regex: escapeRegex(q), $options: 'i' } },
@@ -81,9 +94,47 @@ router.get('/', async (req, res) => {
       ]
     }
 
+    const needsAccountJoin = Boolean(label || region || category || subcategory || businessType || industry)
+    if (needsAccountJoin) {
+      const accountFilter = { ...workspaceFilter(req.user) }
+      if (label) accountFilter.label = label
+      if (region) accountFilter.region = region
+      if (category) accountFilter.category = category
+      if (subcategory) accountFilter.subcategory = subcategory
+      if (businessType) accountFilter.businessType = businessType
+      if (industry) accountFilter.industrySlug = industry
+      const accountIds = await Account.find(accountFilter).select('_id').limit(2000).lean()
+      const ids = accountIds.map((a) => a._id)
+      if (!ids.length) {
+        return res.json({ success: true, data: [], count: 0 })
+      }
+      filter.accountId = { $in: ids }
+      // Also include contacts that match taxonomy directly when no account label/region join needed beyond industry/category
+      if (industry || category || subcategory || businessType) {
+        const direct = {}
+        if (industry) direct.industrySlug = industry
+        if (category) direct.category = category
+        if (subcategory) direct.subcategory = subcategory
+        if (businessType) direct.businessType = businessType
+        if (!label && !region) {
+          filter.$or = [
+            { accountId: { $in: ids } },
+            direct,
+          ]
+          delete filter.accountId
+        }
+      }
+    } else if (industry) {
+      filter.industrySlug = industry
+    }
+
+    if (country) {
+      filter['mailingAddress.country'] = country
+    }
+
     const items = await Contact.find(filter)
       .populate('ownerId', 'name')
-      .populate('accountId', 'name')
+      .populate('accountId', 'name label category subcategory region businessType industrySlug')
       .populate('reportsToId', 'firstName lastName')
       .sort({ lastName: 1, firstName: 1 })
       .limit(500)
@@ -103,7 +154,7 @@ router.get('/:id', async (req, res) => {
   try {
     const item = await Contact.findOne({ _id: req.params.id, ...workspaceFilter(req.user) })
       .populate('ownerId', 'name')
-      .populate('accountId', 'name')
+      .populate('accountId', 'name label category subcategory region businessType industrySlug')
       .populate('reportsToId', 'firstName lastName')
     if (!item) return res.status(404).json({ success: false, message: 'Contact not found.' })
     res.json({ success: true, data: serializeContact(item) })
@@ -118,7 +169,9 @@ async function assertAccountInWorkspace(accountId, user) {
     err.statusCode = 400
     throw err
   }
-  const account = await Account.findOne({ _id: accountId, ...workspaceFilter(user) }).select('_id')
+  const account = await Account.findOne({ _id: accountId, ...workspaceFilter(user) }).select(
+    '_id industryId industrySlug businessType category subcategory',
+  )
   if (!account) {
     const err = new Error('Account not found in workspace.')
     err.statusCode = 400
@@ -131,6 +184,7 @@ router.post('/', validateBody(contactBodySchema), async (req, res) => {
   try {
     const accountId = await assertAccountInWorkspace(toObjectId(req.body.accountId), req.user)
     const reportsToId = toObjectId(req.body.reportsToId)
+    const account = await Account.findById(accountId).lean()
     const created = await Contact.create({
       ...req.body,
       accountId,
@@ -141,9 +195,10 @@ router.post('/', validateBody(contactBodySchema), async (req, res) => {
       ownerId: req.user._id,
     })
     attachIndustryMetadata(created, req.body)
+    copyAccountTaxonomyToContact(created, account || {})
     await created.save()
     await created.populate('ownerId', 'name')
-    await created.populate('accountId', 'name')
+    await created.populate('accountId', 'name label category subcategory region businessType industrySlug')
     await created.populate('reportsToId', 'firstName lastName')
     res.status(201).json({ success: true, data: serializeContact(created) })
   } catch (err) {

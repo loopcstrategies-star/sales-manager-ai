@@ -23,6 +23,8 @@ const accountSchema = new mongoose.Schema({
   industrySlug: { type: String, trim: true, default: '', maxlength: 80, index: true },
   industry: { type: String, trim: true, default: '', maxlength: 80 },
   businessType: { type: String, trim: true, default: '', maxlength: 120 },
+  category: { type: String, trim: true, default: '', maxlength: 80, index: true },
+  subcategory: { type: String, trim: true, default: '', maxlength: 80, index: true },
   description: { type: String, trim: true, default: '', maxlength: 5000 },
   parentAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Account', default: null },
   phone: { type: String, trim: true, default: '', maxlength: 60 },

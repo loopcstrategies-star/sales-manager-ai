@@ -41,10 +41,14 @@ const emptyForm = () => ({
   source: 'manual',
   industrySlug: '',
   businessType: '',
+  category: '',
+  subcategory: '',
 })
 
 const SALUTATIONS = ['--None--', 'Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Prof.']
 const COUNTRIES = ['--None--', 'United Arab Emirates', 'United States', 'United Kingdom', 'India', 'Other']
+const ACCOUNT_LABELS = ['Hot', 'Warm', 'Cold', 'VIP', 'Partner', 'Prospect']
+const REGIONS = ['', 'Middle East', 'Europe', 'India', 'Asia Pacific', 'Americas', 'Africa']
 const INDUSTRIES = listIndustryConfigs()
 
 export default function ContactsPage() {
@@ -62,10 +66,16 @@ export default function ContactsPage() {
   const [importOpen, setImportOpen] = useState(false)
   const [enrichedHint, setEnrichedHint] = useState('')
   const [selectedIds, setSelectedIds] = useState([])
-  const [countryFilter, setCountryFilter] = useState('')
+  const [countryFilter, setCountryFilter] = useState(searchParams.get('country') || '')
   const [needsVerifyOnly, setNeedsVerifyOnly] = useState(searchParams.get('needsVerify') === '1')
   const [sourceFilter, setSourceFilter] = useState(searchParams.get('source') || '')
   const [industryFilter, setIndustryFilter] = useState(searchParams.get('industry') || '')
+  const [categoryFilter, setCategoryFilter] = useState(searchParams.get('category') || '')
+  const [subcategoryFilter, setSubcategoryFilter] = useState(searchParams.get('subcategory') || '')
+  const [businessTypeFilter, setBusinessTypeFilter] = useState(searchParams.get('businessType') || '')
+  const [labelFilter, setLabelFilter] = useState(searchParams.get('label') || '')
+  const [regionFilter, setRegionFilter] = useState(searchParams.get('region') || '')
+  const [enrichBusy, setEnrichBusy] = useState(false)
 
   const load = useCallback(async (q = '') => {
     setLoading(true)
@@ -75,6 +85,12 @@ export default function ContactsPage() {
         needsVerify: needsVerifyOnly,
         source: sourceFilter || undefined,
         industry: industryFilter || undefined,
+        category: categoryFilter || undefined,
+        subcategory: subcategoryFilter || undefined,
+        businessType: businessTypeFilter || undefined,
+        label: labelFilter || undefined,
+        region: regionFilter || undefined,
+        country: countryFilter || undefined,
       })
       setItems(res.data || [])
     } catch (err) {
@@ -83,7 +99,17 @@ export default function ContactsPage() {
     } finally {
       setLoading(false)
     }
-  }, [needsVerifyOnly, sourceFilter, industryFilter])
+  }, [
+    needsVerifyOnly,
+    sourceFilter,
+    industryFilter,
+    categoryFilter,
+    subcategoryFilter,
+    businessTypeFilter,
+    labelFilter,
+    regionFilter,
+    countryFilter,
+  ])
 
   useEffect(() => {
     const t = setTimeout(() => load(search), 250)
@@ -95,8 +121,25 @@ export default function ContactsPage() {
     if (needsVerifyOnly) next.needsVerify = '1'
     if (sourceFilter) next.source = sourceFilter
     if (industryFilter) next.industry = industryFilter
+    if (categoryFilter) next.category = categoryFilter
+    if (subcategoryFilter) next.subcategory = subcategoryFilter
+    if (businessTypeFilter) next.businessType = businessTypeFilter
+    if (labelFilter) next.label = labelFilter
+    if (regionFilter) next.region = regionFilter
+    if (countryFilter) next.country = countryFilter
     setSearchParams(next, { replace: true })
-  }, [needsVerifyOnly, sourceFilter, industryFilter, setSearchParams])
+  }, [
+    needsVerifyOnly,
+    sourceFilter,
+    industryFilter,
+    categoryFilter,
+    subcategoryFilter,
+    businessTypeFilter,
+    labelFilter,
+    regionFilter,
+    countryFilter,
+    setSearchParams,
+  ])
 
   const openNew = useCallback(() => {
     setEditingId(null)
@@ -132,6 +175,8 @@ export default function ContactsPage() {
       source: item.source || 'manual',
       industrySlug: item.industrySlug || '',
       businessType: item.businessType || '',
+      category: item.category || '',
+      subcategory: item.subcategory || '',
     })
     setEnrichedHint(item.lastEnrichedAt
       ? `Updated from web · ${new Date(item.lastEnrichedAt).toLocaleString()}`
@@ -182,6 +227,8 @@ export default function ContactsPage() {
     photoUrl: form.photoUrl,
     industrySlug: form.industrySlug || '',
     businessType: form.businessType || '',
+    category: form.category || '',
+    subcategory: form.subcategory || '',
     customFields: (form.customFields || []).filter((f) => f.label || f.value),
   })
 
@@ -227,17 +274,8 @@ export default function ContactsPage() {
     if (listFilter === 'my') list = list.filter((c) => isOwnedBy(c, user))
     else if (listFilter === 'new-this-week') list = list.filter((c) => isCreatedThisWeek(c))
     else if (listFilter === 'birthdays') list = []
-    else if (listFilter && listFilter !== 'all') {
-      /* keep full list for other filters */
-    }
-    if (countryFilter) {
-      list = list.filter((c) => String(c.mailingAddress?.country || '') === countryFilter)
-    }
-    if (industryFilter) {
-      list = list.filter((c) => String(c.industrySlug || '') === industryFilter)
-    }
     return list
-  }, [items, listFilter, user, countryFilter, industryFilter])
+  }, [items, listFilter, user])
 
   const countryOptions = useMemo(() => {
     const set = new Set(
@@ -260,13 +298,34 @@ export default function ContactsPage() {
       </Link>
     ),
     accountName: c.accountName || '—',
-    industry: c.industrySlug || '—',
+    industry: c.industrySlug || c.accountIndustrySlug || '—',
+    category: c.category || c.accountCategory || '—',
+    subcategory: c.subcategory || c.accountSubcategory || '—',
+    businessType: c.businessType || c.accountBusinessType || '—',
+    label: c.accountLabel || '—',
+    region: c.accountRegion || '—',
     country: c.mailingAddress?.country || '—',
     title: c.title || '—',
     phone: c.phone || '—',
     email: c.email || '—',
     ownerAlias: c.ownerAlias || '—',
   }))
+
+  const enrichSelected = async () => {
+    if (!selectedIds.length) return
+    setEnrichBusy(true)
+    try {
+      const res = await crmApi.enrichBatch({ object: 'contacts', ids: selectedIds.slice(0, 25) })
+      const d = res.data || {}
+      setEnrichedHint(`Enrich selected · ${d.enriched || 0} enriched, ${d.failed || 0} failed, ${d.skipped || 0} skipped (max 25).`)
+      setSelectedIds([])
+      await load(search)
+    } catch (err) {
+      setListError(err.message || 'Enrich selected failed')
+    } finally {
+      setEnrichBusy(false)
+    }
+  }
 
   const deleteSelected = async () => {
     if (!selectedIds.length) return
@@ -302,6 +361,7 @@ export default function ContactsPage() {
   return (
     <>
       {listError ? <p className="crm-banner-error">{listError}</p> : null}
+      {enrichedHint ? <p className="crm-muted">{enrichedHint}</p> : null}
       <CrmListView
         title="All Contacts"
         count={rows.length}
@@ -312,6 +372,14 @@ export default function ContactsPage() {
         onSelectionChange={setSelectedIds}
         bulkActions={(
           <>
+            <button
+              type="button"
+              className="crm-btn-secondary"
+              disabled={enrichBusy || !selectedIds.length}
+              onClick={enrichSelected}
+            >
+              {enrichBusy ? 'Enriching…' : 'Enrich selected'}
+            </button>
             <button type="button" className="crm-btn-secondary" onClick={markSelectedVerified}>
               Mark verified
             </button>
@@ -322,10 +390,63 @@ export default function ContactsPage() {
           <>
             <label className="crm-inline-filter">
               <span>Industry</span>
-              <select value={industryFilter} onChange={(e) => setIndustryFilter(e.target.value)}>
+              <select
+                value={industryFilter}
+                onChange={(e) => {
+                  setIndustryFilter(e.target.value)
+                  setCategoryFilter('')
+                  setSubcategoryFilter('')
+                  setBusinessTypeFilter('')
+                }}
+              >
                 <option value="">All</option>
                 {INDUSTRIES.map((industry) => (
                   <option key={industry.slug} value={industry.slug}>{industry.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="crm-inline-filter">
+              <span>Category</span>
+              <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+                <option value="">All</option>
+                {(getIndustryConfig(industryFilter)?.categories || []).map((item) => (
+                  <option key={item} value={item}>{item}</option>
+                ))}
+              </select>
+            </label>
+            <label className="crm-inline-filter">
+              <span>Subcategory</span>
+              <select value={subcategoryFilter} onChange={(e) => setSubcategoryFilter(e.target.value)}>
+                <option value="">All</option>
+                {(getIndustryConfig(industryFilter)?.subcategories || []).map((item) => (
+                  <option key={item} value={item}>{item}</option>
+                ))}
+              </select>
+            </label>
+            <label className="crm-inline-filter">
+              <span>Business type</span>
+              <select value={businessTypeFilter} onChange={(e) => setBusinessTypeFilter(e.target.value)}>
+                <option value="">All</option>
+                {(getIndustryConfig(industryFilter)?.businessTypes || []).map((item) => (
+                  <option key={item} value={item}>{item}</option>
+                ))}
+              </select>
+            </label>
+            <label className="crm-inline-filter">
+              <span>Account label</span>
+              <select value={labelFilter} onChange={(e) => setLabelFilter(e.target.value)}>
+                <option value="">All</option>
+                {ACCOUNT_LABELS.map((item) => (
+                  <option key={item} value={item}>{item}</option>
+                ))}
+              </select>
+            </label>
+            <label className="crm-inline-filter">
+              <span>Region</span>
+              <select value={regionFilter} onChange={(e) => setRegionFilter(e.target.value)}>
+                <option value="">All</option>
+                {REGIONS.filter(Boolean).map((item) => (
+                  <option key={item} value={item}>{item}</option>
                 ))}
               </select>
             </label>
@@ -369,6 +490,11 @@ export default function ContactsPage() {
           { key: 'name', label: 'Name' },
           { key: 'accountName', label: 'Account Name' },
           { key: 'industry', label: 'Industry' },
+          { key: 'category', label: 'Category' },
+          { key: 'subcategory', label: 'Subcategory' },
+          { key: 'businessType', label: 'Business Type' },
+          { key: 'label', label: 'Account Label' },
+          { key: 'region', label: 'Region' },
           { key: 'country', label: 'Country' },
           { key: 'title', label: 'Title' },
           { key: 'phone', label: 'Phone' },

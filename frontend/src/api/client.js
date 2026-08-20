@@ -234,6 +234,9 @@ export const accountsApi = {
     if (q) params.set('q', q)
     if (opts.label) params.set('label', opts.label)
     if (opts.industry) params.set('industry', opts.industry)
+    if (opts.category) params.set('category', opts.category)
+    if (opts.subcategory) params.set('subcategory', opts.subcategory)
+    if (opts.businessType) params.set('businessType', opts.businessType)
     const qs = params.toString()
     return api(`/api/accounts${qs ? `?${qs}` : ''}`)
   },
@@ -254,6 +257,12 @@ export const contactsApi = {
     if (opts.needsVerify) params.set('needsVerify', '1')
     if (opts.source) params.set('source', opts.source)
     if (opts.industry) params.set('industry', opts.industry)
+    if (opts.category) params.set('category', opts.category)
+    if (opts.subcategory) params.set('subcategory', opts.subcategory)
+    if (opts.businessType) params.set('businessType', opts.businessType)
+    if (opts.label) params.set('label', opts.label)
+    if (opts.region) params.set('region', opts.region)
+    if (opts.country) params.set('country', opts.country)
     const qs = params.toString()
     return api(`/api/contacts${qs ? `?${qs}` : ''}`)
   },
@@ -455,9 +464,23 @@ export const crmApi = {
     method: 'POST',
     body: JSON.stringify(body),
   }),
-  enrichRefresh: (cap) => api('/api/crm/enrich/refresh', {
+  enrichRefresh: (capOrOpts = 100, maybeOpts) => {
+    const opts = typeof capOrOpts === 'object' && capOrOpts
+      ? capOrOpts
+      : { cap: capOrOpts, ...(maybeOpts || {}) }
+    return api('/api/crm/enrich/refresh', {
+      method: 'POST',
+      body: JSON.stringify({
+        cap: opts.cap ?? 100,
+        mode: opts.mode || 'stale',
+        includeContacts: opts.includeContacts !== false,
+        overwrite: Boolean(opts.overwrite),
+      }),
+    })
+  },
+  enrichBatch: (body) => api('/api/crm/enrich/batch', {
     method: 'POST',
-    body: JSON.stringify({ cap }),
+    body: JSON.stringify(body),
   }),
   contactsFromAccounts: (cap = 50) => api('/api/crm/contacts/from-accounts', {
     method: 'POST',

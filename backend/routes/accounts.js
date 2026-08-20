@@ -23,6 +23,8 @@ const accountBodySchema = Joi.object({
   industrySlug: Joi.string().allow('').max(80),
   industry: Joi.string().allow('').max(80),
   businessType: Joi.string().allow('').max(120),
+  category: Joi.string().allow('').max(80),
+  subcategory: Joi.string().allow('').max(80),
   description: Joi.string().allow('').max(5000),
   parentAccountId: Joi.string().allow(null, ''),
   phone: Joi.string().allow('').max(60),
@@ -57,10 +59,16 @@ router.get('/', async (req, res) => {
     const q = String(req.query.q || '').trim()
     const label = String(req.query.label || '').trim()
     const industry = String(req.query.industry || '').trim()
+    const category = String(req.query.category || '').trim()
+    const subcategory = String(req.query.subcategory || '').trim()
+    const businessType = String(req.query.businessType || '').trim()
     const filter = { ...workspaceFilter(req.user) }
     if (q) filter.name = { $regex: escapeRegex(q), $options: 'i' }
     if (label) filter.label = label
     if (industry) filter.industrySlug = industry
+    if (category) filter.category = category
+    if (subcategory) filter.subcategory = subcategory
+    if (businessType) filter.businessType = businessType
 
     const items = await Account.find(filter)
       .populate('ownerId', 'name')
