@@ -88,7 +88,24 @@ function attachIndustryMetadata(record, input = {}, options = {}) {
   return normalized
 }
 
-function industryRecommendedSolutions(industrySlug) {
+function industryRecommendedSolutions(industrySlug, facts = {}) {
+  const { buildRecommendations } = require('./industryScoring')
+  const { getIndustry } = require('./industryCatalog')
+  const industry = getIndustry(industrySlug)
+  const recommendations = buildRecommendations(
+    industrySlug || '',
+    {
+      website: 'Unknown',
+      ecommerce: 'Unknown',
+      mobileApp: 'Unknown',
+      social: 'Unknown',
+      ...facts,
+    },
+    industry,
+  )
+  if (recommendations.length) {
+    return recommendations.map((item) => item.solutionId).slice(0, 8)
+  }
   return listSolutionsForIndustry(industrySlug || '')
     .slice(0, 8)
     .map((solution) => solution.id)

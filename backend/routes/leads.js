@@ -165,6 +165,7 @@ const convertSchema = Joi.object({
   amount: Joi.number().min(0).default(0),
   accountId: Joi.string().allow(null, ''),
   stage: Joi.string().valid('Prospecting', 'Qualification', 'Proposal', 'Negotiation').allow(''),
+  createAnyway: Joi.boolean(),
 })
 
 router.post('/:id/convert', validateBody(convertSchema), async (req, res) => {
@@ -192,15 +193,30 @@ router.post('/:id/convert', validateBody(convertSchema), async (req, res) => {
     const filter = workspaceFilter(req.user)
     let account = null
     const accountId = toObjectId(req.body.accountId)
+    const forceCreate = Boolean(req.body.createAnyway)
     if (accountId) {
       account = await Account.findOne({ _id: accountId, ...filter })
       if (!account) return res.status(400).json({ success: false, message: 'Account not found.' })
     } else {
-      const company = String(lead.company || '').trim()
-      account = await Account.findOne({
-        ...filter,
-        name: new RegExp(`^${company.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+      const { findAccountDuplicates } = require('../services/duplicateDetect')
+      const duplicates = await findAccountDuplicates(Account, req.user, {
+        name: lead.company,
+        website: lead.website,
+        phone: lead.phone,
+        email: lead.email,
       })
+      if (duplicates.length && !forceCreate) {
+        return res.status(409).json({
+          success: false,
+          message: 'Possible duplicate account detected.',
+          code: 'DUPLICATE_ACCOUNT',
+          data: { duplicates },
+        })
+      }
+      const company = String(lead.company || '').trim()
+      account = duplicates[0]
+        ? await Account.findById(duplicates[0]._id)
+        : null
       if (!account) {
         account = await Account.create({
           name: company.slice(0, 200),
@@ -283,6 +299,24 @@ router.post('/:id/convert', validateBody(convertSchema), async (req, res) => {
     })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message || 'Convert failed.' })
+  }
+})
+
+router.post('/:id/qualify', async (req, res) => {
+  try {
+    const { getIndustry } = require('../services/industryCatalog')
+    const { qualificationResult } = require('../services/duplicateDetect')
+    const existing = await Lead.findOne({ _id: req.params.id, ...workspaceFilter(req.user) })
+    if (!existing) return res.status(404).json({ success: false, message: 'Lead not found.' })
+    const answers = req.body.answers && typeof req.body.answers === 'object' ? req.body.answers : {}
+    const industry = getIndustry(existing.industrySlug)
+    const questions = industry?.qualificationQuestions || []
+    existing.qualificationAnswers = answers
+    existing.qualificationResult = qualificationResult(answers, questions)
+    await existing.save()
+    res.json({ success: true, data: serialize(existing) })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Failed to save qualification.' })
   }
 })
 

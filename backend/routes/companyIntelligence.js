@@ -49,11 +49,16 @@ function serializeIntelligence(account) {
         ? account.researchSummary.inferredData.technologyStack.join(', ')
         : 'Unknown',
       digitalGaps: scored.missingInformation,
-      loopcCouldSell: scored.recommendations.map((item) => item.name),
+      recommendedSolutions: scored.recommendations.map((item) => item.name),
     },
     reasons: scored.reasons,
     strongestOpportunities: scored.strongestOpportunities,
     recommendations: scored.recommendations,
+    opportunityScore: scored.opportunityScore ?? scored.score,
+    confidenceScore: scored.confidenceScore ?? null,
+    solutionFitScore: scored.solutionFitScore ?? null,
+    scoreBreakdown: scored.scoreBreakdown || [],
+    nextBestAction: scored.nextBestAction || null,
   }
 }
 

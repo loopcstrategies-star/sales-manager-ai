@@ -111,7 +111,7 @@ export default function FindContactsPage() {
                 {discovered.map((person, index) => (
                   <li key={`${person.email || person.lastName}-${index}`}>
                     <span>{[person.firstName, person.lastName].filter(Boolean).join(' ') || person.lastName || 'Unknown'}</span>
-                    <span>{person.title || 'Unknown role'} · confidence pending verification</span>
+                    <span>{person.title || 'Unknown role'} · {person.verificationStatus || 'unverified'} · confidence {(person.verificationStatus === 'verified' ? (person.researchConfidence ?? 0) : 'pending verification')}</span>
                   </li>
                 ))}
               </ul>

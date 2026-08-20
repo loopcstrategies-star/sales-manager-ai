@@ -1,5 +1,6 @@
 const industries = require('../../shared/industries.json')
 const solutionCatalog = require('../../shared/solutionCatalog.json')
+const solutionPackages = require('../../shared/solutionPackages.json')
 
 const industryBySlug = new Map(industries.map((industry) => [industry.slug, industry]))
 const industryById = new Map(industries.map((industry) => [industry.id, industry]))
@@ -33,6 +34,15 @@ function listSolutionsForIndustry(industrySlug) {
     .map(clone)
 }
 
+function listPackages() {
+  return solutionPackages.map(clone)
+}
+
+function listPackagesForIndustry(industrySlug) {
+  const slug = String(industrySlug || '').trim()
+  return solutionPackages.filter((pkg) => !slug || pkg.industrySlug === slug).map(clone)
+}
+
 function summarizeIndustry(industrySlug) {
   const industry = getIndustry(industrySlug)
   if (!industry) return null
@@ -51,5 +61,7 @@ module.exports = {
   listSolutions,
   getSolution,
   listSolutionsForIndustry,
+  listPackages,
+  listPackagesForIndustry,
   summarizeIndustry,
 }

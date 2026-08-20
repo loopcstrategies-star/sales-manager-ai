@@ -130,6 +130,28 @@ export default function SalesAnalyticsPage() {
             </div>
 
             <section className="crm-home-panel" style={{ marginTop: '1rem' }}>
+              <h3>Prospecting funnel</h3>
+              <div className="crm-stats-grid">
+                <div className="crm-stat-card">
+                  <span className="crm-stat-label">Researched accounts</span>
+                  <strong className="crm-stat-value">{data.prospecting?.researchedAccounts ?? 0}</strong>
+                </div>
+                <div className="crm-stat-card">
+                  <span className="crm-stat-label">Contacts found</span>
+                  <strong className="crm-stat-value">{data.prospecting?.contactsFound ?? 0}</strong>
+                </div>
+                <div className="crm-stat-card">
+                  <span className="crm-stat-label">Open leads</span>
+                  <strong className="crm-stat-value">{data.prospecting?.leadsOpen ?? 0}</strong>
+                </div>
+                <div className="crm-stat-card">
+                  <span className="crm-stat-label">Open opportunities</span>
+                  <strong className="crm-stat-value">{data.prospecting?.opportunitiesOpen ?? 0}</strong>
+                </div>
+              </div>
+            </section>
+
+            <section className="crm-home-panel" style={{ marginTop: '1rem' }}>
               <h3>Pipeline by Stage</h3>
               <div className="crm-analytics-bars">
                 {stages.length === 0 ? <p className="crm-muted">No opportunities yet.</p> : stages.map((s) => (
@@ -248,6 +270,21 @@ export default function SalesAnalyticsPage() {
                 ) : (
                   <ul className="crm-recent-list">
                     {data.solutionDemand.map((r) => (
+                      <li key={r.label}>
+                        <span>{r.label}</span>
+                        <span>{r.count}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+              <section className="crm-home-panel">
+                <h3>Selected Solutions (conversion)</h3>
+                {(data.selectedSolutionDemand || []).length === 0 ? (
+                  <p className="crm-muted">No accepted solutions on opportunities yet.</p>
+                ) : (
+                  <ul className="crm-recent-list">
+                    {data.selectedSolutionDemand.map((r) => (
                       <li key={r.label}>
                         <span>{r.label}</span>
                         <span>{r.count}</span>

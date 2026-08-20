@@ -305,6 +305,17 @@ router.get('/analytics', async (req, res) => {
       opps.flatMap((opp) => opp.recommendedSolutionIds || []).map((solutionId) => ({ solutionId })),
       (row) => row.solutionId,
     )
+    const selectedSolutionDemand = countByKey(
+      opps.flatMap((opp) => opp.selectedSolutionIds || []).map((solutionId) => ({ solutionId })),
+      (row) => row.solutionId,
+    )
+    const researchedAccounts = await Account.countDocuments({
+      ...filter,
+      $or: [
+        { 'researchSummary.researchedAt': { $ne: null } },
+        { lastEnrichedAt: { $ne: null } },
+      ],
+    })
 
     res.json({
       success: true,
@@ -327,6 +338,13 @@ router.get('/analytics', async (req, res) => {
         },
         stageProbabilities: stageProb,
         forecastByMonth,
+        prospecting: {
+          researchedAccounts,
+          contactsFound: contacts,
+          leadsOpen: openLeads,
+          opportunitiesOpen: openOpps.length,
+        },
+        selectedSolutionDemand,
         contactQuality: {
           total: contacts,
           needsVerify,

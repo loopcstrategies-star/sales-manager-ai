@@ -36,6 +36,18 @@ const opportunitySchema = new mongoose.Schema({
   strongestOpportunities: { type: [String], default: [] },
   missingInformation: { type: [String], default: [] },
   recommendedSolutionIds: { type: [String], default: [] },
+  selectedSolutionIds: { type: [String], default: [] },
+  rejectedSolutionIds: { type: [String], default: [] },
+  packageIds: { type: [String], default: [] },
+  confidenceScore: { type: Number, default: null, min: 0, max: 100 },
+  solutionFitScore: { type: Number, default: null, min: 0, max: 100 },
+  scoreBreakdown: { type: [String], default: [] },
+  qualificationAnswers: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
+  qualificationResult: {
+    type: String,
+    enum: ['', 'Qualified', 'Potential', 'Needs Research', 'Low Priority'],
+    default: '',
+  },
   products: { type: [opportunityLineSchema], default: [] },
 }, { timestamps: true })
 

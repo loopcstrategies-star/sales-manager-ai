@@ -48,6 +48,12 @@ const leadSchema = new mongoose.Schema({
     confidence: { type: Number, default: 0, min: 0, max: 100 },
     researchedAt: { type: Date, default: null },
   },
+  qualificationAnswers: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
+  qualificationResult: {
+    type: String,
+    enum: ['', 'Qualified', 'Potential', 'Needs Research', 'Low Priority'],
+    default: '',
+  },
   convertedAt: { type: Date, default: null },
   convertedAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Account', default: null },
   convertedContactId: { type: mongoose.Schema.Types.ObjectId, ref: 'Contact', default: null },

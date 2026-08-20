@@ -189,12 +189,36 @@ router.patch('/:id', validateBody(bodySchema), async (req, res) => {
         : Number(req.body.probability)
     }
 
+    const previousStage = existing.stage
     Object.assign(existing, patch)
     attachIndustryMetadata(existing, req.body)
     if (existing.industrySlug && (!Array.isArray(existing.recommendedSolutionIds) || !existing.recommendedSolutionIds.length)) {
       existing.recommendedSolutionIds = industryRecommendedSolutions(existing.industrySlug)
     }
+    const stageChanged = patch.stage && patch.stage !== previousStage
+    if (stageChanged) {
+      const { nextBestActionForStage } = require('../services/industryScoring')
+      const action = nextBestActionForStage(existing.stage)
+      if (!existing.nextStep || existing.nextStep === nextBestActionForStage(previousStage).action) {
+        existing.nextStep = action.action
+      }
+    }
     await existing.save()
+    if (stageChanged) {
+      const Task = require('../models/Task')
+      const { nextBestActionForStage } = require('../services/industryScoring')
+      const action = nextBestActionForStage(existing.stage)
+      await Task.create({
+        workspaceId: req.user.workspaceId,
+        ownerId: req.user._id,
+        subject: action.action,
+        status: 'Not Started',
+        priority: 'Normal',
+        relatedType: 'Opportunity',
+        relatedId: existing._id,
+        description: `Suggested after stage change to ${existing.stage}.`,
+      }).catch(() => null)
+    }
     await existing.populate('ownerId', 'name')
     await existing.populate('accountId', 'name')
     await existing.populate('contactId', 'firstName lastName')
@@ -211,6 +235,87 @@ router.delete('/:id', async (req, res) => {
     res.json({ success: true, data: { id: deleted._id } })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message || 'Failed to delete opportunity.' })
+  }
+})
+
+router.post('/:id/recommendations/accept', async (req, res) => {
+  try {
+    const solutionId = String(req.body.solutionId || '').trim()
+    if (!solutionId) return res.status(400).json({ success: false, message: 'solutionId is required.' })
+    const existing = await Opportunity.findOne({ _id: req.params.id, ...workspaceFilter(req.user) })
+    if (!existing) return res.status(404).json({ success: false, message: 'Opportunity not found.' })
+    existing.selectedSolutionIds = Array.from(new Set([...(existing.selectedSolutionIds || []), solutionId]))
+    existing.rejectedSolutionIds = (existing.rejectedSolutionIds || []).filter((id) => id !== solutionId)
+    if (!existing.products.some((line) => line.solutionId === solutionId)) {
+      existing.products.push({
+        productId: null,
+        productName: solutionId,
+        solutionId,
+        quantity: 1,
+        unitPrice: 0,
+      })
+    }
+    await existing.save()
+    res.json({ success: true, data: serialize(existing) })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Failed to accept recommendation.' })
+  }
+})
+
+router.post('/:id/recommendations/reject', async (req, res) => {
+  try {
+    const solutionId = String(req.body.solutionId || '').trim()
+    if (!solutionId) return res.status(400).json({ success: false, message: 'solutionId is required.' })
+    const existing = await Opportunity.findOne({ _id: req.params.id, ...workspaceFilter(req.user) })
+    if (!existing) return res.status(404).json({ success: false, message: 'Opportunity not found.' })
+    existing.rejectedSolutionIds = Array.from(new Set([...(existing.rejectedSolutionIds || []), solutionId]))
+    existing.selectedSolutionIds = (existing.selectedSolutionIds || []).filter((id) => id !== solutionId)
+    await existing.save()
+    res.json({ success: true, data: serialize(existing) })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Failed to reject recommendation.' })
+  }
+})
+
+router.post('/:id/qualify', async (req, res) => {
+  try {
+    const { getIndustry } = require('../services/industryCatalog')
+    const { qualificationResult } = require('../services/duplicateDetect')
+    const { nextBestActionForStage } = require('../services/industryScoring')
+    const existing = await Opportunity.findOne({ _id: req.params.id, ...workspaceFilter(req.user) })
+    if (!existing) return res.status(404).json({ success: false, message: 'Opportunity not found.' })
+    const answers = req.body.answers && typeof req.body.answers === 'object' ? req.body.answers : {}
+    const industry = getIndustry(existing.industrySlug)
+    const questions = industry?.qualificationQuestions || []
+    existing.qualificationAnswers = answers
+    existing.qualificationResult = qualificationResult(answers, questions)
+    if (!existing.nextStep) {
+      existing.nextStep = nextBestActionForStage(existing.stage).action
+    }
+    await existing.save()
+    res.json({ success: true, data: serialize(existing) })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Failed to save qualification.' })
+  }
+})
+
+router.get('/:id/next-action', async (req, res) => {
+  try {
+    const { nextBestActionForStage } = require('../services/industryScoring')
+    const existing = await Opportunity.findOne({ _id: req.params.id, ...workspaceFilter(req.user) }).lean()
+    if (!existing) return res.status(404).json({ success: false, message: 'Opportunity not found.' })
+    const action = nextBestActionForStage(existing.stage)
+    const Task = require('../models/Task')
+    const suggestedTask = {
+      subject: action.action,
+      status: 'Not Started',
+      priority: 'Normal',
+      relatedType: 'Opportunity',
+      relatedId: existing._id,
+    }
+    res.json({ success: true, data: { nextBestAction: action, suggestedTask } })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Failed to get next action.' })
   }
 })
 

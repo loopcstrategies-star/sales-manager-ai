@@ -1,12 +1,36 @@
 const { getIndustry, listSolutionsForIndustry } = require('./industryCatalog')
 const { normalizeIndustryFields } = require('./industryRecord')
 
+const GAP_SOLUTION_MAP = {
+  websiteStatus: ['corporate-website', 'business-website'],
+  ecommerce: ['ecommerce-website', 'catalog-website'],
+  mobileApp: ['android-ios-app', 'customer-app', 'employee-app'],
+  crm: ['crm'],
+  erp: ['erp'],
+  pos: ['pos'],
+  inventory: ['inventory'],
+  automation: ['ai-automation', 'whatsapp-marketing'],
+  ai: ['ai-automation', 'ai-chatbot'],
+  digitalMarketing: ['social-media', 'seo', 'google-ads'],
+  customerPortal: ['customer-app'],
+  projectManagement: ['project-management'],
+  parentPortal: ['customer-app'],
+  lms: ['customer-app'],
+  appointmentSystem: ['booking-system'],
+  patientPortal: ['customer-app'],
+  onlineOrdering: ['ecommerce-website', 'online-ordering'],
+  tracking: ['tracking'],
+  guestPortal: ['booking-system', 'customer-portal'],
+  bookingSystem: ['booking-system'],
+  documentProcessing: ['document-processing', 'ai-automation'],
+}
+
 function normalizeStatus(value) {
   const raw = String(value || '').trim().toLowerCase()
   if (!raw) return 'Unknown'
   if (['verified', 'yes', 'present', 'available', 'active', 'live'].includes(raw)) return 'Verified'
   if (['likely', 'maybe', 'partial'].includes(raw)) return 'Likely'
-  if (['unknown', 'n/a', 'na'].includes(raw)) return 'Unknown'
+  if (['unknown', 'n/a', 'na', 'no', 'absent', 'missing'].includes(raw)) return 'Unknown'
   return value
 }
 
@@ -67,58 +91,178 @@ function opportunityGrade(score) {
   return 'E'
 }
 
+function evidenceStatus(facts, field) {
+  const value = facts[field]
+  if (value === 'Verified') return 'VERIFIED'
+  if (value === 'Likely') return 'INFERRED'
+  return 'UNKNOWN'
+}
+
+function buildRecommendations(industrySlug, facts, industry) {
+  const catalog = listSolutionsForIndustry(industrySlug || '')
+  const byId = new Map(catalog.map((item) => [item.id, item]))
+  const scored = new Map()
+
+  Object.entries(GAP_SOLUTION_MAP).forEach(([gapField, solutionIds]) => {
+    const status = facts[gapField]
+    // Only recommend when capability is unknown (possible gap). Do not treat "Likely present" as a sell gap.
+    if (status !== 'Unknown') return
+    const gapLabel = gapField.replace(/([A-Z])/g, ' $1').toLowerCase()
+    solutionIds.forEach((solutionId) => {
+      const solution = byId.get(solutionId)
+      if (!solution) return
+      const existing = scored.get(solutionId) || {
+        solutionId: solution.id,
+        name: solution.name,
+        category: solution.category,
+        fitScore: 50,
+        confidence: 55,
+        priority: 'Medium',
+        reason: '',
+        evidence: [],
+        detectedGap: gapLabel,
+        source: 'research-inference',
+        verificationStatus: 'UNKNOWN',
+      }
+      existing.fitScore = Math.min(98, existing.fitScore + 22)
+      existing.confidence = Math.min(92, existing.confidence + 12)
+      existing.evidence.push({
+        field: gapField,
+        value: 'Unknown',
+        verificationStatus: 'UNKNOWN',
+      })
+      existing.reason = `No verified ${gapLabel} found in available research; solution may address this gap.`
+      existing.priority = existing.fitScore >= 80 ? 'High' : existing.fitScore >= 65 ? 'Medium' : 'Low'
+      scored.set(solutionId, existing)
+    })
+  })
+
+  if (!scored.size) {
+    return catalog.slice(0, 4).map((solution, index) => ({
+      solutionId: solution.id,
+      name: solution.name,
+      category: solution.category,
+      fitScore: 55 - index * 3,
+      confidence: 45,
+      priority: 'Medium',
+      reason: `Relevant default for ${industry?.name || 'this'} industry; limited gap evidence available.`,
+      evidence: [],
+      detectedGap: 'insufficient research',
+      source: 'industry-default',
+      verificationStatus: 'UNKNOWN',
+    }))
+  }
+
+  return Array.from(scored.values())
+    .sort((a, b) => b.fitScore - a.fitScore)
+    .slice(0, 6)
+}
+
+function nextBestActionForStage(stage, facts = {}) {
+  const s = String(stage || 'Prospecting')
+  if (!facts.websiteStatus || facts.websiteStatus === 'Unknown') {
+    return { action: 'Research company website and digital presence', stage: s }
+  }
+  if (s === 'Prospecting') return { action: 'Find decision maker and create introduction task', stage: s }
+  if (s === 'Qualification') return { action: 'Complete qualification questions and update score', stage: s }
+  if (s === 'Proposal') return { action: 'Send proposal and schedule follow-up', stage: s }
+  if (s === 'Negotiation') return { action: 'Clarify objections and update commercial terms', stage: s }
+  return { action: 'Review CRM notes and set next step due date', stage: s }
+}
+
 function scoreCompanyOpportunity(record = {}) {
   const normalized = normalizeIndustryFields(record)
   const industry = getIndustry(normalized.industrySlug || normalized.industryId || normalized.industry)
   const facts = inferCompanyFacts(record)
   const reasons = []
+  const scoreBreakdown = []
   const strongestOpportunities = []
-  let score = 20
+  let opportunityScore = 20
+  let confidencePoints = 20
+  let knownFacts = 0
+  let totalFacts = 0
 
-  if (record.website) score += 5
-  if (record.phone) score += 3
-  if (normalized.industrySlug) score += 5
-  if (normalized.businessType) score += 4
+  if (record.website) {
+    opportunityScore += 5
+    scoreBreakdown.push({ label: '+5 website present', delta: 5 })
+  }
+  if (record.phone) {
+    opportunityScore += 3
+    scoreBreakdown.push({ label: '+3 phone present', delta: 3 })
+  }
+  if (normalized.industrySlug) {
+    opportunityScore += 5
+    scoreBreakdown.push({ label: '+5 industry tagged', delta: 5 })
+  }
+  if (normalized.businessType) {
+    opportunityScore += 4
+    scoreBreakdown.push({ label: '+4 business type tagged', delta: 4 })
+  }
 
   const scoringRules = industry?.scoringRules || []
   scoringRules.forEach((rule) => {
     if (evaluateRule(rule, facts)) {
-      score += Number(rule.weight) || 0
+      const weight = Number(rule.weight) || 0
+      opportunityScore += weight
       reasons.push(rule.label)
       strongestOpportunities.push(rule.label)
+      scoreBreakdown.push({ label: `+${weight} ${rule.label}`, delta: weight })
     }
   })
 
-  if (facts.websiteStatus === 'Unknown') reasons.push('Missing website')
+  Object.entries(facts).forEach(([, value]) => {
+    totalFacts += 1
+    if (value === 'Verified') {
+      knownFacts += 1
+      confidencePoints += 4
+    } else if (value === 'Likely') {
+      knownFacts += 0.5
+      confidencePoints += 2
+    }
+  })
+
+  if (facts.websiteStatus === 'Unknown') {
+    reasons.push('Missing website')
+    scoreBreakdown.push({ label: 'Missing website (gap)', delta: 0 })
+  }
   if (facts.ecommerce === 'Unknown') reasons.push('Unknown e-commerce status')
   if (facts.mobileApp === 'Unknown') reasons.push('Unknown mobile app status')
+
+  const researchConfidence = Number(record.researchSummary?.confidence) || 0
+  confidencePoints += Math.round(researchConfidence * 0.25)
 
   const missingInformation = Object.entries(facts)
     .filter(([, value]) => value === 'Unknown')
     .map(([key]) => key)
     .slice(0, 8)
 
-  score = Math.max(0, Math.min(100, Math.round(score)))
-  const recommendations = listSolutionsForIndustry(normalized.industrySlug || '')
-    .slice(0, 4)
-    .map((solution) => ({
-      solutionId: solution.id,
-      name: solution.name,
-      confidence: solution.targetIndustries.includes(normalized.industrySlug || '') ? 'High' : 'Medium',
-      priority: strongestOpportunities.length ? 'High' : 'Medium',
-      reason: strongestOpportunities[0] || `Relevant for ${industry?.name || 'this'} companies`,
-      category: solution.category,
-    }))
+  if (missingInformation.length >= 6) {
+    opportunityScore -= 5
+    scoreBreakdown.push({ label: '-5 insufficient company data', delta: -5 })
+  }
+
+  opportunityScore = Math.max(0, Math.min(100, Math.round(opportunityScore)))
+  const confidenceScore = Math.max(0, Math.min(100, Math.round(confidencePoints)))
+  const recommendations = buildRecommendations(normalized.industrySlug || '', facts, industry)
+  const solutionFitScore = recommendations.length
+    ? Math.round(recommendations.reduce((sum, item) => sum + Number(item.fitScore || 0), 0) / recommendations.length)
+    : 0
 
   return {
     industry: industry || null,
     facts,
-    score,
-    grade: opportunityGrade(score),
+    score: opportunityScore,
+    opportunityScore,
+    confidenceScore,
+    solutionFitScore,
+    grade: opportunityGrade(opportunityScore),
     reasons: Array.from(new Set(reasons)).slice(0, 8),
+    scoreBreakdown: scoreBreakdown.slice(0, 12),
     strongestOpportunities: Array.from(new Set(strongestOpportunities)).slice(0, 6),
     missingInformation,
     recommendations,
+    nextBestAction: nextBestActionForStage(record.stage, facts),
+    evidenceCoverage: totalFacts ? Math.round((knownFacts / totalFacts) * 100) : 0,
   }
 }
 
@@ -126,4 +270,6 @@ module.exports = {
   scoreCompanyOpportunity,
   inferCompanyFacts,
   opportunityGrade,
+  buildRecommendations,
+  nextBestActionForStage,
 }

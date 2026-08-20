@@ -41,7 +41,11 @@ async function api(path, options = {}) {
     const res = await fetch(`${API_BASE}${path}`, { ...fetchOpts, headers, signal })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
-      throw new Error(data.message || `Request failed (${res.status})`)
+      const err = new Error(data.message || `Request failed (${res.status})`)
+      err.code = data.code || ''
+      err.data = data.data
+      err.status = res.status
+      throw err
     }
     return data
   } catch (err) {
@@ -157,6 +161,48 @@ export const industriesApi = {
   scoring: (slug) => api(`/api/industries/${encodeURIComponent(slug)}/scoring`),
 }
 
+export const solutionsApi = {
+  list: (params = {}) => {
+    const q = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') q.set(key, value)
+    })
+    const suffix = q.toString() ? `?${q}` : ''
+    return api(`/api/solutions${suffix}`)
+  },
+  create: (body) => api('/api/solutions', { method: 'POST', body: JSON.stringify(body) }),
+  update: (id, body) => api(`/api/solutions/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  duplicate: (id) => api(`/api/solutions/${id}/duplicate`, { method: 'POST', body: '{}' }),
+  archive: (id) => api(`/api/solutions/${id}`, { method: 'DELETE' }),
+}
+
+export const packagesApi = {
+  list: (params = {}) => {
+    const q = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') q.set(key, value)
+    })
+    const suffix = q.toString() ? `?${q}` : ''
+    return api(`/api/packages${suffix}`)
+  },
+  create: (body) => api('/api/packages', { method: 'POST', body: JSON.stringify(body) }),
+  update: (id, body) => api(`/api/packages/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  archive: (id) => api(`/api/packages/${id}`, { method: 'DELETE' }),
+}
+
+export const proposalsApi = {
+  list: (params = {}) => {
+    const q = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') q.set(key, value)
+    })
+    const suffix = q.toString() ? `?${q}` : ''
+    return api(`/api/proposals${suffix}`)
+  },
+  create: (body) => api('/api/proposals', { method: 'POST', body: JSON.stringify(body) }),
+  update: (id, body) => api(`/api/proposals/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+}
+
 export const dashboardApi = {
   get: (region = '') => api(`/api/dashboard${region ? `?region=${encodeURIComponent(region)}` : ''}`),
   refresh: (region = '') => api('/api/dashboard/refresh', {
@@ -229,6 +275,19 @@ export const opportunitiesApi = {
   create: (body) => api('/api/opportunities', { method: 'POST', body: JSON.stringify(body) }),
   update: (id, body) => api(`/api/opportunities/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   remove: (id) => api(`/api/opportunities/${id}`, { method: 'DELETE' }),
+  acceptRecommendation: (id, solutionId) => api(`/api/opportunities/${id}/recommendations/accept`, {
+    method: 'POST',
+    body: JSON.stringify({ solutionId }),
+  }),
+  rejectRecommendation: (id, solutionId) => api(`/api/opportunities/${id}/recommendations/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ solutionId }),
+  }),
+  qualify: (id, answers) => api(`/api/opportunities/${id}/qualify`, {
+    method: 'POST',
+    body: JSON.stringify({ answers }),
+  }),
+  nextAction: (id) => api(`/api/opportunities/${id}/next-action`),
 }
 
 export const leadsApi = {
@@ -247,6 +306,10 @@ export const leadsApi = {
   convert: (id, body = {}) => api(`/api/leads/${id}/convert`, {
     method: 'POST',
     body: JSON.stringify(body),
+  }),
+  qualify: (id, answers) => api(`/api/leads/${id}/qualify`, {
+    method: 'POST',
+    body: JSON.stringify({ answers }),
   }),
 }
 
