@@ -103,7 +103,7 @@ export default function DashboardPage() {
       sidebarOpen={sidebarOpen}
       onToggleSidebar={() => setSidebarOpen((v) => !v)}
     >
-      <div className="dashboard-page">
+      <div className="dashboard-page ui-enter">
         <DashboardHeader
           data={data}
           refreshing={refreshing}

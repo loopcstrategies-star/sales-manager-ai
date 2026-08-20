@@ -258,7 +258,7 @@ export default function CrmHomePage() {
   const anyBusy = bulkBusy || cleanupBusy || findBusy || backfillBusy || geoBusy || fillBusy || digestBusy || staleBusy
 
   return (
-    <div className="crm-home">
+    <div className="crm-home ui-enter">
       <header className="crm-home-header">
         <h2>Home</h2>
         <p>Worldwide CRM snapshot with configurable industry workspaces for prospecting, scoring, and playbooks.</p>
@@ -288,39 +288,39 @@ export default function CrmHomePage() {
           )}
 
           <div className="crm-stat-grid">
-            <div className="crm-stat-card">
+            <div className="crm-stat-card ui-lift ui-enter ui-enter-delay-1">
               <span className="crm-stat-label">Open Leads</span>
               <strong className="crm-stat-value">{counts.openLeads ?? 0}</strong>
             </div>
-            <div className="crm-stat-card">
+            <div className="crm-stat-card ui-lift">
               <span className="crm-stat-label">Contacts</span>
               <strong className="crm-stat-value">{counts.contacts ?? 0}</strong>
             </div>
-            <div className="crm-stat-card">
+            <div className="crm-stat-card ui-lift">
               <span className="crm-stat-label">Accounts</span>
               <strong className="crm-stat-value">{counts.accounts ?? 0}</strong>
             </div>
-            <div className="crm-stat-card">
+            <div className="crm-stat-card ui-lift">
               <span className="crm-stat-label">Open Deals</span>
               <strong className="crm-stat-value">{counts.openDeals ?? 0}</strong>
             </div>
-            <div className="crm-stat-card">
+            <div className="crm-stat-card ui-lift">
               <span className="crm-stat-label">Open Cases</span>
               <strong className="crm-stat-value">{counts.openCases ?? 0}</strong>
             </div>
-            <div className="crm-stat-card">
+            <div className="crm-stat-card ui-lift">
               <span className="crm-stat-label">Needs verify</span>
               <strong className="crm-stat-value">{counts.needsVerify ?? 0}</strong>
             </div>
-            <div className="crm-stat-card">
+            <div className="crm-stat-card ui-lift">
               <span className="crm-stat-label">Missing email</span>
               <strong className="crm-stat-value">{counts.missingEmail ?? 0}</strong>
             </div>
-            <div className="crm-stat-card">
+            <div className="crm-stat-card ui-lift">
               <span className="crm-stat-label">Thin Accounts</span>
               <strong className="crm-stat-value">{counts.thinAccounts ?? 0}</strong>
             </div>
-            <div className="crm-stat-card">
+            <div className="crm-stat-card ui-lift">
               <span className="crm-stat-label">Avg contacts / Account</span>
               <strong className="crm-stat-value">{counts.avgContactsPerAccount ?? 0}</strong>
             </div>
